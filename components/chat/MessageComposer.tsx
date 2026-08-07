@@ -10,6 +10,7 @@ type Props = {
 export function MessageComposer({ conversationId }: Props) {
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -17,21 +18,43 @@ export function MessageComposer({ conversationId }: Props) {
     if (!message.trim() || sending) return;
 
     setSending(true);
+    setError(null);
 
-    await sendMessage(conversationId, message);
+    try {
+      await sendMessage(conversationId, message);
+      setMessage("");
+    } catch (err) {
+      console.error(err);
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setSending(false);
+    }
+  }
 
-    setMessage("");
-    setSending(false);
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      e.currentTarget.form?.requestSubmit();
+    }
   }
 
   return (
     <form onSubmit={handleSubmit} className="border-t pt-4">
-      <div className="flex gap-3">
-        <input
+      {error && (
+        <p className="mb-2 text-sm text-destructive">
+          {error}
+        </p>
+      )}
+
+      <div className="flex items-end gap-3">
+        <textarea
           value={message}
           onChange={(e) => setMessage(e.target.value)}
+          onKeyDown={handleKeyDown}
           placeholder="Type a message..."
-          className="flex-1 rounded-md border bg-background px-4 py-2 outline-none focus:ring-2 focus:ring-ring"
+          rows={1}
+          disabled={sending}
+          className="min-h-10 flex-1 resize-none rounded-md border bg-background px-4 py-2 outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
         />
 
         <button

@@ -1,3 +1,4 @@
+import { askOpenAI } from "./openai";
 import type { LLMRequest, LLMResponse } from "./types";
 
 export async function askLLM(
@@ -5,12 +6,22 @@ export async function askLLM(
 ): Promise<LLMResponse> {
   switch (request.provider) {
     case "openai":
-      throw new Error("OpenAI provider not implemented");
+      return askOpenAI(request);
 
     case "anthropic":
-      throw new Error("Anthropic provider not implemented");
+      return {
+        provider: "anthropic",
+        model: "",
+        text: "Claude integration is not implemented yet.",
+        latencyMs: 0,
+      };
 
     case "google":
-      throw new Error("Google provider not implemented");
+      return {
+        provider: "google",
+        model: "",
+        text: "Gemini integration is not implemented yet.",
+        latencyMs: 0,
+      };
   }
 }

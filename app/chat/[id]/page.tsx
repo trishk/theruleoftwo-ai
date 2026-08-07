@@ -34,7 +34,12 @@ export default async function ChatPage({ params }: Props) {
   const messages = conversation.messages.map((message) => ({
     id: message.id,
     authorType: message.authorType === "ai" ? ("ai" as const) : ("human" as const),
-    authorName: message.authorId,
+    authorName:
+  message.authorId === "hefe"
+    ? "You"
+    : message.authorId === "openai"
+      ? "ChatGPT"
+      : message.authorId,
     content: message.content,
     createdAt: message.createdAt,
   }));
