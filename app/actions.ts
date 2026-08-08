@@ -26,6 +26,12 @@ export async function sendMessage(
 
   if (!trimmedContent) return;
 
+if (trimmedContent.length > 4000) {
+  throw new Error("Message is too long.");
+}
+
+  if (!trimmedContent) return;
+
   // Save human message
   await prisma.message.create({
     data: {
@@ -37,18 +43,21 @@ export async function sendMessage(
   });
 
   // Detect mentioned AI providers
-  const providers = extractMentions(trimmedContent);
+  const providers = extractMentions(trimmedContent).slice(0, 1);
 
   if (providers.length > 0) {
     // Load conversation history once
     const history = await prisma.message.findMany({
-      where: {
-        conversationId,
-      },
-      orderBy: {
-        createdAt: "asc",
-      },
-    });
+  where: {
+    conversationId,
+  },
+  orderBy: {
+    createdAt: "desc",
+  },
+  take: 50,
+});
+
+history.reverse();
 
     // Ask every mentioned provider
     for (const provider of providers) {

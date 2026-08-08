@@ -41,3 +41,18 @@ yarn-error.log*
 next-env.d.ts
 
 /lib/generated/prisma
+
+# Local databases
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.sqlite-shm
+*.sqlite-wal
+
+# IDE / OS
+.vscode/
+.idea/
+Thumbs.db
