@@ -1,15 +1,12 @@
 import type { Provider } from "./types";
-
-const MENTION_MAP: Record<string, Provider> = {
-  "@chatgpt": "openai",
-  "@claude": "anthropic",
-  "@gemini": "google",
-};
+import { PROVIDER_LIST } from "./providerMeta";
 
 export function extractMentions(content: string): Provider[] {
   const normalized = content.toLowerCase();
 
-  return Object.entries(MENTION_MAP)
-    .filter(([mention]) => normalized.includes(mention))
-    .map(([, provider]) => provider);
+  return PROVIDER_LIST
+    .filter((provider) =>
+      normalized.includes(provider.mention.toLowerCase())
+    )
+    .map((provider) => provider.id);
 }

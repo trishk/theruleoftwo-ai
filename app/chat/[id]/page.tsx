@@ -3,6 +3,9 @@ import { prisma } from "@/lib/db/prisma";
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { MessageList } from "@/components/chat/MessageList";
 import { MessageComposer } from "@/components/chat/MessageComposer";
+import { ChatShell } from "@/components/chat/ChatShell";
+import { ChatList } from "@/components/chat/ChatList";
+import { ChatSidebar } from "@/components/chat/ChatSidebar";
 
 type Props = {
   params: Promise<{
@@ -31,6 +34,12 @@ export default async function ChatPage({ params }: Props) {
     notFound();
   }
 
+  const chats = await prisma.conversation.findMany({
+  orderBy: {
+    updatedAt: "desc",
+  },
+});
+
   const messages = conversation.messages.map((message) => ({
     id: message.id,
     authorType: message.authorType === "ai" ? ("ai" as const) : ("human" as const),
@@ -45,14 +54,16 @@ export default async function ChatPage({ params }: Props) {
   }));
 
   return (
-    <main className="min-h-screen bg-background">
-      <div className="mx-auto flex min-h-screen max-w-4xl flex-col px-6 py-6">
-        <ChatHeader />
+  <ChatShell  sidebar={<ChatSidebar  chats={chats} />}>
+    <div className="flex min-h-dvh flex-col px-4 py-4 sm:px-6 sm:py-6">
+      <ChatHeader title={conversation.title}/>
 
+      <div className="flex min-h-0 flex-1 flex-col">
         <MessageList messages={messages} />
 
         <MessageComposer conversationId={conversation.id} />
       </div>
-    </main>
-  );
+    </div>
+  </ChatShell>
+);
 }
