@@ -5,7 +5,7 @@ export const PROVIDERS = {
   },
   anthropic: {
     displayName: "Claude",
-    defaultModel: "",
+    defaultModel: "claude-haiku-4-5",
   },
   google: {
     displayName: "Gemini",

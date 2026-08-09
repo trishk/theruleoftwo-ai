@@ -1,4 +1,5 @@
 import { askOpenAI } from "./openai";
+import { askAnthropic } from "./anthropic";
 import type { LLMRequest, LLMResponse } from "./types";
 
 export async function askLLM(
@@ -9,12 +10,7 @@ export async function askLLM(
       return askOpenAI(request);
 
     case "anthropic":
-      return {
-        provider: "anthropic",
-        model: "",
-        text: "Claude integration is not implemented yet.",
-        latencyMs: 0,
-      };
+      return askAnthropic(request);
 
     case "google":
       return {
