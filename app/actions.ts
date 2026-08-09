@@ -1,65 +1,79 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { prisma } from "@/lib/db/prisma";
 import { revalidatePath } from "next/cache";
+import { prisma } from "@/lib/db/prisma";
 import { askLLM } from "@/lib/llm/registry";
 import { extractMentions } from "@/lib/llm/mentions";
 import { stripMention } from "@/lib/llm/prompt";
+import { requireUser } from "@/lib/auth/require-user";
+import { createClient } from "@/lib/supabase/server";
 
 export async function createChat() {
+  const user = await requireUser();
+
   const conversation = await prisma.conversation.create({
     data: {
       title: "New Chat",
+      ownerId: user.id,
     },
   });
 
   redirect(`/chat/${conversation.id}`);
 }
 
-
 export async function sendMessage(
   conversationId: number,
   content: string
 ) {
+  const user = await requireUser();
+
   const trimmedContent = content.trim();
 
   if (!trimmedContent) return;
 
-if (trimmedContent.length > 4000) {
-  throw new Error("Message is too long.");
-}
+  if (trimmedContent.length > 4000) {
+    throw new Error("Message is too long.");
+  }
 
-  if (!trimmedContent) return;
+  const conversation = await prisma.conversation.findFirst({
+    where: {
+      id: conversationId,
+      ownerId: user.id,
+    },
+    select: {
+      id: true,
+    },
+  });
 
-  // Save human message
+  if (!conversation) {
+    throw new Error("Conversation not found.");
+  }
+
   await prisma.message.create({
     data: {
       conversationId,
       authorType: "human",
-      authorId: "hefe",
+      authorId: user.id,
       content: trimmedContent,
     },
   });
 
-  // Detect mentioned AI providers
   const providers = extractMentions(trimmedContent).slice(0, 1);
 
   if (providers.length > 0) {
-    // Load conversation history once
     const history = await prisma.message.findMany({
-  where: {
-    conversationId,
-  },
-  orderBy: {
-    createdAt: "desc",
-  },
-  take: 50,
-});
+      where: {
+        conversationId,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 50,
+    });
 
-history.reverse();
+    history.reverse();
 
-    // Ask every mentioned provider
     for (const provider of providers) {
       const messages = history.map((message) => ({
         role:
@@ -89,7 +103,6 @@ history.reverse();
     }
   }
 
-  // Move active conversation to top of chat list
   await prisma.conversation.update({
     where: {
       id: conversationId,
@@ -101,4 +114,12 @@ history.reverse();
 
   revalidatePath(`/chat/${conversationId}`);
   revalidatePath("/");
+}
+
+export async function signOut() {
+  const supabase = await createClient();
+
+  await supabase.auth.signOut();
+
+  redirect("/login");
 }

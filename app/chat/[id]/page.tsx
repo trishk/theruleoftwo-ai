@@ -6,6 +6,7 @@ import { MessageComposer } from "@/components/chat/MessageComposer";
 import { ChatShell } from "@/components/chat/ChatShell";
 import { ChatList } from "@/components/chat/ChatList";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
+import { requireUser } from "@/lib/auth/require-user";
 
 type Props = {
   params: Promise<{
@@ -14,13 +15,15 @@ type Props = {
 };
 
 export default async function ChatPage({ params }: Props) {
+  const user = await requireUser();
   const { id } = await params;
   const conversationId = Number(id);
 
-  const conversation = await prisma.conversation.findUnique({
-    where: {
-      id: conversationId,
-    },
+  const conversation = await prisma.conversation.findFirst({
+  where: {
+    id: conversationId,
+    ownerId: user.id,
+  },
     include: {
       messages: {
         orderBy: {
@@ -35,6 +38,9 @@ export default async function ChatPage({ params }: Props) {
   }
 
   const chats = await prisma.conversation.findMany({
+  where: {
+    ownerId: user.id,
+  },
   orderBy: {
     updatedAt: "desc",
   },
@@ -44,7 +50,7 @@ export default async function ChatPage({ params }: Props) {
     id: message.id,
     authorType: message.authorType === "ai" ? ("ai" as const) : ("human" as const),
     authorName:
-  message.authorId === "hefe"
+  message.authorId === user.id
     ? "You"
     : message.authorId === "openai"
       ? "ChatGPT"

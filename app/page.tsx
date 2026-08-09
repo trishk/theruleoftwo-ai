@@ -3,9 +3,15 @@ import { ChatList } from "@/components/chat/ChatList";
 import { prisma } from "@/lib/db/prisma";
 import { ChatShell } from "@/components/chat/ChatShell";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
+import { requireUser } from "@/lib/auth/require-user";
 
 export default async function Home() {
+   const user = await requireUser();
+
   const chats = await prisma.conversation.findMany({
+    where: {
+      ownerId: user.id,
+    },
     orderBy: {
       updatedAt: "desc",
     },
