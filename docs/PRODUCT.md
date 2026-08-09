@@ -22,35 +22,55 @@ TheRuleOfTwo extends that idea by allowing AI experts to participate naturally i
 
 # MVP
 
+## Personal MVP
+
 One user.
 
-Create chat.
+Create and manage chats.
 
-Send message.
+Send messages.
 
-Mention AI.
+Mention AI participants.
 
-Receive AI response.
+Receive AI responses.
 
 Conversation persists.
+
+Multiple AI providers.
+
+---
+
+## Collaborative MVP
+
+Google authentication.
+
+Invite another person to a chat.
+
+Shared conversation.
+
+Owner and member roles.
+
+Multiple AI participants.
+
+Bring Your Own API Keys.
+
+Conversation-aware AI responses.
+
+Transparent AI usage costs.
 
 ---
 
 # Future
-
-Two people.
-
-Multiple AI participants.
-
-Shared conversations.
-
-Bring Your Own API Keys.
 
 Memory.
 
 Voice.
 
 Mobile.
+
+Additional authentication providers.
+
+Advanced usage analytics.
 
 ---
 
