@@ -1,7 +1,7 @@
-import { createChat } from "@/app/actions";
+import { createChat, signOut } from "@/app/actions";
 import { ChatList } from "./ChatList";
 import { ThemeToggle } from "./ThemeToggle";
-import Image from "next/image";
+import { LogOut, Plus } from "lucide-react";
 
 type Props = {
   chats: {
@@ -14,30 +14,14 @@ export function ChatSidebar({ chats }: Props) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1">
-        <div className="mb-5 px-2">
-         <div className="mb-6 px-3 pt-2">
-  <Image
-    src="/logo-sidebar2.png"
-    alt="The Rule of Two"
-    width={260}
-    height={90}
-    priority
-    className="h-auto w-full object-contain object-left"
-  />
-</div>
-        </div>
-
         <form action={createChat} className="mb-6">
           <button
-  type="submit"
-  className="group flex w-full items-center gap-2 rounded-lg border border-border bg-background px-3 py-2.5 text-left text-sm font-medium text-foreground transition-all hover:bg-muted hover:shadow-sm active:scale-[0.99]"
->
-  <span className="flex h-6 w-6 items-center justify-center rounded-md bg-foreground text-sm text-background transition-transform group-hover:scale-105">
-    +
-  </span>
-
-  <span>New chat</span>
-</button>
+            type="submit"
+            className="group flex w-full items-center gap-2 rounded-lg border border-border bg-background px-3 py-2.5 text-left text-sm font-medium text-foreground transition-all hover:bg-muted hover:shadow-sm active:scale-[0.99]"
+          >
+            <Plus className="h-4 w-4" />
+            New chat
+          </button>
         </form>
 
         <div className="mb-2 px-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
@@ -48,7 +32,20 @@ export function ChatSidebar({ chats }: Props) {
       </div>
 
       <div className="border-t border-border pt-3">
-         <ThemeToggle />
+        <div className="flex items-center justify-between">
+          <ThemeToggle />
+
+          <form action={signOut}>
+            <button
+              type="submit"
+              aria-label="Sign out"
+              title="Sign out"
+              className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );
