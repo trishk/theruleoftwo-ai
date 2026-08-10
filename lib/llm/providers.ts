@@ -9,6 +9,6 @@ export const PROVIDERS = {
   },
   google: {
     displayName: "Gemini",
-    defaultModel: "",
+    defaultModel: "gemini-3.6-flash",
   },
 } as const;

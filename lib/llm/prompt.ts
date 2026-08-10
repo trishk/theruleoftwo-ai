@@ -1,16 +1,14 @@
-import type { Provider } from "./types";
+import { PROVIDER_LIST } from "./providerMeta";
 
-const MENTIONS: Record<Provider, string> = {
-  openai: "@chatgpt",
-  anthropic: "@claude",
-  google: "@gemini",
-};
-
-export function stripMention(
-  content: string,
-  provider: Provider
-) {
-  return content
-    .replace(new RegExp(MENTIONS[provider], "ig"), "")
+export function stripMentions(content: string) {
+  return PROVIDER_LIST.reduce(
+    (result, provider) =>
+      result.replace(
+        new RegExp(provider.mention, "ig"),
+        ""
+      ),
+    content
+  )
+    .replace(/\s+/g, " ")
     .trim();
 }

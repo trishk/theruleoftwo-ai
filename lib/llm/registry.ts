@@ -1,5 +1,6 @@
 import { askOpenAI } from "./openai";
 import { askAnthropic } from "./anthropic";
+import { askGoogle } from "./google";
 import type { LLMRequest, LLMResponse } from "./types";
 
 export async function askLLM(
@@ -13,11 +14,6 @@ export async function askLLM(
       return askAnthropic(request);
 
     case "google":
-      return {
-        provider: "google",
-        model: "",
-        text: "Gemini integration is not implemented yet.",
-        latencyMs: 0,
-      };
+      return askGoogle(request);
   }
 }

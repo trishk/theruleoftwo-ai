@@ -29,8 +29,10 @@ export function MessageItem({
   }
 
   const provider = PROVIDER_LIST.find(
-    (item) => item.name.toLowerCase() === authorName.toLowerCase()
-  );
+  (item) =>
+    item.id.toLowerCase() === authorName.toLowerCase() ||
+    item.name.toLowerCase() === authorName.toLowerCase()
+);
 
   const dotClass = provider?.dotClass ?? "bg-zinc-500";
   const colorClass = provider?.colorClass ?? "text-muted-foreground";
@@ -43,7 +45,7 @@ export function MessageItem({
 
       <div className="min-w-0 flex-1">
         <div className={`mb-1.5 text-sm font-semibold ${colorClass}`}>
-          {authorName}
+          {provider?.name ?? authorName}
         </div>
 
         <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">

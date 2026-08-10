@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db/prisma";
 import { askLLM } from "@/lib/llm/registry";
 import { extractMentions } from "@/lib/llm/mentions";
-import { stripMention } from "@/lib/llm/prompt";
+import { stripMentions } from "@/lib/llm/prompt";
 import { requireUser } from "@/lib/auth/require-user";
 import { createClient } from "@/lib/supabase/server";
 
@@ -59,7 +59,7 @@ export async function sendMessage(
     },
   });
 
-  const providers = extractMentions(trimmedContent).slice(0, 1);
+  const providers = extractMentions(trimmedContent);
 
   if (providers.length > 0) {
     const history = await prisma.message.findMany({
@@ -83,7 +83,7 @@ export async function sendMessage(
 
         content:
           message.authorType === "human"
-            ? stripMention(message.content, provider)
+            ? stripMentions(message.content)
             : message.content,
       }));
 
