@@ -12,15 +12,18 @@ export async function askGoogle(
 ): Promise<LLMResponse> {
   const startedAt = Date.now();
 
+  const model =
+    request.model ?? PROVIDERS.google.defaultModel;
+
   const result = await generateText({
-  model: google(PROVIDERS.google.defaultModel),
-  instructions: request.instructions,
-  messages: request.messages,
-});
+    model: google(model),
+    instructions: request.instructions,
+    messages: request.messages,
+  });
 
   return {
     provider: "google",
-    model: PROVIDERS.google.defaultModel,
+    model,
     text: result.text,
     latencyMs: Date.now() - startedAt,
   };

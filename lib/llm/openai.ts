@@ -12,15 +12,18 @@ export async function askOpenAI(
 ): Promise<LLMResponse> {
   const startedAt = Date.now();
 
+  const model =
+    request.model ?? PROVIDERS.openai.defaultModel;
+
   const result = await generateText({
-    model: openai(PROVIDERS.openai.defaultModel),
+    model: openai(model),
     instructions: request.instructions,
     messages: request.messages,
   });
 
   return {
     provider: "openai",
-    model: PROVIDERS.openai.defaultModel,
+    model,
     text: result.text,
     latencyMs: Date.now() - startedAt,
   };

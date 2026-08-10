@@ -7,6 +7,7 @@ export interface LLMMessage {
 
 export interface LLMRequest {
   provider: Provider;
+  model?: string;
   instructions?: string;
   messages: LLMMessage[];
 }

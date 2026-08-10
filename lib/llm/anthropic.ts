@@ -12,15 +12,18 @@ export async function askAnthropic(
 ): Promise<LLMResponse> {
   const startedAt = Date.now();
 
+  const model =
+    request.model ?? PROVIDERS.anthropic.defaultModel;
+
   const result = await generateText({
-    model: anthropic(PROVIDERS.anthropic.defaultModel),
+    model: anthropic(model),
     instructions: request.instructions,
     messages: request.messages,
   });
 
   return {
     provider: "anthropic",
-    model: PROVIDERS.anthropic.defaultModel,
+    model,
     text: result.text,
     latencyMs: Date.now() - startedAt,
   };
