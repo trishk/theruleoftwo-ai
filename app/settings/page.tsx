@@ -99,9 +99,16 @@ export default async function SettingsPage() {
                       {provider.displayName}
                     </div>
 
-                    <div className="mt-1 text-sm text-muted-foreground">
-                      {provider.defaultModel}
-                    </div>
+                    <select
+                    defaultValue={provider.defaultModel}
+                    className="mt-2 h-9 rounded-md border border-border bg-background px-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+                    >
+                    {provider.models.map((model) => (
+                        <option key={model} value={model}>
+                        {model}
+                        </option>
+                    ))}
+                    </select>
                   </div>
 
                   <div className="flex items-center gap-4">

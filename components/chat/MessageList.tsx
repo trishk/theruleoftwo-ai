@@ -6,13 +6,19 @@ type Message = {
   authorName: string;
   content: string;
   createdAt: Date;
+  replyTo?: {
+    id: number;
+    authorName: string;
+    content: string;
+  } | null;
 };
 
 type Props = {
   messages: Message[];
+  onReply: (message: Message) => void;
 };
 
-export function MessageList({ messages }: Props) {
+export function MessageList({ messages, onReply }: Props) {
   if (messages.length === 0) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center text-sm text-muted-foreground">
@@ -31,6 +37,8 @@ export function MessageList({ messages }: Props) {
             authorName={message.authorName}
             content={message.content}
             createdAt={message.createdAt}
+            replyTo={message.replyTo}
+            onReply={() => onReply(message)}
           />
         ))}
       </div>

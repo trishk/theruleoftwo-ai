@@ -37,6 +37,13 @@ model Message {
   authorType     String
   authorId       String
   content        String
+  replyToId      Int?
   createdAt      DateTime     @default(now())
+
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  replyTo        Message?     @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies        Message[]    @relation("MessageReplies")
+
+  @@index([replyToId])
 }

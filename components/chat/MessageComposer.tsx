@@ -6,13 +6,23 @@ import { PROVIDER_LIST } from "@/lib/llm/providerMeta";
 
 type Props = {
   conversationId: number;
+  replyTo: {
+    id: number;
+    authorName: string;
+    content: string;
+  } | null;
+  onCancelReply: () => void;
 };
 
-export function MessageComposer({ conversationId }: Props) {
+export function MessageComposer({
+  conversationId,
+  replyTo,
+  onCancelReply,
+}: Props) {
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -46,7 +56,7 @@ export function MessageComposer({ conversationId }: Props) {
     textareaRef.current?.focus();
   }
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
     if (!message.trim() || sending) {
@@ -57,8 +67,14 @@ export function MessageComposer({ conversationId }: Props) {
     setError(null);
 
     try {
-      await sendMessage(conversationId, message);
+      await sendMessage(
+        conversationId,
+        message,
+        replyTo?.id ?? null
+      );
+
       setMessage("");
+      onCancelReply();
     } catch (err) {
       console.error(err);
       setError("Something went wrong. Please try again.");
@@ -75,17 +91,38 @@ export function MessageComposer({ conversationId }: Props) {
   }
 
   return (
-    <div className="shrink-0 border-t border-border bg-background">
+    <div className="border-t border-border bg-background">
       <div className="mx-auto w-full max-w-4xl px-4 py-4 sm:px-6">
         <form onSubmit={handleSubmit}>
+          {replyTo && (
+            <div className="mb-2 flex items-center justify-between gap-3 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs">
+              <div className="min-w-0">
+                <div className="font-medium">
+                  Replying to {replyTo.authorName}
+                </div>
+
+                <div className="truncate text-muted-foreground">
+                  {replyTo.content}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={onCancelReply}
+                aria-label="Cancel reply"
+                title="Cancel reply"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                ×
+              </button>
+            </div>
+          )}
+
           {error && (
-  <div
-    role="alert"
-    className="mb-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-  >
-    {error}
-  </div>
-)}
+            <div className="mb-2 text-sm text-red-500">
+              {error}
+            </div>
+          )}
 
           <div className="mb-2 flex flex-wrap gap-2">
             {PROVIDER_LIST.map((provider) => {
@@ -95,18 +132,18 @@ export function MessageComposer({ conversationId }: Props) {
 
               return (
                 <button
-                key={provider.mention}
-                type="button"
-                onClick={() => toggleMention(provider.mention)}
-                disabled={sending}
-                className={[
+                  key={provider.mention}
+                  type="button"
+                  onClick={() => toggleMention(provider.mention)}
+                  disabled={sending}
+                  className={[
                     "rounded-full border px-3 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
                     isSelected
-                    ? `border-current bg-muted ${provider.colorClass}`
-                    : "border-border text-muted-foreground hover:bg-muted hover:text-foreground"
-                ].join(" ")}
+                      ? `border-current bg-muted ${provider.colorClass}`
+                      : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
+                  ].join(" ")}
                 >
-                @{provider.name}
+                  @{provider.name}
                 </button>
               );
             })}
@@ -132,20 +169,20 @@ export function MessageComposer({ conversationId }: Props) {
             >
               {sending ? (
                 <span
-                    className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
-                    aria-hidden="true"
+                  className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+                  aria-hidden="true"
                 />
-                ) : (
+              ) : (
                 <span className="text-lg leading-none">↑</span>
-                )}
+              )}
             </button>
           </div>
 
           <div className="mt-2 px-1 text-xs text-muted-foreground">
-        {sending
-            ? "Waiting for selected perspectives..."
-            : "Choose one or more perspectives"}
-        </div>
+            {sending
+              ? "Waiting for selected perspectives..."
+              : "Choose one or more perspectives"}
+          </div>
         </form>
       </div>
     </div>

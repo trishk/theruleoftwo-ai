@@ -1,10 +1,8 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db/prisma";
 import { ChatHeader } from "@/components/chat/ChatHeader";
-import { MessageList } from "@/components/chat/MessageList";
-import { MessageComposer } from "@/components/chat/MessageComposer";
+import { ChatConversation } from "@/components/chat/ChatConversation";
 import { ChatShell } from "@/components/chat/ChatShell";
-import { ChatList } from "@/components/chat/ChatList";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { requireUser } from "@/lib/auth/require-user";
 
@@ -20,14 +18,17 @@ export default async function ChatPage({ params }: Props) {
   const conversationId = Number(id);
 
   const conversation = await prisma.conversation.findFirst({
-  where: {
-    id: conversationId,
-    ownerId: user.id,
-  },
+    where: {
+      id: conversationId,
+      ownerId: user.id,
+    },
     include: {
       messages: {
         orderBy: {
           createdAt: "asc",
+        },
+        include: {
+          replyTo: true,
         },
       },
     },
@@ -38,42 +39,64 @@ export default async function ChatPage({ params }: Props) {
   }
 
   const chats = await prisma.conversation.findMany({
-  where: {
-    ownerId: user.id,
-  },
-  orderBy: {
-    updatedAt: "desc",
-  },
-});
+    where: {
+      ownerId: user.id,
+    },
+    orderBy: {
+      updatedAt: "desc",
+    },
+  });
+
+  const getAuthorName = (authorId: string) => {
+    if (authorId === user.id) {
+      return user.name ?? "You";
+    }
+
+    if (authorId === "openai") {
+      return "ChatGPT";
+    }
+
+    if (authorId === "anthropic") {
+      return "Claude";
+    }
+
+    if (authorId === "google") {
+      return "Gemini";
+    }
+
+    return authorId;
+  };
 
   const messages = conversation.messages.map((message) => ({
     id: message.id,
-    authorType: message.authorType === "ai" ? ("ai" as const) : ("human" as const),
-   authorName:
-  message.authorId === user.id
-    ? user.name ?? "You"
-    : message.authorId === "openai"
-    ? "ChatGPT"
-    : message.authorId === "anthropic"
-    ? "Claude"
-    : message.authorId === "google"
-    ? "Gemini"
-      : message.authorId,
+    authorType:
+      message.authorType === "ai"
+        ? ("ai" as const)
+        : ("human" as const),
+    authorName: getAuthorName(message.authorId),
     content: message.content,
     createdAt: message.createdAt,
+    replyTo: message.replyTo
+      ? {
+          id: message.replyTo.id,
+          authorName: getAuthorName(message.replyTo.authorId),
+          content: message.replyTo.content,
+        }
+      : null,
   }));
 
   return (
-  <ChatShell  sidebar={<ChatSidebar  chats={chats} />}>
-    <div className="flex min-h-dvh flex-col px-4 py-4 sm:px-6 sm:py-6">
-      <ChatHeader title={conversation.title}/>
+    <ChatShell sidebar={<ChatSidebar chats={chats} />}>
+      <div className="flex h-dvh min-h-0 flex-col">
+        <ChatHeader
+          title={conversation.title}
+        />
 
-      <div className="flex min-h-0 flex-1 flex-col">
-        <MessageList messages={messages} />
-
-        <MessageComposer conversationId={conversation.id} />
+        <ChatConversation
+          conversationId={conversation.id}
+          messages={messages}
+        />
       </div>
-    </div>
-  </ChatShell>
-);
+    </ChatShell>
+  );
 }

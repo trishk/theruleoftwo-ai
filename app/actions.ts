@@ -24,7 +24,8 @@ export async function createChat() {
 
 export async function sendMessage(
   conversationId: number,
-  content: string
+  content: string,
+  replyToId?: number | null
 ) {
   const user = await requireUser();
 
@@ -61,6 +62,7 @@ export async function sendMessage(
       authorType: "human",
       authorId: user.id,
       content: trimmedContent,
+      replyToId: replyToId ?? null,
     },
   });
 
