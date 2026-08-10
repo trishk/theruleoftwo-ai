@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db/prisma";
 import { askLLM } from "@/lib/llm/registry";
 import { extractMentions } from "@/lib/llm/mentions";
-import { stripMentions } from "@/lib/llm/prompt";
+import { buildConversationContext } from "@/lib/llm/context";
 import { requireUser } from "@/lib/auth/require-user";
 import { createClient } from "@/lib/supabase/server";
 
@@ -43,6 +43,11 @@ export async function sendMessage(
     },
     select: {
       id: true,
+      owner: {
+        select: {
+          name: true,
+        },
+      },
     },
   });
 
@@ -75,22 +80,18 @@ export async function sendMessage(
     history.reverse();
 
     for (const provider of providers) {
-      const messages = history.map((message) => ({
-        role:
-          message.authorType === "ai"
-            ? ("assistant" as const)
-            : ("user" as const),
+  const context = buildConversationContext({
+    provider,
+    messages: history,
+    currentUserId: user.id,
+    currentUserName: conversation.owner?.name,
+  });
 
-        content:
-          message.authorType === "human"
-            ? stripMentions(message.content)
-            : message.content,
-      }));
-
-      const response = await askLLM({
-        provider,
-        messages,
-      });
+  const response = await askLLM({
+    provider,
+    instructions: context.instructions,
+    messages: context.messages,
+  });
 
       await prisma.message.create({
         data: {

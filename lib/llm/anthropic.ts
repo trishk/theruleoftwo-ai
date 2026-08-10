@@ -14,6 +14,7 @@ export async function askAnthropic(
 
   const result = await generateText({
     model: anthropic(PROVIDERS.anthropic.defaultModel),
+    instructions: request.instructions,
     messages: request.messages,
   });
 

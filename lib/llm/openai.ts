@@ -14,6 +14,7 @@ export async function askOpenAI(
 
   const result = await generateText({
     model: openai(PROVIDERS.openai.defaultModel),
+    instructions: request.instructions,
     messages: request.messages,
   });
 

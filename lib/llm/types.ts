@@ -1,12 +1,13 @@
 export type Provider = "openai" | "anthropic" | "google";
 
 export interface LLMMessage {
-  role: "system" | "user" | "assistant";
+  role: "user" | "assistant";
   content: string;
 }
 
 export interface LLMRequest {
   provider: Provider;
+  instructions?: string;
   messages: LLMMessage[];
 }
 

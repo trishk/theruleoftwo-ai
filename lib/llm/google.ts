@@ -13,9 +13,10 @@ export async function askGoogle(
   const startedAt = Date.now();
 
   const result = await generateText({
-    model: google(PROVIDERS.google.defaultModel),
-    messages: request.messages,
-  });
+  model: google(PROVIDERS.google.defaultModel),
+  instructions: request.instructions,
+  messages: request.messages,
+});
 
   return {
     provider: "google",
