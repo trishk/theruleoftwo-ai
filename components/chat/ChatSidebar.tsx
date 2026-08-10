@@ -1,7 +1,8 @@
+import Link from "next/link";
 import { createChat, signOut } from "@/app/actions";
 import { ChatList } from "./ChatList";
 import { ThemeToggle } from "./ThemeToggle";
-import { LogOut, Plus } from "lucide-react";
+import { LogOut, Plus, Settings } from "lucide-react";
 
 type Props = {
   chats: {
@@ -33,9 +34,20 @@ export function ChatSidebar({ chats }: Props) {
 
       <div className="border-t border-border pt-3">
         <div className="flex items-center justify-between">
-          <ThemeToggle />
+        <div className="flex items-center gap-1">
+            <ThemeToggle />
 
-          <form action={signOut}>
+            <Link
+            href="/settings"
+            aria-label="Settings"
+            title="Settings"
+            className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+            <Settings className="h-4 w-4" />
+            </Link>
+        </div>
+
+        <form action={signOut}>
             <button
               type="submit"
               aria-label="Sign out"

@@ -17,16 +17,20 @@ export function MessageItem({
   const isHuman = authorType === "human";
 
   if (isHuman) {
-    return (
-      <div className="flex justify-end">
-        <div className="max-w-[85%] rounded-2xl bg-primary px-4 py-3 text-primary-foreground sm:max-w-[75%]">
-          <div className="whitespace-pre-wrap text-sm leading-relaxed">
-            {content}
-          </div>
+  return (
+    <div className="flex justify-end py-3">
+      <div className="max-w-[75%] text-right">
+        <div className="mb-1.5 text-sm font-semibold text-foreground">
+          {authorName}
+        </div>
+
+        <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+          {content}
         </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   const provider = PROVIDER_LIST.find(
   (item) =>

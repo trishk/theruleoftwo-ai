@@ -117,6 +117,27 @@ export async function sendMessage(
   revalidatePath("/");
 }
 
+export async function updateDisplayName(formData: FormData) {
+  const user = await requireUser();
+
+  const name = String(formData.get("displayName") ?? "").trim();
+
+  if (name.length > 50) {
+    throw new Error("Display name is too long.");
+  }
+
+  await prisma.user.update({
+    where: {
+      id: user.id,
+    },
+    data: {
+      name: name || null,
+    },
+  });
+
+  revalidatePath("/settings");
+}
+
 export async function signOut() {
   const supabase = await createClient();
 

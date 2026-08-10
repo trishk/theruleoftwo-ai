@@ -50,6 +50,8 @@ export function buildConversationContext({
 } {
   const providerName = PROVIDER_META[provider].name;
 
+  const userName = currentUserName || "User";
+
   const currentMessage = messages.at(-1);
 
   if (!currentMessage) {
@@ -80,6 +82,7 @@ export function buildConversationContext({
 
   const systemMessage = [
   `You are ${providerName}, participating in a group conversation.`,
+  `The current human participant's display name is ${userName}.`,
   "The conversation may include humans and other AI assistants.",
   "Messages from other AI assistants are their statements, not yours.",
   "Use the conversation transcript as context when answering.",
