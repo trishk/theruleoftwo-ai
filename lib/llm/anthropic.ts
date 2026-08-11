@@ -1,11 +1,8 @@
 import { generateText } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
+import { createAnthropic } from "@ai-sdk/anthropic";
 
 import { PROVIDERS } from "./providers";
-import type {
-  LLMRequest,
-  LLMResponse,
-} from "./types";
+import type { LLMRequest, LLMResponse } from "./types";
 
 export async function askAnthropic(
   request: LLMRequest
@@ -14,6 +11,14 @@ export async function askAnthropic(
 
   const model =
     request.model ?? PROVIDERS.anthropic.defaultModel;
+
+  const anthropic = createAnthropic(
+    request.apiKey
+      ? {
+          apiKey: request.apiKey,
+        }
+      : {}
+  );
 
   const result = await generateText({
     model: anthropic(model),

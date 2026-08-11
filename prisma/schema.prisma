@@ -23,12 +23,16 @@ model User {
 }
 
 model UserIntegration {
-  id            Int      @id @default(autoincrement())
-  userId        String
-  provider      String
-  selectedModel String
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id              Int      @id @default(autoincrement())
+  userId          String
+  provider        String
+  selectedModel   String
+  encryptedApiKey String?
+  keyIv           String?
+  keyAuthTag      String?
+  storageMode     String   @default("persistent")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

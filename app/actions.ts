@@ -9,6 +9,8 @@ import { buildConversationContext } from "@/lib/llm/context";
 import { requireUser } from "@/lib/auth/require-user";
 import { createClient } from "@/lib/supabase/server";
 import { PROVIDERS } from "@/lib/llm/providers";
+import { encryptSecret } from "@/lib/security/encryption";
+import { decryptSecret } from "@/lib/security/encryption";
 
 export async function createChat() {
     const user = await requireUser();
@@ -99,6 +101,21 @@ export async function sendMessage(
             const selectedModel =
                 integration?.selectedModel ??
                 PROVIDERS[provider].defaultModel;
+
+            let apiKey: string | undefined;
+
+            if (
+                integration?.encryptedApiKey &&
+                integration?.keyIv &&
+                integration?.keyAuthTag
+            ) {
+                apiKey = decryptSecret(
+                    integration.encryptedApiKey,
+                    integration.keyIv,
+                    integration.keyAuthTag
+                );
+            }
+
             const context = buildConversationContext({
                 provider,
                 messages: history,
@@ -109,6 +126,7 @@ export async function sendMessage(
             const response = await askLLM({
                 provider,
                 model: selectedModel,
+                apiKey,
                 instructions: context.instructions,
                 messages: context.messages,
             });
@@ -196,6 +214,54 @@ export async function updateSelectedModel(
             userId: user.id,
             provider,
             selectedModel,
+        },
+    });
+
+    revalidatePath("/settings");
+}
+
+export async function saveIntegrationApiKey(
+    provider: string,
+    apiKey: string
+) {
+    const user = await requireUser();
+
+    const providerConfig =
+        PROVIDERS[provider as keyof typeof PROVIDERS];
+
+    if (!providerConfig) {
+        throw new Error("Invalid provider.");
+    }
+
+    const trimmedApiKey = apiKey.trim();
+
+    if (!trimmedApiKey) {
+        throw new Error("API key is required.");
+    }
+
+    const encrypted = encryptSecret(trimmedApiKey);
+
+    await prisma.userIntegration.upsert({
+        where: {
+            userId_provider: {
+                userId: user.id,
+                provider,
+            },
+        },
+        update: {
+            encryptedApiKey: encrypted.encrypted,
+            keyIv: encrypted.iv,
+            keyAuthTag: encrypted.authTag,
+            storageMode: "persistent",
+        },
+        create: {
+            userId: user.id,
+            provider,
+            selectedModel: providerConfig.defaultModel,
+            encryptedApiKey: encrypted.encrypted,
+            keyIv: encrypted.iv,
+            keyAuthTag: encrypted.authTag,
+            storageMode: "persistent",
         },
     });
 

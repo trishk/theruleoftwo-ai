@@ -1,11 +1,8 @@
 import { generateText } from "ai";
-import { google } from "@ai-sdk/google";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 
 import { PROVIDERS } from "./providers";
-import type {
-  LLMRequest,
-  LLMResponse,
-} from "./types";
+import type { LLMRequest, LLMResponse } from "./types";
 
 export async function askGoogle(
   request: LLMRequest
@@ -14,6 +11,14 @@ export async function askGoogle(
 
   const model =
     request.model ?? PROVIDERS.google.defaultModel;
+
+  const google = createGoogleGenerativeAI(
+    request.apiKey
+      ? {
+          apiKey: request.apiKey,
+        }
+      : {}
+  );
 
   const result = await generateText({
     model: google(model),

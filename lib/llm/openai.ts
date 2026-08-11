@@ -1,30 +1,38 @@
 import { generateText } from "ai";
-import { openai } from "@ai-sdk/openai";
+import { createOpenAI } from "@ai-sdk/openai";
 
 import { PROVIDERS } from "./providers";
 import type {
-  LLMRequest,
-  LLMResponse,
+    LLMRequest,
+    LLMResponse,
 } from "./types";
 
 export async function askOpenAI(
-  request: LLMRequest
+    request: LLMRequest
 ): Promise<LLMResponse> {
-  const startedAt = Date.now();
+    const startedAt = Date.now();
 
-  const model =
-    request.model ?? PROVIDERS.openai.defaultModel;
+    const model =
+        request.model ?? PROVIDERS.openai.defaultModel;
 
-  const result = await generateText({
-    model: openai(model),
-    instructions: request.instructions,
-    messages: request.messages,
-  });
+    const openai = createOpenAI(
+        request.apiKey
+            ? {
+                apiKey: request.apiKey,
+            }
+            : {}
+    );
 
-  return {
-    provider: "openai",
-    model,
-    text: result.text,
-    latencyMs: Date.now() - startedAt,
-  };
+    const result = await generateText({
+        model: openai(model),
+        instructions: request.instructions,
+        messages: request.messages,
+    });
+
+    return {
+        provider: "openai",
+        model,
+        text: result.text,
+        latencyMs: Date.now() - startedAt,
+    };
 }

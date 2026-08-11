@@ -1,4 +1,4 @@
-import { Plus, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { requireUser } from "@/lib/auth/require-user";
 import { updateDisplayName } from "@/app/actions";
 import { PROVIDERS } from "@/lib/llm/providers";
@@ -6,14 +6,10 @@ import { prisma } from "@/lib/db/prisma";
 import { ChatShell } from "@/components/chat/ChatShell";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { ModelSelect } from "@/components/settings/ModelSelect";
+import { AddIntegrationSection } from "@/components/settings/AddIntegrationSection";
 
 export default async function SettingsPage() {
     const user = await requireUser();
-    const integrations = await prisma.userIntegration.findMany({
-        where: {
-            userId: user.id,
-        },
-    });
 
     const chats = await prisma.conversation.findMany({
         where: {
@@ -27,6 +23,21 @@ export default async function SettingsPage() {
             title: true,
         },
     });
+
+    const integrations = await prisma.userIntegration.findMany({
+        where: {
+            userId: user.id,
+        },
+    });
+
+    const configuredProviders = integrations
+        .filter(
+            (integration) =>
+                integration.encryptedApiKey &&
+                integration.keyIv &&
+                integration.keyAuthTag
+        )
+        .map((integration) => integration.provider);
 
     return (
         <ChatShell sidebar={<ChatSidebar chats={chats} />}>
@@ -77,65 +88,71 @@ export default async function SettingsPage() {
                     </section>
 
                     <section>
-                        <div className="flex items-start justify-between gap-4">
-                            <div>
-                                <h2 className="text-lg font-medium">AI Integrations</h2>
-                                <p className="mt-1 text-sm text-muted-foreground">
-                                    Configure the AI providers available in your conversations.
-                                </p>
-                            </div>
-
-                            <button
-                                type="button"
-                                className="inline-flex h-9 items-center gap-2 rounded-md border border-border px-3 text-sm font-medium transition-colors hover:bg-muted"
-                            >
-                                <Plus className="h-4 w-4" />
-                                Add integration
-                            </button>
-                        </div>
+                        <AddIntegrationSection configuredProviders={configuredProviders} 
+                        />
 
                         <div className="mt-4 grid gap-3">
-                            {Object.entries(PROVIDERS).map(([providerId, provider]) => (
-                                <div
-                                    key={providerId}
-                                    className="flex items-center justify-between gap-4 rounded-lg border border-border bg-card p-4"
-                                >
-                                    <div>
-                                        <div className="font-medium">
-                                            {provider.displayName}
+                            {Object.entries(PROVIDERS).map(([providerId, provider]) => {
+                                const integration = integrations.find(
+                                    (item) => item.provider === providerId
+                                );
+
+                                const isConfigured = Boolean(
+                                    integration?.encryptedApiKey &&
+                                    integration?.keyIv &&
+                                    integration?.keyAuthTag
+                                );
+
+                                const selectedModel =
+                                    integration?.selectedModel ?? provider.defaultModel;
+
+                                return (
+                                    <div
+                                        key={providerId}
+                                        className="flex items-center justify-between gap-4 rounded-lg border border-border bg-card p-4"
+                                    >
+                                        <div>
+                                            <div className="font-medium">
+                                                {provider.displayName}
+                                            </div>
+
+                                            <ModelSelect
+                                                provider={providerId}
+                                                models={provider.models}
+                                                selectedModel={selectedModel}
+                                            />
                                         </div>
 
-                                        <ModelSelect
-                                            provider={providerId}
-                                            models={provider.models}
-                                            selectedModel={
-                                                integrations.find(
-                                                    (integration) => integration.provider === providerId
-                                                )?.selectedModel ?? provider.defaultModel
-                                            }
-                                        />
-                                    </div>
+                                        <div className="flex items-center gap-4">
+                                            <div className="flex items-center gap-2">
+                                                <div
+                                                    className={[
+                                                        "h-2 w-2 rounded-full",
+                                                        isConfigured
+                                                            ? "bg-emerald-500"
+                                                            : "bg-zinc-500",
+                                                    ].join(" ")}
+                                                />
 
-                                    <div className="flex items-center gap-4">
-                                        <div className="flex items-center gap-2">
-                                            <div className="h-2 w-2 rounded-full bg-emerald-500" />
+                                                <span className="text-xs text-muted-foreground">
+                                                    {isConfigured
+                                                        ? "Configured"
+                                                        : "Not configured"}
+                                                </span>
+                                            </div>
 
-                                            <span className="text-xs text-muted-foreground">
-                                                Configured
-                                            </span>
+                                            <button
+                                                type="button"
+                                                aria-label={`Remove ${provider.displayName}`}
+                                                title={`Remove ${provider.displayName}`}
+                                                className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </button>
                                         </div>
-
-                                        <button
-                                            type="button"
-                                            aria-label={`Remove ${provider.displayName}`}
-                                            title={`Remove ${provider.displayName}`}
-                                            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </button>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </section>
                 </div>
