@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { MessageList } from "./MessageList";
 import { MessageComposer } from "./MessageComposer";
+import type { Provider } from "@/lib/llm/types";
 
 type Message = {
   id: number;
@@ -20,11 +21,13 @@ type Message = {
 type Props = {
   conversationId: number;
   messages: Message[];
+  configuredProviders: Provider[];
 };
 
 export function ChatConversation({
   conversationId,
   messages,
+  configuredProviders,
 }: Props) {
   const [replyTo, setReplyTo] = useState<{
     id: number;
@@ -48,6 +51,7 @@ export function ChatConversation({
       <MessageComposer
         conversationId={conversationId}
         replyTo={replyTo}
+        configuredProviders={configuredProviders}
         onCancelReply={() => setReplyTo(null)}
       />
     </div>

@@ -7,6 +7,7 @@ import { ChatShell } from "@/components/chat/ChatShell";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { ModelSelect } from "@/components/settings/ModelSelect";
 import { AddIntegrationSection } from "@/components/settings/AddIntegrationSection";
+import { RemoveIntegrationButton } from "@/components/settings/RemoveIntegrationButton";
 
 export default async function SettingsPage() {
     const user = await requireUser();
@@ -88,7 +89,7 @@ export default async function SettingsPage() {
                     </section>
 
                     <section>
-                        <AddIntegrationSection configuredProviders={configuredProviders} 
+                        <AddIntegrationSection configuredProviders={configuredProviders}
                         />
 
                         <div className="mt-4 grid gap-3">
@@ -141,14 +142,11 @@ export default async function SettingsPage() {
                                                 </span>
                                             </div>
 
-                                            <button
-                                                type="button"
-                                                aria-label={`Remove ${provider.displayName}`}
-                                                title={`Remove ${provider.displayName}`}
-                                                className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </button>
+                                            <RemoveIntegrationButton
+                                                provider={providerId}
+                                                providerName={provider.displayName}
+                                                configured={isConfigured}
+                                            />
                                         </div>
                                     </div>
                                 );

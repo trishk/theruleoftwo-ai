@@ -267,3 +267,28 @@ export async function saveIntegrationApiKey(
 
     revalidatePath("/settings");
 }
+
+export async function removeIntegration(provider: string) {
+  const user = await requireUser();
+
+  const providerConfig =
+    PROVIDERS[provider as keyof typeof PROVIDERS];
+
+  if (!providerConfig) {
+    throw new Error("Invalid provider.");
+  }
+
+  await prisma.userIntegration.updateMany({
+    where: {
+      userId: user.id,
+      provider,
+    },
+    data: {
+      encryptedApiKey: null,
+      keyIv: null,
+      keyAuthTag: null,
+    },
+  });
+
+  revalidatePath("/settings");
+}

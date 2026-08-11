@@ -3,188 +3,195 @@
 import { useEffect, useRef, useState } from "react";
 import { sendMessage } from "@/app/actions";
 import { PROVIDER_LIST } from "@/lib/llm/providerMeta";
+import type { Provider } from "@/lib/llm/types";
 
 type Props = {
-  conversationId: number;
-  replyTo: {
-    id: number;
-    authorName: string;
-    content: string;
-  } | null;
-  onCancelReply: () => void;
+    conversationId: number;
+    replyTo: {
+        id: number;
+        authorName: string;
+        content: string;
+    } | null;
+    configuredProviders: Provider[];
+    onCancelReply: () => void;
 };
 
 export function MessageComposer({
-  conversationId,
-  replyTo,
-  onCancelReply,
+    conversationId,
+    replyTo,
+    configuredProviders,
+    onCancelReply,
 }: Props) {
-  const [message, setMessage] = useState("");
-  const [sending, setSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+    const [message, setMessage] = useState("");
+    const [sending, setSending] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
-  useEffect(() => {
-    const textarea = textareaRef.current;
+    useEffect(() => {
+        const textarea = textareaRef.current;
 
-    if (!textarea) {
-      return;
+        if (!textarea) {
+            return;
+        }
+
+        textarea.style.height = "auto";
+        textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`;
+    }, [message]);
+
+    function toggleMention(mention: string) {
+        setMessage((current) => {
+            const escapedMention = mention.replace(
+                /[.*+?^${}()|[\]\\]/g,
+                "\\$&"
+            );
+
+            const mentionRegex = new RegExp(`${escapedMention}\\s*`, "gi");
+
+            if (current.toLowerCase().includes(mention.toLowerCase())) {
+                return current.replace(mentionRegex, "").trimStart();
+            }
+
+            const trimmed = current.trimStart();
+
+            return `${mention} ${trimmed}`.trimEnd() + " ";
+        });
+
+        textareaRef.current?.focus();
     }
 
-    textarea.style.height = "auto";
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`;
-  }, [message]);
+    async function handleSubmit(e: React.FormEvent) {
+        e.preventDefault();
 
-  function toggleMention(mention: string) {
-    setMessage((current) => {
-      const escapedMention = mention.replace(
-        /[.*+?^${}()|[\]\\]/g,
-        "\\$&"
-      );
+        if (!message.trim() || sending) {
+            return;
+        }
 
-      const mentionRegex = new RegExp(`${escapedMention}\\s*`, "gi");
+        setSending(true);
+        setError(null);
 
-      if (current.toLowerCase().includes(mention.toLowerCase())) {
-        return current.replace(mentionRegex, "").trimStart();
-      }
+        try {
+            await sendMessage(
+                conversationId,
+                message,
+                replyTo?.id ?? null
+            );
 
-      const trimmed = current.trimStart();
-
-      return `${mention} ${trimmed}`.trimEnd() + " ";
-    });
-
-    textareaRef.current?.focus();
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-
-    if (!message.trim() || sending) {
-      return;
+            setMessage("");
+            onCancelReply();
+        } catch (err) {
+            console.error(err);
+            setError("Something went wrong. Please try again.");
+        } finally {
+            setSending(false);
+        }
     }
 
-    setSending(true);
-    setError(null);
-
-    try {
-      await sendMessage(
-        conversationId,
-        message,
-        replyTo?.id ?? null
-      );
-
-      setMessage("");
-      onCancelReply();
-    } catch (err) {
-      console.error(err);
-      setError("Something went wrong. Please try again.");
-    } finally {
-      setSending(false);
+    function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+        if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            e.currentTarget.form?.requestSubmit();
+        }
     }
-  }
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      e.currentTarget.form?.requestSubmit();
-    }
-  }
+    return (
+        <div className="border-t border-border bg-background">
+            <div className="mx-auto w-full max-w-4xl px-4 py-4 sm:px-6">
+                <form onSubmit={handleSubmit}>
+                    {replyTo && (
+                        <div className="mb-2 flex items-center justify-between gap-3 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs">
+                            <div className="min-w-0">
+                                <div className="font-medium">
+                                    Replying to {replyTo.authorName}
+                                </div>
 
-  return (
-    <div className="border-t border-border bg-background">
-      <div className="mx-auto w-full max-w-4xl px-4 py-4 sm:px-6">
-        <form onSubmit={handleSubmit}>
-          {replyTo && (
-            <div className="mb-2 flex items-center justify-between gap-3 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs">
-              <div className="min-w-0">
-                <div className="font-medium">
-                  Replying to {replyTo.authorName}
-                </div>
+                                <div className="truncate text-muted-foreground">
+                                    {replyTo.content}
+                                </div>
+                            </div>
 
-                <div className="truncate text-muted-foreground">
-                  {replyTo.content}
-                </div>
-              </div>
+                            <button
+                                type="button"
+                                onClick={onCancelReply}
+                                aria-label="Cancel reply"
+                                title="Cancel reply"
+                                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                            >
+                                ×
+                            </button>
+                        </div>
+                    )}
 
-              <button
-                type="button"
-                onClick={onCancelReply}
-                aria-label="Cancel reply"
-                title="Cancel reply"
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
-                ×
-              </button>
+                    {error && (
+                        <div className="mb-2 text-sm text-red-500">
+                            {error}
+                        </div>
+                    )}
+
+                    <div className="mb-2 flex flex-wrap gap-2">
+                        {PROVIDER_LIST
+  .filter((provider) =>
+    configuredProviders.includes(provider.id)
+  )
+  .map((provider) => {
+                            const isSelected = message
+                                .toLowerCase()
+                                .includes(provider.mention);
+
+                            return (
+                                <button
+                                    key={provider.mention}
+                                    type="button"
+                                    onClick={() => toggleMention(provider.mention)}
+                                    disabled={sending}
+                                    className={[
+                                        "rounded-full border px-3 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+                                        isSelected
+                                            ? `border-current bg-muted ${provider.colorClass}`
+                                            : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
+                                    ].join(" ")}
+                                >
+                                    @{provider.name}
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    <div className="flex items-end gap-2 rounded-2xl border border-border bg-muted/30 p-2 shadow-sm transition-colors focus-within:border-muted-foreground/50">
+                        <textarea
+                            ref={textareaRef}
+                            value={message}
+                            onChange={(e) => setMessage(e.target.value)}
+                            onKeyDown={handleKeyDown}
+                            placeholder="Ask for another perspective..."
+                            rows={1}
+                            disabled={sending}
+                            className="max-h-40 min-h-10 flex-1 resize-none bg-transparent px-3 py-2 text-sm leading-relaxed outline-none placeholder:text-muted-foreground disabled:opacity-50"
+                        />
+
+                        <button
+                            type="submit"
+                            disabled={!message.trim() || sending}
+                            aria-label="Send message"
+                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-foreground text-background transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
+                        >
+                            {sending ? (
+                                <span
+                                    className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+                                    aria-hidden="true"
+                                />
+                            ) : (
+                                <span className="text-lg leading-none">↑</span>
+                            )}
+                        </button>
+                    </div>
+
+                    <div className="mt-2 px-1 text-xs text-muted-foreground">
+                        {sending
+                            ? "Waiting for selected perspectives..."
+                            : "Choose one or more perspectives"}
+                    </div>
+                </form>
             </div>
-          )}
-
-          {error && (
-            <div className="mb-2 text-sm text-red-500">
-              {error}
-            </div>
-          )}
-
-          <div className="mb-2 flex flex-wrap gap-2">
-            {PROVIDER_LIST.map((provider) => {
-              const isSelected = message
-                .toLowerCase()
-                .includes(provider.mention);
-
-              return (
-                <button
-                  key={provider.mention}
-                  type="button"
-                  onClick={() => toggleMention(provider.mention)}
-                  disabled={sending}
-                  className={[
-                    "rounded-full border px-3 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-                    isSelected
-                      ? `border-current bg-muted ${provider.colorClass}`
-                      : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
-                  ].join(" ")}
-                >
-                  @{provider.name}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="flex items-end gap-2 rounded-2xl border border-border bg-muted/30 p-2 shadow-sm transition-colors focus-within:border-muted-foreground/50">
-            <textarea
-              ref={textareaRef}
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Ask for another perspective..."
-              rows={1}
-              disabled={sending}
-              className="max-h-40 min-h-10 flex-1 resize-none bg-transparent px-3 py-2 text-sm leading-relaxed outline-none placeholder:text-muted-foreground disabled:opacity-50"
-            />
-
-            <button
-              type="submit"
-              disabled={!message.trim() || sending}
-              aria-label="Send message"
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-foreground text-background transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
-            >
-              {sending ? (
-                <span
-                  className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
-                  aria-hidden="true"
-                />
-              ) : (
-                <span className="text-lg leading-none">↑</span>
-              )}
-            </button>
-          </div>
-
-          <div className="mt-2 px-1 text-xs text-muted-foreground">
-            {sending
-              ? "Waiting for selected perspectives..."
-              : "Choose one or more perspectives"}
-          </div>
-        </form>
-      </div>
-    </div>
-  );
+        </div>
+    );
 }
