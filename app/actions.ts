@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/server";
 import { PROVIDERS } from "@/lib/llm/providers";
 import { encryptSecret } from "@/lib/security/encryption";
 import { decryptSecret } from "@/lib/security/encryption";
+import { requireConversationAccess } from "@/lib/auth/require-conversation-access";
 
 export async function createChat() {
     const user = await requireUser();
@@ -40,23 +41,25 @@ export async function sendMessage(
         throw new Error("Message is too long.");
     }
 
-    const conversation = await prisma.conversation.findFirst({
-        where: {
-            id: conversationId,
-            ownerId: user.id,
-        },
-        select: {
-            id: true,
-            owner: {
-                select: {
-                    name: true,
-                },
-            },
-        },
-    });
+    const conversation = await requireConversationAccess(
+    conversationId,
+    user.id
+);
 
-    if (!conversation) {
-        throw new Error("Conversation not found.");
+    if (replyToId != null) {
+        const replyToMessage = await prisma.message.findFirst({
+            where: {
+                id: replyToId,
+                conversationId,
+            },
+            select: {
+                id: true,
+            },
+        });
+
+        if (!replyToMessage) {
+            throw new Error("Invalid reply target.");
+        }
     }
 
     await prisma.message.create({
@@ -269,26 +272,26 @@ export async function saveIntegrationApiKey(
 }
 
 export async function removeIntegration(provider: string) {
-  const user = await requireUser();
+    const user = await requireUser();
 
-  const providerConfig =
-    PROVIDERS[provider as keyof typeof PROVIDERS];
+    const providerConfig =
+        PROVIDERS[provider as keyof typeof PROVIDERS];
 
-  if (!providerConfig) {
-    throw new Error("Invalid provider.");
-  }
+    if (!providerConfig) {
+        throw new Error("Invalid provider.");
+    }
 
-  await prisma.userIntegration.updateMany({
-    where: {
-      userId: user.id,
-      provider,
-    },
-    data: {
-      encryptedApiKey: null,
-      keyIv: null,
-      keyAuthTag: null,
-    },
-  });
+    await prisma.userIntegration.updateMany({
+        where: {
+            userId: user.id,
+            provider,
+        },
+        data: {
+            encryptedApiKey: null,
+            keyIv: null,
+            keyAuthTag: null,
+        },
+    });
 
-  revalidatePath("/settings");
+    revalidatePath("/settings");
 }

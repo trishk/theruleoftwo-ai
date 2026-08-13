@@ -44,7 +44,6 @@ export function AddIntegration({
         setApiKey("");
         onClose();
       } catch (err) {
-        console.error(err);
         setError("Could not save integration.");
       }
     });

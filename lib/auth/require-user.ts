@@ -1,3 +1,4 @@
+import "server-only";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db/prisma";
 import { createClient } from "@/lib/supabase/server";

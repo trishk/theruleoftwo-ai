@@ -1,5 +1,4 @@
 import { ChatHeader } from "@/components/chat/ChatHeader";
-import { ChatList } from "@/components/chat/ChatList";
 import { prisma } from "@/lib/db/prisma";
 import { ChatShell } from "@/components/chat/ChatShell";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";

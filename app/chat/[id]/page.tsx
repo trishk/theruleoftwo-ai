@@ -5,6 +5,7 @@ import { ChatConversation } from "@/components/chat/ChatConversation";
 import { ChatShell } from "@/components/chat/ChatShell";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { requireUser } from "@/lib/auth/require-user";
+import { requireConversationAccess } from "@/lib/auth/require-conversation-access";
 
 type Props = {
     params: Promise<{
@@ -17,26 +18,35 @@ export default async function ChatPage({ params }: Props) {
     const { id } = await params;
     const conversationId = Number(id);
 
-    const conversation = await prisma.conversation.findFirst({
-        where: {
-            id: conversationId,
-            ownerId: user.id,
-        },
-        include: {
-            messages: {
-                orderBy: {
-                    createdAt: "asc",
-                },
-                include: {
-                    replyTo: true,
-                },
-            },
-        },
-    });
-
-    if (!conversation) {
+    if (!Number.isInteger(conversationId) || conversationId <= 0) {
         notFound();
     }
+
+    await requireConversationAccess(
+    conversationId,
+    user.id
+);
+
+const conversation = await prisma.conversation.findFirst({
+    where: {
+        id: conversationId,
+        ownerId: user.id,
+    },
+    include: {
+        messages: {
+            orderBy: {
+                createdAt: "asc",
+            },
+            include: {
+                replyTo: true,
+            },
+        },
+    },
+});
+
+if (!conversation) {
+    notFound();
+}
 
     const chats = await prisma.conversation.findMany({
         where: {

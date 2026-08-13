@@ -26,10 +26,17 @@ export default async function SettingsPage() {
     });
 
     const integrations = await prisma.userIntegration.findMany({
-        where: {
-            userId: user.id,
-        },
-    });
+    where: {
+        userId: user.id,
+    },
+    select: {
+        provider: true,
+        selectedModel: true,
+        encryptedApiKey: true,
+        keyIv: true,
+        keyAuthTag: true,
+    },
+});
 
     const configuredProviders = integrations
         .filter(
