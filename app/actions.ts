@@ -42,9 +42,9 @@ export async function sendMessage(
     }
 
     const conversation = await requireConversationAccess(
-    conversationId,
-    user.id
-);
+        conversationId,
+        user.id
+    );
 
     if (replyToId != null) {
         const replyToMessage = await prisma.message.findFirst({
@@ -294,4 +294,71 @@ export async function removeIntegration(provider: string) {
     });
 
     revalidatePath("/settings");
+}
+
+export async function renameConversation(
+    conversationId: number,
+    title: string
+) {
+    const user = await requireUser();
+
+    const trimmedTitle = title.trim();
+
+    if (!trimmedTitle) {
+        throw new Error("Conversation title is required.");
+    }
+
+    if (trimmedTitle.length > 100) {
+        throw new Error("Conversation title is too long.");
+    }
+
+    await requireConversationAccess(
+        conversationId,
+        user.id
+    );
+
+    const conversation = await prisma.conversation.findUnique({
+        where: {
+            id: conversationId,
+        },
+        select: {
+            updatedAt: true,
+        },
+    });
+
+    if (!conversation) {
+        throw new Error("Conversation not found.");
+    }
+
+    await prisma.conversation.update({
+        where: {
+            id: conversationId,
+        },
+        data: {
+            title: trimmedTitle,
+            updatedAt: conversation.updatedAt,
+        },
+    });
+    revalidatePath(`/chat/${conversationId}`);
+    revalidatePath("/");
+}
+
+export async function deleteConversation(
+    conversationId: number
+) {
+    const user = await requireUser();
+
+    await requireConversationAccess(
+        conversationId,
+        user.id
+    );
+
+    await prisma.conversation.delete({
+        where: {
+            id: conversationId,
+        },
+    });
+
+    revalidatePath("/");
+    redirect("/");
 }

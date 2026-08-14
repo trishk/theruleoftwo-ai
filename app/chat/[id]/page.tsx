@@ -23,30 +23,30 @@ export default async function ChatPage({ params }: Props) {
     }
 
     await requireConversationAccess(
-    conversationId,
-    user.id
-);
+        conversationId,
+        user.id
+    );
 
-const conversation = await prisma.conversation.findFirst({
-    where: {
-        id: conversationId,
-        ownerId: user.id,
-    },
-    include: {
-        messages: {
-            orderBy: {
-                createdAt: "asc",
-            },
-            include: {
-                replyTo: true,
+    const conversation = await prisma.conversation.findFirst({
+        where: {
+            id: conversationId,
+            ownerId: user.id,
+        },
+        include: {
+            messages: {
+                orderBy: {
+                    createdAt: "asc",
+                },
+                include: {
+                    replyTo: true,
+                },
             },
         },
-    },
-});
+    });
 
-if (!conversation) {
-    notFound();
-}
+    if (!conversation) {
+        notFound();
+    }
 
     const chats = await prisma.conversation.findMany({
         where: {
@@ -120,8 +120,9 @@ if (!conversation) {
         <ChatShell sidebar={<ChatSidebar chats={chats} />}>
             <div className="flex h-dvh min-h-0 flex-col">
                 <ChatHeader
-                    title={conversation.title}
-                />
+    conversationId={conversation.id}
+    title={conversation.title}
+/>
                 <ChatConversation
                     conversationId={conversation.id}
                     messages={messages}
