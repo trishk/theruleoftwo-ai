@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useState } from "react";
+import { Menu, X } from "lucide-react";
 
 type ChatShellProps = {
   children: ReactNode;
@@ -30,7 +31,7 @@ export function ChatShell({ children, sidebar }: ChatShellProps) {
               aria-label="Open navigation"
               className="fixed left-3 top-3 z-30 flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-background text-lg shadow-sm md:hidden"
             >
-              ☰
+              <Menu className="h-5 w-5" />
             </button>
           )}
 
@@ -56,7 +57,7 @@ export function ChatShell({ children, sidebar }: ChatShellProps) {
                   aria-label="Close navigation"
                   className="flex h-10 w-10 items-center justify-center rounded-lg text-xl text-muted-foreground hover:bg-muted hover:text-foreground"
                 >
-                  ×
+                  <X className="h-5 w-5" />
                 </button>
               </div>
 

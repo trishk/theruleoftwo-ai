@@ -46,6 +46,19 @@ export async function sendMessage(
         user.id
     );
 
+    const conversationRecord = await prisma.conversation.findUnique({
+        where: {
+            id: conversationId,
+        },
+        select: {
+            title: true,
+        },
+    });
+
+    if (!conversationRecord) {
+        throw new Error("Conversation not found.");
+    }
+
     if (replyToId != null) {
         const replyToMessage = await prisma.message.findFirst({
             where: {
@@ -62,6 +75,12 @@ export async function sendMessage(
         }
     }
 
+    const existingMessageCount = await prisma.message.count({
+        where: {
+            conversationId,
+        },
+    });
+
     await prisma.message.create({
         data: {
             conversationId,
@@ -71,6 +90,30 @@ export async function sendMessage(
             replyToId: replyToId ?? null,
         },
     });
+
+    if (
+        existingMessageCount === 0 &&
+        conversationRecord.title === "New Chat"
+    ) {
+        const titleContent = trimmedContent
+            .replace(/@(chatgpt|claude|gemini)\b/gi, "")
+            .replace(/\s+/g, " ")
+            .trim();
+
+        const generatedTitle =
+            titleContent.length > 50
+                ? `${titleContent.slice(0, 47)}...`
+                : titleContent;
+
+        await prisma.conversation.update({
+            where: {
+                id: conversationId,
+            },
+            data: {
+                title: generatedTitle,
+            },
+        });
+    }
 
     const providers = extractMentions(trimmedContent);
 
