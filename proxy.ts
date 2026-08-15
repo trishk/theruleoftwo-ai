@@ -37,8 +37,14 @@ export async function proxy(request: NextRequest) {
 
   const isLoginPage = request.nextUrl.pathname === "/login";
   const isAuthCallback = request.nextUrl.pathname.startsWith("/auth/callback");
+  const isInvitePage = request.nextUrl.pathname.startsWith("/invite/");
 
-  if (!user && !isLoginPage && !isAuthCallback) {
+  if (
+    !user &&
+    !isLoginPage &&
+    !isAuthCallback &&
+    !isInvitePage
+  ) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
 

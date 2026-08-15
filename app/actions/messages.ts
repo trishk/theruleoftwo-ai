@@ -1,7 +1,5 @@
 "use server";
 
-import crypto from "crypto";
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db/prisma";
 import { askLLM } from "@/lib/llm/registry";
@@ -11,176 +9,6 @@ import { requireUser } from "@/lib/auth/require-user";
 import { PROVIDERS } from "@/lib/llm/providers";
 import { decryptSecret } from "@/lib/security/encryption";
 import { requireConversationAccess } from "@/lib/auth/require-conversation-access";
-
-export async function createChat() {
-    const user = await requireUser();
-
-    const conversation = await prisma.conversation.create({
-        data: {
-            title: "New Chat",
-            ownerId: user.id,
-        },
-    });
-
-    redirect(`/chat/${conversation.id}`);
-}
-
-export async function renameConversation(
-    conversationId: number,
-    title: string
-) {
-    const user = await requireUser();
-
-    const trimmedTitle = title.trim();
-
-    if (!trimmedTitle) {
-        throw new Error("Conversation title is required.");
-    }
-
-    if (trimmedTitle.length > 100) {
-        throw new Error("Conversation title is too long.");
-    }
-
-    await requireConversationAccess(
-        conversationId,
-        user.id
-    );
-
-    const conversation = await prisma.conversation.findUnique({
-        where: {
-            id: conversationId,
-        },
-        select: {
-            updatedAt: true,
-        },
-    });
-
-    if (!conversation) {
-        throw new Error("Conversation not found.");
-    }
-
-    await prisma.conversation.update({
-        where: {
-            id: conversationId,
-        },
-        data: {
-            title: trimmedTitle,
-            updatedAt: conversation.updatedAt,
-        },
-    });
-    revalidatePath(`/chat/${conversationId}`);
-    revalidatePath("/");
-}
-
-export async function deleteConversation(
-    conversationId: number
-) {
-    const user = await requireUser();
-
-    await requireConversationAccess(
-        conversationId,
-        user.id
-    );
-
-    await prisma.conversation.delete({
-        where: {
-            id: conversationId,
-        },
-    });
-
-    revalidatePath("/");
-    redirect("/");
-}
-
-export async function createConversationInvite(
-    conversationId: number
-) {
-    const user = await requireUser();
-
-    const conversation = await requireConversationAccess(
-        conversationId,
-        user.id
-    );
-
-    if (conversation.ownerId !== user.id) {
-        throw new Error("Only the conversation owner can create invites.");
-    }
-
-    const token = crypto.randomBytes(32).toString("hex");
-
-    await prisma.conversationInvite.create({
-        data: {
-            conversationId,
-            token,
-            createdById: user.id,
-        },
-    });
-
-    return token;
-}
-
-export async function joinConversationByInvite(
-    token: string
-) {
-    const user = await requireUser();
-
-    const invite = await prisma.conversationInvite.findUnique({
-        where: {
-            token,
-        },
-        select: {
-            conversationId: true,
-            expiresAt: true,
-            revokedAt: true,
-        },
-    });
-
-    if (!invite) {
-        throw new Error("Invalid invite.");
-    }
-
-    if (invite.revokedAt) {
-        throw new Error("Invite has been revoked.");
-    }
-
-    if (
-        invite.expiresAt &&
-        invite.expiresAt < new Date()
-    ) {
-        throw new Error("Invite has expired.");
-    }
-
-    const conversation = await prisma.conversation.findUnique({
-        where: {
-            id: invite.conversationId,
-        },
-        select: {
-            ownerId: true,
-        },
-    });
-
-    if (!conversation) {
-        throw new Error("Conversation not found.");
-    }
-
-    if (conversation.ownerId !== user.id) {
-        await prisma.conversationMember.upsert({
-            where: {
-                conversationId_userId: {
-                    conversationId: invite.conversationId,
-                    userId: user.id,
-                },
-            },
-            update: {},
-            create: {
-                conversationId: invite.conversationId,
-                userId: user.id,
-            },
-        });
-    }
-
-    redirect(`/chat/${invite.conversationId}`);
-}
 
 export async function sendMessage(
     conversationId: number,
@@ -288,7 +116,7 @@ export async function sendMessage(
 
         const integrations = await prisma.userIntegration.findMany({
             where: {
-                userId: user.id,
+                userId: conversation.ownerId,
                 provider: {
                     in: providers,
                 },
@@ -322,7 +150,7 @@ export async function sendMessage(
                 provider,
                 messages: history,
                 currentUserId: user.id,
-                currentUserName: conversation.owner?.name,
+                currentUserName: user.name,
             });
 
             const response = await askLLM({

@@ -15,6 +15,12 @@ export async function requireUser() {
     redirect("/login");
   }
 
+  const isGuest = user.is_anonymous === true;
+
+  if (error || !user) {
+    redirect("/login");
+  }
+
   const googleName =
     user.user_metadata?.full_name ??
     user.user_metadata?.name ??
@@ -41,5 +47,13 @@ export async function requireUser() {
     },
   });
 
-  return appUser;
+  return {
+  id: appUser.id,
+  email: appUser.email,
+  name: appUser.name,
+  avatarUrl: appUser.avatarUrl,
+  createdAt: appUser.createdAt,
+  updatedAt: appUser.updatedAt,
+  isGuest,
+};
 }

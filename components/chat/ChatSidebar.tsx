@@ -8,10 +8,15 @@ type Props = {
   chats: {
     id: number;
     title: string;
+    ownerId: string;
   }[];
+  currentUserId: string;
 };
 
-export function ChatSidebar({ chats }: Props) {
+export function ChatSidebar({
+  chats,
+  currentUserId,
+}: Props) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1">
@@ -29,25 +34,28 @@ export function ChatSidebar({ chats }: Props) {
           Recent
         </div>
 
-        <ChatList chats={chats} />
+        <ChatList
+          chats={chats}
+          currentUserId={currentUserId}
+        />
       </div>
 
       <div className="border-t border-border pt-3">
         <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1">
             <ThemeToggle />
 
             <Link
-            href="/settings"
-            aria-label="Settings"
-            title="Settings"
-            className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              href="/settings"
+              aria-label="Settings"
+              title="Settings"
+              className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
-            <Settings className="h-4 w-4" />
+              <Settings className="h-4 w-4" />
             </Link>
-        </div>
+          </div>
 
-        <form action={signOut}>
+          <form action={signOut}>
             <button
               type="submit"
               aria-label="Sign out"

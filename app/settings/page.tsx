@@ -13,26 +13,27 @@ export default async function SettingsPage() {
     const user = await requireUser();
 
     const chats = await prisma.conversation.findMany({
-         where: {
-        OR: [
-            {
-                ownerId: user.id,
-            },
-            {
-                members: {
-                    some: {
-                        userId: user.id,
+        where: {
+            OR: [
+                {
+                    ownerId: user.id,
+                },
+                {
+                    members: {
+                        some: {
+                            userId: user.id,
+                        },
                     },
                 },
-            },
-        ],
-    },
+            ],
+        },
         orderBy: {
             updatedAt: "desc",
         },
         select: {
             id: true,
             title: true,
+            ownerId: true,
         },
     });
 
@@ -59,7 +60,7 @@ export default async function SettingsPage() {
         .map((integration) => integration.provider);
 
     return (
-        <ChatShell sidebar={<ChatSidebar chats={chats} />}>
+        <ChatShell sidebar={<ChatSidebar chats={chats} currentUserId={user.id}/>}>
             <div className="h-dvh overflow-y-auto">
                 <div className="mx-auto max-w-4xl px-6 py-10">
                     <div className="mb-8">

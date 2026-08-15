@@ -12,9 +12,10 @@ import {
 type Props = {
   id: number;
   title: string;
+  isOwner: boolean;
 };
 
-export function ChatItem({ id, title }: Props) {
+export function ChatItem({ id, title, isOwner }: Props) {
   const pathname = usePathname();
   const href = `/chat/${id}`;
   const isActive = pathname === href;
@@ -101,28 +102,30 @@ export function ChatItem({ id, title }: Props) {
             <Pencil className="h-4 w-4" />
             Rename
           </button>
-          <button
-  type="button"
-  onClick={() => {
-    setMenuOpen(false);
+          {isOwner && (
+  <button
+    type="button"
+    onClick={() => {
+      setMenuOpen(false);
 
-    const confirmed = window.confirm(
-      `Delete "${title}"? This cannot be undone.`
-    );
+      const confirmed = window.confirm(
+        `Delete "${title}"? This cannot be undone.`
+      );
 
-    if (!confirmed) {
-      return;
-    }
+      if (!confirmed) {
+        return;
+      }
 
-    startTransition(async () => {
-      await deleteConversation(id);
-    });
-  }}
-  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-destructive hover:bg-muted"
->
-  <Trash2 className="h-4 w-4" />
-  Delete
-</button>
+      startTransition(async () => {
+        await deleteConversation(id);
+      });
+    }}
+    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-destructive hover:bg-muted"
+  >
+    <Trash2 className="h-4 w-4" />
+    Delete
+  </button>
+)}
         </div>
       )}
     </div>

@@ -28,7 +28,7 @@ export default async function Home() {
   });
 
   return (
-    <ChatShell sidebar={<ChatSidebar chats={chats} />}>
+    <ChatShell sidebar={<ChatSidebar chats={chats} currentUserId={user.id}/>}>
       <div className="flex min-h-dvh flex-col px-4 py-6 sm:px-6 sm:py-10">
         <ChatHeader />
 

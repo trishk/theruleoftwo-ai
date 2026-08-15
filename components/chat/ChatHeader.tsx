@@ -1,20 +1,30 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { renameConversation } from "@/app/actions";
+import { Check, Link2 } from "lucide-react";
+import {
+  createConversationInvite,
+  renameConversation,
+} from "@/app/actions";
+import { ThemeToggle } from "./ThemeToggle";
 
 type Props = {
   conversationId?: number;
   title?: string;
+  isOwner?: boolean;
+  isGuest?: boolean;
 };
 
 export function ChatHeader({
   conversationId,
   title = "Conversation",
+  isOwner = false,
+  isGuest = false,
 }: Props) {
   const [isEditing, setIsEditing] = useState(false);
   const [value, setValue] = useState(title);
   const [isPending, startTransition] = useTransition();
+  const [copied, setCopied] = useState(false);
 
   const save = () => {
     if (!conversationId) {
@@ -39,43 +49,90 @@ export function ChatHeader({
       setIsEditing(false);
     });
   };
-  return (
-    <header className="flex h-14 shrink-0 items-center border-b border-border pl-16 pr-4 md:px-6">
-      {isEditing ? (
-        <input
-          autoFocus
-          value={value}
-          disabled={isPending}
-          maxLength={100}
-          onChange={(event) =>
-            setValue(event.target.value)
-          }
-          onBlur={save}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              save();
-            }
 
-            if (event.key === "Escape") {
-              setValue(title);
-              setIsEditing(false);
+  const copyInviteLink = () => {
+    if (!conversationId) {
+      return;
+    }
+
+    startTransition(async () => {
+      const token = await createConversationInvite(
+        conversationId
+      );
+
+      const inviteUrl =
+        `${window.location.origin}/invite/${token}`;
+
+      await navigator.clipboard.writeText(inviteUrl);
+
+      setCopied(true);
+
+      window.setTimeout(() => {
+        setCopied(false);
+      }, 2000);
+    });
+  };
+
+  return (
+    <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border pl-16 pr-4 md:px-6">
+      <div className="min-w-0 flex-1">
+        {isEditing ? (
+          <input
+            autoFocus
+            value={value}
+            disabled={isPending}
+            maxLength={100}
+            onChange={(event) =>
+              setValue(event.target.value)
             }
-          }}
-          className="w-full max-w-md rounded-md border border-border bg-background px-2 py-1 text-sm font-medium text-foreground outline-none focus:ring-2 focus:ring-ring"
-        />
-      ) : conversationId ? (
+            onBlur={save}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                save();
+              }
+
+              if (event.key === "Escape") {
+                setValue(title);
+                setIsEditing(false);
+              }
+            }}
+            className="w-full max-w-md rounded-md border border-border bg-background px-2 py-1 text-sm font-medium text-foreground outline-none focus:ring-2 focus:ring-ring"
+          />
+        ) : conversationId ? (
+          <button
+            type="button"
+            onClick={() => setIsEditing(true)}
+            className="max-w-full truncate text-left text-sm font-medium text-foreground hover:underline"
+          >
+            {title}
+          </button>
+        ) : (
+          <span className="truncate text-sm font-medium text-foreground">
+            {title}
+          </span>
+        )}
+      </div>
+
+      <div className="flex shrink-0 items-center gap-2">
+  {isGuest && <ThemeToggle />}
+
+  {conversationId && isOwner && (
     <button
-        type="button"
-        onClick={() => setIsEditing(true)}
-        className="truncate text-left text-sm font-medium text-foreground hover:underline"
+      type="button"
+      onClick={copyInviteLink}
+      disabled={isPending}
+      className="flex shrink-0 items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
     >
-        {title}
+      {copied ? (
+        <Check className="h-4 w-4" />
+      ) : (
+        <Link2 className="h-4 w-4" />
+      )}
+
+      {copied ? "Copied" : "Invite"}
     </button>
-) : (
-    <span className="truncate text-sm font-medium text-foreground">
-        {title}
-    </span>
-)}
+  )}
+</div>
     </header>
   );
 }

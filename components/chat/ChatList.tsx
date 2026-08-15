@@ -4,10 +4,15 @@ type Props = {
   chats: {
     id: number;
     title: string;
+    ownerId: string;
   }[];
+  currentUserId: string;
 };
 
-export function ChatList({ chats }: Props) {
+export function ChatList({
+  chats,
+  currentUserId,
+}: Props) {
   if (chats.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -23,6 +28,7 @@ export function ChatList({ chats }: Props) {
           key={chat.id}
           id={chat.id}
           title={chat.title}
+          isOwner={chat.ownerId === currentUserId}
         />
       ))}
     </div>
