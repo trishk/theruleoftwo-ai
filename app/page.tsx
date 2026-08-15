@@ -3,9 +3,30 @@ import { prisma } from "@/lib/db/prisma";
 import { ChatShell } from "@/components/chat/ChatShell";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { requireUser } from "@/lib/auth/require-user";
+import { redirect } from "next/navigation";
 
 export default async function Home() {
   const user = await requireUser();
+
+  if (user.isGuest) {
+  const membership = await prisma.conversationMember.findFirst({
+    where: {
+      userId: user.id,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+    select: {
+      conversationId: true,
+    },
+  });
+
+  if (membership) {
+    redirect(`/chat/${membership.conversationId}`);
+  }
+
+  redirect("/login");
+}
 
   const chats = await prisma.conversation.findMany({
     where: {

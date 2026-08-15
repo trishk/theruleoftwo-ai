@@ -8,9 +8,30 @@ import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { ModelSelect } from "@/components/settings/ModelSelect";
 import { AddIntegrationSection } from "@/components/settings/AddIntegrationSection";
 import { RemoveIntegrationButton } from "@/components/settings/RemoveIntegrationButton";
+import { redirect } from "next/navigation";
 
 export default async function SettingsPage() {
     const user = await requireUser();
+
+    if (user.isGuest) {
+        const membership = await prisma.conversationMember.findFirst({
+            where: {
+                userId: user.id,
+            },
+            orderBy: {
+                createdAt: "desc",
+            },
+            select: {
+                conversationId: true,
+            },
+        });
+
+        if (membership) {
+            redirect(`/chat/${membership.conversationId}`);
+        }
+
+        redirect("/login");
+    }
 
     const chats = await prisma.conversation.findMany({
         where: {
@@ -60,7 +81,7 @@ export default async function SettingsPage() {
         .map((integration) => integration.provider);
 
     return (
-        <ChatShell sidebar={<ChatSidebar chats={chats} currentUserId={user.id}/>}>
+        <ChatShell sidebar={<ChatSidebar chats={chats} currentUserId={user.id} />}>
             <div className="h-dvh overflow-y-auto">
                 <div className="mx-auto max-w-4xl px-6 py-10">
                     <div className="mb-8">
