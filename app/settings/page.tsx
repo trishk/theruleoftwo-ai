@@ -13,9 +13,20 @@ export default async function SettingsPage() {
     const user = await requireUser();
 
     const chats = await prisma.conversation.findMany({
-        where: {
-            ownerId: user.id,
-        },
+         where: {
+        OR: [
+            {
+                ownerId: user.id,
+            },
+            {
+                members: {
+                    some: {
+                        userId: user.id,
+                    },
+                },
+            },
+        ],
+    },
         orderBy: {
             updatedAt: "desc",
         },
@@ -26,17 +37,17 @@ export default async function SettingsPage() {
     });
 
     const integrations = await prisma.userIntegration.findMany({
-    where: {
-        userId: user.id,
-    },
-    select: {
-        provider: true,
-        selectedModel: true,
-        encryptedApiKey: true,
-        keyIv: true,
-        keyAuthTag: true,
-    },
-});
+        where: {
+            userId: user.id,
+        },
+        select: {
+            provider: true,
+            selectedModel: true,
+            encryptedApiKey: true,
+            keyIv: true,
+            keyAuthTag: true,
+        },
+    });
 
     const configuredProviders = integrations
         .filter(

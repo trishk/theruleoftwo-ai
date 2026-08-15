@@ -27,7 +27,7 @@ export default async function ChatPage({ params }: Props) {
         user.id
     );
 
-    const conversation = await prisma.conversation.findFirst({
+    const conversation = await prisma.conversation.findUnique({
         where: {
             id: conversationId,
             ownerId: user.id,
@@ -49,13 +49,24 @@ export default async function ChatPage({ params }: Props) {
     }
 
     const chats = await prisma.conversation.findMany({
-        where: {
-            ownerId: user.id,
-        },
-        orderBy: {
-            updatedAt: "desc",
-        },
-    });
+    where: {
+        OR: [
+            {
+                ownerId: user.id,
+            },
+            {
+                members: {
+                    some: {
+                        userId: user.id,
+                    },
+                },
+            },
+        ],
+    },
+    orderBy: {
+        updatedAt: "desc",
+    },
+});
 
     const integrations = await prisma.userIntegration.findMany({
         where: {
@@ -120,9 +131,9 @@ export default async function ChatPage({ params }: Props) {
         <ChatShell sidebar={<ChatSidebar chats={chats} />}>
             <div className="flex h-dvh min-h-0 flex-col">
                 <ChatHeader
-    conversationId={conversation.id}
-    title={conversation.title}
-/>
+                    conversationId={conversation.id}
+                    title={conversation.title}
+                />
                 <ChatConversation
                     conversationId={conversation.id}
                     messages={messages}

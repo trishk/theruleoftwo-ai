@@ -7,7 +7,18 @@ export async function requireConversationAccess(
     const conversation = await prisma.conversation.findFirst({
         where: {
             id: conversationId,
-            ownerId: userId,
+            OR: [
+                {
+                    ownerId: userId,
+                },
+                {
+                    members: {
+                        some: {
+                            userId,
+                        },
+                    },
+                },
+            ],
         },
         select: {
             id: true,

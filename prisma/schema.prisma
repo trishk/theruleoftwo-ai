@@ -12,13 +12,14 @@ datasource db {
 }
 
 model User {
-  id            String            @id
+  id            String               @id
   email         String?
   name          String?
   avatarUrl     String?
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
   conversations Conversation[]
+  memberships   ConversationMember[]
   integrations  UserIntegration[]
 }
 
@@ -40,13 +41,44 @@ model UserIntegration {
 }
 
 model Conversation {
-  id        Int       @id @default(autoincrement())
+  id        Int                  @id @default(autoincrement())
   title     String
   ownerId   String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  owner     User                 @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  members   ConversationMember[]
+  invites ConversationInvite[]
   messages  Message[]
+}
+
+model ConversationMember {
+  id             Int          @id @default(autoincrement())
+  conversationId Int
+  userId         String
+  role           String       @default("member")
+  createdAt      DateTime     @default(now())
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+}
+
+model ConversationInvite {
+  id             Int          @id @default(autoincrement())
+  conversationId Int
+  token          String       @unique
+  createdById    String
+  createdAt      DateTime     @default(now())
+  expiresAt      DateTime?
+  revokedAt      DateTime?
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
 }
 
 model Message {
