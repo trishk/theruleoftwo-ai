@@ -5,7 +5,7 @@ import { useEffect, useRef } from "react";
 import { MentionPicker } from "./MentionPicker";
 import { ReplyPreview } from "./ReplyPreview";
 import { useMessageComposer } from "./useMessageComposer";
-import type { ChatReply } from "./types";
+import type { ChatMessage, ChatReply } from "./types";
 import type { Provider } from "@/lib/llm/types";
 
 type Props = {
@@ -13,6 +13,9 @@ type Props = {
   replyTo: ChatReply | null;
   configuredProviders: Provider[];
   onCancelReply: () => void;
+  onStreamingMessagesChange: React.Dispatch<
+    React.SetStateAction<ChatMessage[]>
+  >;
 };
 
 export function MessageComposer({
@@ -20,6 +23,7 @@ export function MessageComposer({
   replyTo,
   configuredProviders,
   onCancelReply,
+  onStreamingMessagesChange,
 }: Props) {
   const textareaRef =
     useRef<HTMLTextAreaElement | null>(null);
@@ -34,6 +38,7 @@ export function MessageComposer({
     conversationId,
     replyTo,
     onCancelReply,
+    onStreamingMessagesChange,
   });
 
   useEffect(() => {

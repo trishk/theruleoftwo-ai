@@ -1,19 +1,63 @@
-import { askOpenAI } from "./openai";
-import { askAnthropic } from "./anthropic";
-import { askGoogle } from "./google";
-import type { LLMRequest, LLMResponse } from "./types";
+import { generateText, streamText } from "ai";
+
+import { PROVIDERS } from "./providers";
+import { PROVIDER_RUNNERS } from "./provider-runners";
+import type {
+  LLMRequest,
+  LLMResponse,
+} from "./types";
 
 export async function askLLM(
   request: LLMRequest
 ): Promise<LLMResponse> {
-  switch (request.provider) {
-    case "openai":
-      return askOpenAI(request);
+  const startedAt = Date.now();
 
-    case "anthropic":
-      return askAnthropic(request);
+  const providerConfig =
+    PROVIDERS[request.provider];
 
-    case "google":
-      return askGoogle(request);
-  }
+  const runner =
+    PROVIDER_RUNNERS[request.provider];
+
+  const model =
+    request.model ??
+    providerConfig.defaultModel;
+
+  const result = await generateText({
+    model: runner.createModel(
+      model,
+      request.apiKey
+    ),
+    instructions: request.instructions,
+    messages: request.messages,
+  });
+
+  return {
+    provider: request.provider,
+    model,
+    text: result.text,
+    latencyMs: Date.now() - startedAt,
+  };
+}
+
+export function streamLLM(
+  request: LLMRequest
+) {
+  const providerConfig =
+    PROVIDERS[request.provider];
+
+  const runner =
+    PROVIDER_RUNNERS[request.provider];
+
+  const model =
+    request.model ??
+    providerConfig.defaultModel;
+
+  return streamText({
+    model: runner.createModel(
+      model,
+      request.apiKey
+    ),
+    instructions: request.instructions,
+    messages: request.messages,
+  });
 }

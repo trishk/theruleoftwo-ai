@@ -8,10 +8,11 @@ export type ChatReply = {
 
 export type ChatMessage = {
   id: number;
-  authorType: "human" | "ai";
+  authorType: AuthorType;
   authorName: string;
   content: string;
   createdAt: Date;
   isOwnMessage: boolean;
+  isStreaming?: boolean;
   replyTo?: ChatReply | null;
 };

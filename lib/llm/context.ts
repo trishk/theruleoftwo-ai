@@ -1,6 +1,5 @@
 import type { LLMMessage, Provider } from "./types";
 import { PROVIDER_META } from "./providerMeta";
-import { stripMentions } from "./prompt";
 
 type ContextMessage = {
   authorType: string;
@@ -71,44 +70,42 @@ export function buildConversationContext({
         currentUserName
       );
 
-      const content =
-        message.authorType === "human"
-          ? stripMentions(message.content)
-          : message.content;
+      const content = message.content;
 
       return `${authorName}: ${content}`;
     })
     .join("\n\n");
 
   const systemMessage = [
-  `You are ${providerName}, participating in a group conversation.`,
-  `The current human participant's display name is ${userName}.`,
-  "The conversation may include humans and other AI assistants.",
-  "Messages from other AI assistants are their statements, not yours.",
-  "Use the conversation transcript as context when answering.",
-  "Respond only as yourself.",
-  "Do not automatically agree with other participants; provide your own independent assessment.",
+    `You are ${providerName}, participating in a group conversation.`,
+    `The current human participant's display name is ${userName}.`,
+    "The conversation may include humans and other AI assistants.",
+    "Human messages may address participants using @mentions such as @chatgpt, @claude, and @gemini.",
+    "Treat @mentions as meaningful conversation context, not as text to ignore.",
+    "If multiple participants are mentioned, each mentioned AI will respond separately as itself.",
+    "Words such as 'each', 'everyone', or 'you all' may refer to the participants mentioned in that message.",
+    "Messages from other AI assistants are their statements, not yours.",
+    "Use the conversation transcript as context when answering.",
+    "Respond only as yourself.",
+    "Do not automatically agree with other participants; provide your own independent assessment.",
 
-  "Prioritize accuracy over completeness.",
-  "Never fabricate facts, citations, statistics, sources, features, or capabilities.",
-  "Treat information stated by human participants in the conversation as provided context; do not require independent verification unless verification is relevant to the question.",
-  "If the answer is supported by the conversation context, answer directly.",
-  "If required information is missing or uncertain, say so rather than guessing.",
-  "Clearly flag information that may be time-sensitive or outdated when relevant.",
+    "Prioritize accuracy over completeness.",
+    "Never fabricate facts, citations, statistics, sources, features, or capabilities.",
+    "Treat information stated by human participants in the conversation as provided context; do not require independent verification unless verification is relevant to the question.",
+    "If the answer is supported by the conversation context, answer directly.",
+    "If required information is missing or uncertain, say so rather than guessing.",
+    "Clearly flag information that may be time-sensitive or outdated when relevant.",
 
-  "Treat this as a real-time group chat, not a report, article, or essay.",
-  "For ordinary conversational questions, answer in 1-2 short paragraphs and no more than 80 words.",
-  "For ordinary conversational questions, do not use headings, bullet lists, summaries, introductions, or conclusions.",
-  "Do not repeat the question or restate context unless needed for clarity.",
-  "Answer only what was asked and stop when the answer is complete.",
-  "Use longer or structured responses only when the user explicitly asks for detail, analysis, comparison, steps, a list, or another format that requires it.",
-  "Do not add speculative features, assumptions, generic caveats, or unsolicited next steps.",
-].join(" ");
+    "Treat this as a real-time group chat, not a report, article, or essay.",
+    "For ordinary conversational questions, answer in 1-2 short paragraphs and no more than 80 words.",
+    "For ordinary conversational questions, do not use headings, bullet lists, summaries, introductions, or conclusions.",
+    "Do not repeat the question or restate context unless needed for clarity.",
+    "Answer only what was asked and stop when the answer is complete.",
+    "Use longer or structured responses only when the user explicitly asks for detail, analysis, comparison, steps, a list, or another format that requires it.",
+    "Do not add speculative features, assumptions, generic caveats, or unsolicited next steps.",
+  ].join(" ");
 
-  const currentContent =
-    currentMessage.authorType === "human"
-      ? stripMentions(currentMessage.content)
-      : currentMessage.content;
+  const currentContent = currentMessage.content;
 
   const userMessage = transcript
     ? `Conversation transcript:\n\n${transcript}\n\nCurrent message:\n${currentContent}`
