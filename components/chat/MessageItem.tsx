@@ -1,7 +1,6 @@
 import { Reply } from "lucide-react";
 import { PROVIDER_LIST } from "@/lib/llm/providerMeta";
-
-type AuthorType = "human" | "ai";
+import type { AuthorType, ChatReply } from "./types";
 
 type Props = {
     authorType: AuthorType;
@@ -9,11 +8,7 @@ type Props = {
     content: string;
     createdAt: Date;
     isOwnMessage: boolean;
-    replyTo?: {
-        id: number;
-        authorName: string;
-        content: string;
-    } | null;
+      replyTo?: ChatReply | null;
     onReply: () => void;
 };
 

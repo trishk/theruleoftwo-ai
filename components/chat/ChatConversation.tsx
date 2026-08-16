@@ -4,24 +4,11 @@ import { useState } from "react";
 import { MessageList } from "./MessageList";
 import { MessageComposer } from "./MessageComposer";
 import type { Provider } from "@/lib/llm/types";
-
-type Message = {
-  id: number;
-  authorType: "human" | "ai";
-  authorName: string;
-  content: string;
-  createdAt: Date;
-  isOwnMessage: boolean;
-  replyTo?: {
-    id: number;
-    authorName: string;
-    content: string;
-  } | null;
-};
+import type { ChatMessage, ChatReply } from "./types";
 
 type Props = {
   conversationId: number;
-  messages: Message[];
+  messages: ChatMessage[];
   configuredProviders: Provider[];
 };
 
@@ -30,11 +17,7 @@ export function ChatConversation({
   messages,
   configuredProviders,
 }: Props) {
-  const [replyTo, setReplyTo] = useState<{
-    id: number;
-    authorName: string;
-    content: string;
-  } | null>(null);
+  const [replyTo, setReplyTo] = useState<ChatReply | null>(null);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">

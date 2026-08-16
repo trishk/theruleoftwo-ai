@@ -2,34 +2,31 @@
 
 import { useEffect, useRef } from "react";
 import { MessageItem } from "./MessageItem";
-
-type Message = {
-  id: number;
-  authorType: "human" | "ai";
-  authorName: string;
-  content: string;
-  createdAt: Date;
-  isOwnMessage: boolean;
-  replyTo?: {
-    id: number;
-    authorName: string;
-    content: string;
-  } | null;
-};
+import type { ChatMessage } from "./types";
 
 type Props = {
-  messages: Message[];
-  onReply: (message: Message) => void;
+  messages: ChatMessage[];
+  onReply: (message: ChatMessage) => void;
 };
 
-export function MessageList({ messages, onReply }: Props) {
-  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-  const shouldAutoScrollRef = useRef(true);
+export function MessageList({
+  messages,
+  onReply,
+}: Props) {
+  const scrollContainerRef =
+    useRef<HTMLDivElement | null>(null);
+
+  const shouldAutoScrollRef =
+    useRef(true);
 
   useEffect(() => {
-    const container = scrollContainerRef.current;
+    const container =
+      scrollContainerRef.current;
 
-    if (!container || !shouldAutoScrollRef.current) {
+    if (
+      !container ||
+      !shouldAutoScrollRef.current
+    ) {
       return;
     }
 
@@ -40,7 +37,8 @@ export function MessageList({ messages, onReply }: Props) {
   }, [messages]);
 
   function handleScroll() {
-    const container = scrollContainerRef.current;
+    const container =
+      scrollContainerRef.current;
 
     if (!container) {
       return;
@@ -77,9 +75,13 @@ export function MessageList({ messages, onReply }: Props) {
             authorName={message.authorName}
             content={message.content}
             createdAt={message.createdAt}
-            isOwnMessage={message.isOwnMessage}
+            isOwnMessage={
+              message.isOwnMessage
+            }
             replyTo={message.replyTo}
-            onReply={() => onReply(message)}
+            onReply={() =>
+              onReply(message)
+            }
           />
         ))}
       </div>
