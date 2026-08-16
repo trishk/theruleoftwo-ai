@@ -7,11 +7,13 @@ import type { ChatMessage } from "./types";
 type Props = {
   messages: ChatMessage[];
   onReply: (message: ChatMessage) => void;
+  onRetry: (message: ChatMessage) => void;
 };
 
 export function MessageList({
   messages,
   onReply,
+  onRetry,
 }: Props) {
   const scrollContainerRef =
     useRef<HTMLDivElement | null>(null);
@@ -75,13 +77,11 @@ export function MessageList({
             authorName={message.authorName}
             content={message.content}
             createdAt={message.createdAt}
-            isOwnMessage={
-              message.isOwnMessage
-            }
+            isOwnMessage={message.isOwnMessage}
+            isError={message.isError}
             replyTo={message.replyTo}
-            onReply={() =>
-              onReply(message)
-            }
+            onReply={() => onReply(message)}
+            onRetry={() => onRetry(message)}
           />
         ))}
       </div>

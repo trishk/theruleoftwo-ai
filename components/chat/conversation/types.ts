@@ -1,3 +1,5 @@
+import type { Provider } from "@/lib/llm/types";
+
 export type AuthorType = "human" | "ai";
 
 export type ChatReply = {
@@ -14,5 +16,8 @@ export type ChatMessage = {
   createdAt: Date;
   isOwnMessage: boolean;
   isStreaming?: boolean;
+  isError?: boolean;
+  provider?: Provider;
+  sourceMessageId?: number;
   replyTo?: ChatReply | null;
 };

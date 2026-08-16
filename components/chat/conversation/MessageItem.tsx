@@ -1,4 +1,4 @@
-import { Reply } from "lucide-react";
+import { Reply, RotateCcw } from "lucide-react";
 import { PROVIDER_LIST } from "@/lib/llm/providerMeta";
 import type { AuthorType, ChatReply } from "./types";
 
@@ -8,8 +8,10 @@ type Props = {
     content: string;
     createdAt: Date;
     isOwnMessage: boolean;
+    isError?: boolean;
     replyTo?: ChatReply | null;
     onReply: () => void;
+    onRetry?: () => void;
 };
 
 export function MessageItem({
@@ -17,8 +19,10 @@ export function MessageItem({
     authorName,
     content,
     isOwnMessage,
+    isError = false,
     replyTo,
     onReply,
+    onRetry,
 }: Props) {
 
     if (isOwnMessage) {
@@ -84,6 +88,18 @@ export function MessageItem({
                     >
                         <Reply className="h-3.5 w-3.5" />
                     </button>
+
+                    {isError && onRetry && (
+                        <button
+                            type="button"
+                            onClick={onRetry}
+                            aria-label={`Retry ${authorName}`}
+                            title={`Retry ${authorName}`}
+                            className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        >
+                            <RotateCcw className="h-3.5 w-3.5" />
+                        </button>
+                    )}
                 </div>
 
                 {replyTo && (

@@ -4,56 +4,55 @@ import { useEffect, useRef } from "react";
 
 import { MentionPicker } from "./MentionPicker";
 import { ReplyPreview } from "./ReplyPreview";
-import { useMessageComposer } from "./useMessageComposer";
-import type { ChatMessage, ChatReply } from "../conversation/types";
+
+import type { ChatReply } from "../conversation/types";
 import type { Provider } from "@/lib/llm/types";
 
 type Props = {
-  conversationId: number;
+  message: string;
+  sending: boolean;
+  error: string | null;
   replyTo: ChatReply | null;
   configuredProviders: Provider[];
+
+  onMessageChange: (message: string) => void;
   onCancelReply: () => void;
-  onStreamingMessagesChange: React.Dispatch<
-    React.SetStateAction<ChatMessage[]>
-  >;
+  onSubmit: () => Promise<void>;
+  onStopGeneration: () => void;
 };
 
 export function MessageComposer({
-  conversationId,
+  message,
+  sending,
+  error,
   replyTo,
   configuredProviders,
+  onMessageChange,
   onCancelReply,
-  onStreamingMessagesChange,
+  onSubmit,
+  onStopGeneration,
 }: Props) {
   const textareaRef =
-    useRef<HTMLTextAreaElement | null>(null);
-
-  const {
-    message,
-    setMessage,
-    sending,
-    error,
-    submitMessage,
-    stopGeneration,
-  } = useMessageComposer({
-    conversationId,
-    replyTo,
-    onCancelReply,
-    onStreamingMessagesChange,
-  });
+    useRef<HTMLTextAreaElement | null>(
+      null
+    );
 
   useEffect(() => {
-    const textarea = textareaRef.current;
+    const textarea =
+      textareaRef.current;
 
     if (!textarea) {
       return;
     }
 
-    textarea.style.height = "auto";
-    textarea.style.height = `${Math.min(
-      textarea.scrollHeight,
-      160
-    )}px`;
+    textarea.style.height =
+      "auto";
+
+    textarea.style.height =
+      `${Math.min(
+        textarea.scrollHeight,
+        160
+      )}px`;
   }, [message]);
 
   async function handleSubmit(
@@ -61,7 +60,7 @@ export function MessageComposer({
   ) {
     event.preventDefault();
 
-    await submitMessage();
+    await onSubmit();
   }
 
   function handleKeyDown(
@@ -72,18 +71,24 @@ export function MessageComposer({
       !event.shiftKey
     ) {
       event.preventDefault();
-      event.currentTarget.form?.requestSubmit();
+
+      event.currentTarget.form
+        ?.requestSubmit();
     }
   }
 
   return (
     <div className="border-t border-border bg-background">
       <div className="mx-auto w-full max-w-4xl px-4 py-4 sm:px-6">
-        <form onSubmit={handleSubmit}>
+        <form
+          onSubmit={handleSubmit}
+        >
           {replyTo && (
             <ReplyPreview
               replyTo={replyTo}
-              onCancel={onCancelReply}
+              onCancel={
+                onCancelReply
+              }
             />
           )}
 
@@ -100,8 +105,10 @@ export function MessageComposer({
             }
             disabled={sending}
             onChange={(value) => {
-              setMessage(value);
-              textareaRef.current?.focus();
+              onMessageChange(value);
+
+              textareaRef.current
+                ?.focus();
             }}
           />
 
@@ -110,9 +117,13 @@ export function MessageComposer({
               ref={textareaRef}
               value={message}
               onChange={(event) =>
-                setMessage(event.target.value)
+                onMessageChange(
+                  event.target.value
+                )
               }
-              onKeyDown={handleKeyDown}
+              onKeyDown={
+                handleKeyDown
+              }
               placeholder="Ask for another perspective..."
               rows={1}
               disabled={sending}
@@ -120,14 +131,19 @@ export function MessageComposer({
             />
 
             <button
-              type={sending ? "button" : "submit"}
+              type={
+                sending
+                  ? "button"
+                  : "submit"
+              }
               onClick={
                 sending
-                  ? stopGeneration
+                  ? onStopGeneration
                   : undefined
               }
               disabled={
-                !sending && !message.trim()
+                !sending &&
+                !message.trim()
               }
               aria-label={
                 sending
