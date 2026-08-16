@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createChat, signOut } from "@/app/actions";
-import { ChatList } from "./ChatList";
+import { ChatList } from "../navigation/ChatList";
 import { ThemeToggle } from "./ThemeToggle";
 import { LogOut, Plus, Settings } from "lucide-react";
 

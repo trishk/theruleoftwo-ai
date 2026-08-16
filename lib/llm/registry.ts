@@ -40,7 +40,9 @@ export async function askLLM(
 }
 
 export function streamLLM(
-  request: LLMRequest
+  request: LLMRequest,
+  abortSignal?: AbortSignal
+
 ) {
   const providerConfig =
     PROVIDERS[request.provider];
@@ -59,5 +61,7 @@ export function streamLLM(
     ),
     instructions: request.instructions,
     messages: request.messages,
+    abortSignal,
   });
 }
+

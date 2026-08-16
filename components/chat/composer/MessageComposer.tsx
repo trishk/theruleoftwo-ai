@@ -5,7 +5,7 @@ import { useEffect, useRef } from "react";
 import { MentionPicker } from "./MentionPicker";
 import { ReplyPreview } from "./ReplyPreview";
 import { useMessageComposer } from "./useMessageComposer";
-import type { ChatMessage, ChatReply } from "./types";
+import type { ChatMessage, ChatReply } from "../conversation/types";
 import type { Provider } from "@/lib/llm/types";
 
 type Props = {
@@ -34,6 +34,7 @@ export function MessageComposer({
     sending,
     error,
     submitMessage,
+    stopGeneration,
   } = useMessageComposer({
     conversationId,
     replyTo,
@@ -119,16 +120,25 @@ export function MessageComposer({
             />
 
             <button
-              type="submit"
-              disabled={
-                !message.trim() || sending
+              type={sending ? "button" : "submit"}
+              onClick={
+                sending
+                  ? stopGeneration
+                  : undefined
               }
-              aria-label="Send message"
+              disabled={
+                !sending && !message.trim()
+              }
+              aria-label={
+                sending
+                  ? "Stop generation"
+                  : "Send message"
+              }
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-foreground text-background transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
             >
               {sending ? (
                 <span
-                  className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+                  className="h-3.5 w-3.5 rounded-sm bg-current"
                   aria-hidden="true"
                 />
               ) : (

@@ -1,4 +1,4 @@
-import type { ChatReply } from "./types";
+import type { ChatReply } from "../conversation/types";
 
 type Props = {
   replyTo: ChatReply;

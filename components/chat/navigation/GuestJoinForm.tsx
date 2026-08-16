@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { joinConversationAsGuest } from "@/app/actions";
-import { useConversationRealtime } from "./RealtimeConversationSync";
+import { useConversationRealtime } from "../realtime/RealtimeConversationSync";
 
 type Props = {
   token: string;

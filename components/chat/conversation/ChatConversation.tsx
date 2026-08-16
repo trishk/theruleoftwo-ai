@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { MessageList } from "./MessageList";
-import { MessageComposer } from "./MessageComposer";
+import { MessageComposer } from "../composer/MessageComposer";
 import type { Provider } from "@/lib/llm/types";
 import type {
   ChatMessage,

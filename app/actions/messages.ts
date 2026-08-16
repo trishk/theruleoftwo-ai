@@ -60,15 +60,16 @@ async function saveHumanMessage(
             },
         });
 
-    await prisma.message.create({
-        data: {
-            conversationId,
-            authorType: "human",
-            authorId: userId,
-            content: trimmedContent,
-            replyToId: replyToId ?? null,
-        },
-    });
+    const createdMessage =
+        await prisma.message.create({
+            data: {
+                conversationId,
+                authorType: "human",
+                authorId: userId,
+                content: trimmedContent,
+                replyToId: replyToId ?? null,
+            },
+        });
 
     if (
         existingMessageCount === 0 &&
@@ -95,6 +96,7 @@ async function saveHumanMessage(
     }
 
     return {
+        messageId: createdMessage.id,
         content: trimmedContent,
         providers: extractMentions(trimmedContent),
     };
@@ -114,6 +116,7 @@ export async function sendHumanMessage(
         );
 
     const {
+        messageId,
         providers,
     } = await saveHumanMessage(
         conversationId,
@@ -121,6 +124,8 @@ export async function sendHumanMessage(
         content,
         replyToId
     );
+
+    
 
     await prisma.conversation.update({
         where: {
@@ -135,6 +140,7 @@ export async function sendHumanMessage(
     revalidatePath("/");
 
     return {
+        messageId,
         providers,
     };
 }

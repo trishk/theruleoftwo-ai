@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 
 import { leaveConversation } from "@/app/actions";
-import { useConversationRealtime } from "./RealtimeConversationSync";
+import { useConversationRealtime } from "../realtime/RealtimeConversationSync";
 
 type Props = {
   conversationId: number;

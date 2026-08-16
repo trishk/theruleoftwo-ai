@@ -41,23 +41,25 @@ export async function prepareLLMRequest({
       },
     });
 
-  const selectedModel =
-    integration?.selectedModel ??
-    PROVIDERS[provider].defaultModel;
-
-  let apiKey: string | undefined;
-
   if (
-    integration?.encryptedApiKey &&
-    integration?.keyIv &&
-    integration?.keyAuthTag
+    !integration?.encryptedApiKey ||
+    !integration.keyIv ||
+    !integration.keyAuthTag
   ) {
-    apiKey = decryptSecret(
-      integration.encryptedApiKey,
-      integration.keyIv,
-      integration.keyAuthTag
+    throw new Error(
+      "Provider is not configured for this conversation."
     );
   }
+
+  const selectedModel =
+    integration.selectedModel ??
+    PROVIDERS[provider].defaultModel;
+
+  const apiKey = decryptSecret(
+    integration.encryptedApiKey,
+    integration.keyIv,
+    integration.keyAuthTag
+  );
 
   const context = buildConversationContext({
     provider,

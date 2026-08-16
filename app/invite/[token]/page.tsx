@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
-import { GuestJoinForm } from "@/components/chat/GuestJoinForm";
-import { RealtimeConversationSync } from "@/components/chat/RealtimeConversationSync";
+import { GuestJoinForm } from "@/components/chat/navigation/GuestJoinForm";
+import { RealtimeConversationSync } from "@/components/chat/realtime/RealtimeConversationSync";
 
 type Props = {
   params: Promise<{

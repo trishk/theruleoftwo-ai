@@ -8,7 +8,7 @@ type Props = {
     content: string;
     createdAt: Date;
     isOwnMessage: boolean;
-      replyTo?: ChatReply | null;
+    replyTo?: ChatReply | null;
     onReply: () => void;
 };
 

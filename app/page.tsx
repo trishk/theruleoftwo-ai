@@ -1,7 +1,7 @@
-import { ChatHeader } from "@/components/chat/ChatHeader";
+import { ChatHeader } from "@/components/chat/navigation/ChatHeader";
 import { prisma } from "@/lib/db/prisma";
-import { ChatShell } from "@/components/chat/ChatShell";
-import { ChatSidebar } from "@/components/chat/ChatSidebar";
+import { ChatShell } from "@/components/chat/navigation/ChatShell";
+import { ChatSidebar } from "@/components/chat/navigation/ChatSidebar";
 import { requireUser } from "@/lib/auth/require-user";
 import { redirect } from "next/navigation";
 

@@ -1,113 +1,136 @@
 import { NextRequest } from "next/server";
 
-import { prisma } from "@/lib/db/prisma";
 import { requireUser } from "@/lib/auth/require-user";
-import { requireConversationAccess } from "@/lib/auth/require-conversation-access";
 import { prepareLLMRequest } from "@/lib/llm/prepare-request";
 import { streamLLM } from "@/lib/llm/registry";
-import type {
-  LLMStreamErrorCode,
-  LLMStreamEvent,
-  Provider,
-} from "@/lib/llm/types";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 
-type Body = {
-  conversationId: number;
-  provider: Provider;
-};
+import { getStreamErrorCode } from "@/lib/chat-stream/stream-errors";
+import { validateStreamRequest } from "@/lib/chat-stream/validate-stream-request";
+import { streamValidationErrorResponse } from "@/lib/chat-stream/stream-validation-error";
+import { persistStreamResponse } from "@/lib/chat-stream/persist-stream-response";
 
-function getStreamErrorCode(
-  error: unknown
-): LLMStreamErrorCode {
-  const message =
-    error instanceof Error
-      ? error.message.toLowerCase()
-      : String(error).toLowerCase();
-
-  if (
-    message.includes("credit") ||
-    message.includes("quota") ||
-    message.includes("billing")
-  ) {
-    return "insufficient_credits";
-  }
-
-  if (
-    message.includes("rate limit") ||
-    message.includes("too many requests") ||
-    message.includes("429")
-  ) {
-    return "rate_limit";
-  }
-
-  if (
-    message.includes("api key") ||
-    message.includes("unauthorized") ||
-    message.includes("401")
-  ) {
-    return "invalid_api_key";
-  }
-
-  return "provider_error";
-}
+import type { LLMStreamEvent } from "@/lib/llm/types";
 
 export async function POST(
   request: NextRequest
 ) {
   const user = await requireUser();
 
-  const body =
-    (await request.json()) as Body;
+  let rawBody: unknown;
 
-  const conversationId = Number(
-    body.conversationId
+  try {
+    rawBody = await request.json();
+  } catch {
+    return new Response(
+      "Invalid request body.",
+      {
+        status: 400,
+      }
+    );
+  }
+
+  let validatedRequest;
+
+  try {
+    validatedRequest =
+      await validateStreamRequest({
+        rawBody,
+        userId: user.id,
+      });
+  } catch (error) {
+    return streamValidationErrorResponse(
+      error
+    );
+  }
+
+  const {
+    conversationId,
+    provider,
+    ownerId,
+  } = validatedRequest;
+
+  const rateLimit = checkRateLimit(
+    `llm:${user.id}`
   );
 
-  const provider = body.provider;
-
-  if (
-    !Number.isInteger(conversationId) ||
-    conversationId <= 0
-  ) {
+  if (!rateLimit.allowed) {
     return new Response(
-      "Invalid conversation id.",
+      "Too many requests.",
       {
-        status: 400,
+        status: 429,
+        headers: {
+          "Retry-After": String(
+            rateLimit.retryAfterSeconds
+          ),
+        },
       }
     );
   }
 
-  if (
-    provider !== "openai" &&
-    provider !== "anthropic" &&
-    provider !== "google"
-  ) {
+  let llmRequest;
+
+  try {
+    llmRequest =
+      await prepareLLMRequest({
+        conversationId,
+        provider,
+        currentUserId: user.id,
+        currentUserName: user.name,
+        ownerId,
+      });
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "";
+
+    if (
+      message ===
+      "Provider is not configured for this conversation."
+    ) {
+      return new Response(
+        "Provider is not configured.",
+        {
+          status: 400,
+        }
+      );
+    }
+
+    console.error(
+      "Failed to prepare LLM request:",
+      error
+    );
+
     return new Response(
-      "Invalid provider.",
+      "Could not prepare request.",
       {
-        status: 400,
+        status: 500,
       }
     );
   }
 
-  const conversation =
-    await requireConversationAccess(
-      conversationId,
-      user.id
-    );
-
-  const llmRequest =
-    await prepareLLMRequest({
-      conversationId,
-      provider,
-      currentUserId: user.id,
-      currentUserName: user.name,
-      ownerId: conversation.ownerId,
-    });
-
-  const result = streamLLM(llmRequest);
+  const result = streamLLM(
+    llmRequest,
+    request.signal
+  );
 
   let fullText = "";
+  let persisted = false;
+
+  async function persistResponse() {
+    if (persisted) {
+      return;
+    }
+
+    persisted = true;
+
+    await persistStreamResponse({
+      conversationId,
+      provider,
+      content: fullText,
+    });
+  }
 
   const encoder = new TextEncoder();
 
@@ -118,70 +141,83 @@ export async function POST(
       `${JSON.stringify(event)}\n`
     );
 
-  const stream = new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const delta of result.textStream) {
-          fullText += delta;
+  const stream =
+    new ReadableStream({
+      async start(controller) {
+        try {
+          for await (
+            const delta of
+            result.textStream
+          ) {
+            if (
+              request.signal.aborted
+            ) {
+              await persistResponse();
+              return;
+            }
+
+            fullText += delta;
+
+            controller.enqueue(
+              encodeEvent({
+                type: "delta",
+                text: delta,
+              })
+            );
+          }
+
+          await persistResponse();
+
+          if (
+            request.signal.aborted
+          ) {
+            return;
+          }
 
           controller.enqueue(
             encodeEvent({
-              type: "delta",
-              text: delta,
+              type: "done",
             })
           );
+
+          controller.close();
+        } catch (error) {
+          if (
+            request.signal.aborted
+          ) {
+            await persistResponse();
+            return;
+          }
+
+          console.error(
+            "Streaming error:",
+            error
+          );
+
+          controller.enqueue(
+            encodeEvent({
+              type: "error",
+              code:
+                getStreamErrorCode(
+                  error
+                ),
+            })
+          );
+
+          controller.close();
         }
+      },
+    });
 
-        await prisma.message.create({
-          data: {
-            conversationId,
-            authorType: "ai",
-            authorId: provider,
-            content: fullText,
-          },
-        });
-
-        await prisma.conversation.update({
-          where: {
-            id: conversationId,
-          },
-          data: {
-            updatedAt: new Date(),
-          },
-        });
-
-        controller.enqueue(
-          encodeEvent({
-            type: "done",
-          })
-        );
-
-        controller.close();
-      } catch (error) {
-        console.error(
-          "Streaming error:",
-          error
-        );
-
-        controller.enqueue(
-          encodeEvent({
-            type: "error",
-            code: getStreamErrorCode(
-              error
-            ),
-          })
-        );
-
-        controller.close();
-      }
-    },
-  });
-
-  return new Response(stream, {
-    headers: {
-      "Content-Type":
-        "application/x-ndjson; charset=utf-8",
-      "Cache-Control": "no-cache",
-    },
-  });
+  return new Response(
+    stream,
+    {
+      headers: {
+        "Content-Type":
+          "application/x-ndjson; charset=utf-8",
+        "Cache-Control":
+          "no-cache",
+      },
+    }
+  );
 }

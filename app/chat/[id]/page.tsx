@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/db/prisma";
-import { ChatHeader } from "@/components/chat/ChatHeader";
-import { ChatConversation } from "@/components/chat/ChatConversation";
-import { ChatShell } from "@/components/chat/ChatShell";
-import { ChatSidebar } from "@/components/chat/ChatSidebar";
-import { RealtimeConversationSync } from "@/components/chat/RealtimeConversationSync";
+import { ChatHeader } from "@/components/chat/navigation/ChatHeader";
+import { ChatConversation } from "@/components/chat/conversation/ChatConversation";
+import { ChatShell } from "@/components/chat/navigation/ChatShell";
+import { ChatSidebar } from "@/components/chat/navigation/ChatSidebar";
+import { RealtimeConversationSync } from "@/components/chat/realtime/RealtimeConversationSync";
 import { requireUser } from "@/lib/auth/require-user";
 import { requireConversationAccess } from "@/lib/auth/require-conversation-access";
 import { notFound, redirect } from "next/navigation";
