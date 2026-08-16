@@ -1,13 +1,13 @@
 "use client";
 
 import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
+    createContext,
+    useCallback,
+    useContext,
+    useEffect,
+    useRef,
+    useState,
+    type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
 import type { RealtimeChannel } from "@supabase/supabase-js";
@@ -15,111 +15,137 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 
 type RealtimeContextValue = {
-  broadcastMessageCreated: () => Promise<void>;
-  isReady: boolean;
+    broadcastMessageCreated: () => Promise<void>;
+    broadcastConversationUpdated: () => Promise<void>;
+    isReady: boolean;
 };
 
 const RealtimeContext =
-  createContext<RealtimeContextValue | null>(null);
+    createContext<RealtimeContextValue | null>(null);
 
 type Props = {
-  conversationId: number;
-  children: ReactNode;
+    conversationId: number;
+    children: ReactNode;
 };
 
 export function RealtimeConversationSync({
-  conversationId,
-  children,
+    conversationId,
+    children,
 }: Props) {
-  const router = useRouter();
+    const router = useRouter();
 
-  const supabaseRef = useRef(
-    createClient()
-  );
+    const supabaseRef = useRef(
+        createClient()
+    );
 
-  const channelRef =
-    useRef<RealtimeChannel | null>(null);
+    const channelRef =
+        useRef<RealtimeChannel | null>(null);
 
-  const [isReady, setIsReady] =
-    useState(false);
+    const [isReady, setIsReady] =
+        useState(false);
 
-  useEffect(() => {
-    const supabase = supabaseRef.current;
+    useEffect(() => {
+        const supabase = supabaseRef.current;
 
-    const channel = supabase
-      .channel(`conversation:${conversationId}`)
-      .on(
-        "broadcast",
-        {
-          event: "message-created",
-        },
-        () => {
-          router.refresh();
-        }
-      );
+        const channel = supabase
+            .channel(`conversation:${conversationId}`)
+            .on(
+                "broadcast",
+                {
+                    event: "message-created",
+                },
+                () => {
+                    router.refresh();
+                }
+            )
+            .on(
+                "broadcast",
+                {
+                    event: "conversation-updated",
+                },
+                () => {
+                    router.refresh();
+                }
+            );
 
-    channelRef.current = channel;
+        channelRef.current = channel;
 
-    channel.subscribe((status, error) => {
-      if (status === "SUBSCRIBED") {
-        setIsReady(true);
-      }
+        channel.subscribe((status, error) => {
+            if (status === "SUBSCRIBED") {
+                setIsReady(true);
+            }
 
-      if (
-        status === "CHANNEL_ERROR" ||
-        status === "TIMED_OUT"
-      ) {
-        console.error(
-          "Realtime channel error:",
-          status,
-          error
-        );
-      }
-    });
+            if (
+                status === "CHANNEL_ERROR" ||
+                status === "TIMED_OUT"
+            ) {
+                console.error(
+                    "Realtime channel error:",
+                    status,
+                    error
+                );
+            }
+        });
 
-    return () => {
-      setIsReady(false);
-      channelRef.current = null;
+        return () => {
+            setIsReady(false);
+            channelRef.current = null;
 
-      void supabase.removeChannel(channel);
-    };
-  }, [conversationId, router]);
+            void supabase.removeChannel(channel);
+        };
+    }, [conversationId, router]);
 
-  const broadcastMessageCreated =
-    useCallback(async () => {
-      const channel = channelRef.current;
+    const broadcastMessageCreated =
+        useCallback(async () => {
+            const channel = channelRef.current;
 
-      if (!channel) {
-        return;
-      }
+            if (!channel) {
+                return;
+            }
 
-      await channel.send({
-        type: "broadcast",
-        event: "message-created",
-        payload: {},
-      });
-    }, []);
+            await channel.send({
+                type: "broadcast",
+                event: "message-created",
+                payload: {},
+            });
+        }, []);
 
-  return (
-    <RealtimeContext.Provider
-      value={{
-        broadcastMessageCreated,
-        isReady,
-      }}
-    >
-      {children}
-    </RealtimeContext.Provider>
-  );
+    const broadcastConversationUpdated =
+        useCallback(async () => {
+            const channel = channelRef.current;
+
+            if (!channel) {
+                return;
+            }
+
+            await channel.send({
+                type: "broadcast",
+                event: "conversation-updated",
+                payload: {},
+            });
+        }, []);
+
+    return (
+        <RealtimeContext.Provider
+            value={{
+                broadcastMessageCreated,
+                broadcastConversationUpdated,
+                isReady,
+            }}
+        >
+            {children}
+        </RealtimeContext.Provider>
+    );
 }
 
 export function useConversationRealtime() {
-  const context = useContext(RealtimeContext);
+    const context = useContext(RealtimeContext);
 
-  if (!context) {
-    throw new Error(
-      "useConversationRealtime must be used inside RealtimeConversationSync."
-    );
-  }
+    if (!context) {
+        throw new Error(
+            "useConversationRealtime must be used inside RealtimeConversationSync."
+        );
+    }
 
-  return context;
+    return context;
 }

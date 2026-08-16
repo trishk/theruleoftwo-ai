@@ -55,6 +55,20 @@ export default async function ChatPage({ params }: Props) {
             id: conversationId,
         },
         include: {
+            owner: {
+                select: {
+                    name: true,
+                },
+            },
+            members: {
+                include: {
+                    user: {
+                        select: {
+                            name: true,
+                        },
+                    },
+                },
+            },
             messages: {
                 orderBy: {
                     createdAt: "asc",
@@ -69,6 +83,13 @@ export default async function ChatPage({ params }: Props) {
     if (!conversation) {
         notFound();
     }
+
+    const participants = [
+        conversation.owner.name ?? "Owner",
+        ...conversation.members.map(
+            (member) => member.user.name ?? "Guest"
+        ),
+    ];
 
     const chats = user.isGuest
         ? []
@@ -180,6 +201,7 @@ export default async function ChatPage({ params }: Props) {
             ),
             content: message.content,
             createdAt: message.createdAt,
+            isOwnMessage: message.authorId === user.id,
             replyTo: message.replyTo
                 ? {
                     id: message.replyTo.id,
@@ -202,6 +224,7 @@ export default async function ChatPage({ params }: Props) {
                     title={conversation.title}
                     isOwner={conversation.ownerId === user.id}
                     isGuest={user.isGuest}
+                    participants={participants}
                 />
 
                 <ChatConversation

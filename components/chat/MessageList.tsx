@@ -9,6 +9,7 @@ type Message = {
   authorName: string;
   content: string;
   createdAt: Date;
+  isOwnMessage: boolean;
   replyTo?: {
     id: number;
     authorName: string;
@@ -76,6 +77,7 @@ export function MessageList({ messages, onReply }: Props) {
             authorName={message.authorName}
             content={message.content}
             createdAt={message.createdAt}
+            isOwnMessage={message.isOwnMessage}
             replyTo={message.replyTo}
             onReply={() => onReply(message)}
           />

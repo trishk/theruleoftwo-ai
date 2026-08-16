@@ -8,6 +8,7 @@ type Props = {
     authorName: string;
     content: string;
     createdAt: Date;
+    isOwnMessage: boolean;
     replyTo?: {
         id: number;
         authorName: string;
@@ -20,12 +21,12 @@ export function MessageItem({
     authorType,
     authorName,
     content,
+    isOwnMessage,
     replyTo,
     onReply,
 }: Props) {
-    const isHuman = authorType === "human";
 
-    if (isHuman) {
+    if (isOwnMessage) {
         return (
             <div className="group flex justify-end py-3">
                 <div className="flex max-w-[75%] items-start gap-2">

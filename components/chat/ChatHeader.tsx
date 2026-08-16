@@ -2,17 +2,20 @@
 
 import { useState, useTransition } from "react";
 import { Check, Link2 } from "lucide-react";
+
 import {
   createConversationInvite,
   renameConversation,
 } from "@/app/actions";
 import { ThemeToggle } from "./ThemeToggle";
+import { LeaveConversationButton } from "./LeaveConversationButton";
 
 type Props = {
   conversationId?: number;
   title?: string;
   isOwner?: boolean;
   isGuest?: boolean;
+  participants?: string[];
 };
 
 export function ChatHeader({
@@ -20,6 +23,7 @@ export function ChatHeader({
   title = "Conversation",
   isOwner = false,
   isGuest = false,
+  participants = [],
 }: Props) {
   const [isEditing, setIsEditing] = useState(false);
   const [value, setValue] = useState(title);
@@ -56,14 +60,17 @@ export function ChatHeader({
     }
 
     startTransition(async () => {
-      const token = await createConversationInvite(
-        conversationId
-      );
+      const token =
+        await createConversationInvite(
+          conversationId
+        );
 
       const inviteUrl =
         `${window.location.origin}/invite/${token}`;
 
-      await navigator.clipboard.writeText(inviteUrl);
+      await navigator.clipboard.writeText(
+        inviteUrl
+      );
 
       setCopied(true);
 
@@ -98,41 +105,59 @@ export function ChatHeader({
             }}
             className="w-full max-w-md rounded-md border border-border bg-background px-2 py-1 text-sm font-medium text-foreground outline-none focus:ring-2 focus:ring-ring"
           />
-        ) : conversationId ? (
-          <button
-            type="button"
-            onClick={() => setIsEditing(true)}
-            className="max-w-full truncate text-left text-sm font-medium text-foreground hover:underline"
-          >
-            {title}
-          </button>
         ) : (
-          <span className="truncate text-sm font-medium text-foreground">
-            {title}
-          </span>
+          <div className="min-w-0">
+            {conversationId ? (
+              <button
+                type="button"
+                onClick={() =>
+                  setIsEditing(true)
+                }
+                className="max-w-full truncate text-left text-sm font-medium text-foreground hover:underline"
+              >
+                {title}
+              </button>
+            ) : (
+              <span className="truncate text-sm font-medium text-foreground">
+                {title}
+              </span>
+            )}
+
+            {participants.length > 1 && (
+              <div className="truncate text-xs text-muted-foreground">
+                {participants.join(" · ")}
+              </div>
+            )}
+          </div>
         )}
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-  {isGuest && <ThemeToggle />}
+        {isGuest && <ThemeToggle />}
 
-  {conversationId && isOwner && (
-    <button
-      type="button"
-      onClick={copyInviteLink}
-      disabled={isPending}
-      className="flex shrink-0 items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
-    >
-      {copied ? (
-        <Check className="h-4 w-4" />
-      ) : (
-        <Link2 className="h-4 w-4" />
-      )}
+        {conversationId && isGuest && (
+          <LeaveConversationButton
+            conversationId={conversationId}
+          />
+        )}
 
-      {copied ? "Copied" : "Invite"}
-    </button>
-  )}
-</div>
+        {conversationId && isOwner && (
+          <button
+            type="button"
+            onClick={copyInviteLink}
+            disabled={isPending}
+            className="flex shrink-0 items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+          >
+            {copied ? (
+              <Check className="h-4 w-4" />
+            ) : (
+              <Link2 className="h-4 w-4" />
+            )}
+
+            {copied ? "Copied" : "Invite"}
+          </button>
+        )}
+      </div>
     </header>
   );
 }

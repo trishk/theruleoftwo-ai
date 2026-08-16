@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db/prisma";
 import { requireUser } from "@/lib/auth/require-user";
 import { requireConversationAccess } from "@/lib/auth/require-conversation-access";
 import { createClient } from "@/lib/supabase/server";
+import { revalidatePath } from "next/cache";
 
 export async function createConversationInvite(
     conversationId: number
@@ -188,5 +189,33 @@ export async function joinConversationAsGuest(
         }),
     ]);
 
-    redirect(`/chat/${invite.conversationId}`);
+    revalidatePath(`/chat/${invite.conversationId}`);
+
+    return {
+        conversationId: invite.conversationId,
+    };
+}
+
+export async function leaveConversation(
+    conversationId: number
+) {
+    const user = await requireUser();
+
+    const conversation = await requireConversationAccess(
+        conversationId,
+        user.id
+    );
+
+    if (conversation.ownerId === user.id) {
+        throw new Error("The conversation owner cannot leave.");
+    }
+
+    await prisma.conversationMember.deleteMany({
+        where: {
+            conversationId,
+            userId: user.id,
+        },
+    });
+
+    revalidatePath(`/chat/${conversationId}`);
 }

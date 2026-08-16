@@ -11,6 +11,7 @@ type Message = {
   authorName: string;
   content: string;
   createdAt: Date;
+  isOwnMessage: boolean;
   replyTo?: {
     id: number;
     authorName: string;
