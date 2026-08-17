@@ -26,7 +26,10 @@ export async function createConversationInvite(
       user.id
     );
 
-  if (conversation.ownerId !== user.id) {
+  if (
+    conversation.ownerId !==
+    user.id
+  ) {
     throw new Error(
       "Only the conversation owner can create invites."
     );
@@ -91,7 +94,6 @@ export async function joinConversationAsGuest(
     );
   }
 
-  // Validate before creating an anonymous Supabase user.
   const invite =
     await getValidInvite(token);
 
@@ -165,7 +167,10 @@ export async function leaveConversation(
       user.id
     );
 
-  if (conversation.ownerId === user.id) {
+  if (
+    conversation.ownerId ===
+    user.id
+  ) {
     throw new Error(
       "The conversation owner cannot leave."
     );
@@ -174,11 +179,75 @@ export async function leaveConversation(
   await prisma.conversationMember.deleteMany({
     where: {
       conversationId,
-      userId: user.id,
+      userId:
+        user.id,
     },
   });
+
+  const nextConversation =
+    await prisma.conversation.findFirst({
+      where: {
+        OR: [
+          {
+            ownerId:
+              user.id,
+          },
+          {
+            members: {
+              some: {
+                userId:
+                  user.id,
+              },
+            },
+          },
+        ],
+      },
+      orderBy: {
+        updatedAt:
+          "desc",
+      },
+      select: {
+        id: true,
+      },
+    });
 
   revalidatePath(
     `/chat/${conversationId}`
   );
+
+  revalidatePath("/");
+
+  if (
+    !nextConversation &&
+    user.isGuest
+  ) {
+    const supabase =
+      await createClient();
+
+    const {
+      error:
+        signOutError,
+    } =
+      await supabase.auth.signOut();
+
+    if (signOutError) {
+      console.error(
+        "Failed to sign out guest after leaving last conversation:",
+        signOutError
+      );
+    }
+
+    return {
+      nextConversationId:
+        null,
+      signedOut: true,
+    };
+  }
+
+  return {
+    nextConversationId:
+      nextConversation?.id ??
+      null,
+    signedOut: false,
+  };
 }

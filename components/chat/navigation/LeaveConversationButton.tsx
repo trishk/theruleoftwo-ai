@@ -14,45 +14,93 @@ type Props = {
 export function LeaveConversationButton({
   conversationId,
 }: Props) {
-  const router = useRouter();
+  const router =
+    useRouter();
 
-  const [isPending, startTransition] =
+  const [
+    isPending,
+    startTransition,
+  ] =
     useTransition();
 
   const {
     broadcastConversationUpdated,
     isReady,
-  } = useConversationRealtime();
+  } =
+    useConversationRealtime();
 
   function handleLeave() {
-    const confirmed = window.confirm(
-      "Leave this conversation?"
-    );
+    const confirmed =
+      window.confirm(
+        "Leave this conversation?"
+      );
 
     if (!confirmed) {
       return;
     }
 
-    startTransition(async () => {
-      await leaveConversation(conversationId);
+    startTransition(
+      async () => {
+        try {
+          const result =
+            await leaveConversation(
+              conversationId
+            );
 
-      if (isReady) {
-        await broadcastConversationUpdated();
+          if (isReady) {
+            await broadcastConversationUpdated();
+          }
+
+          if (
+            result.signedOut
+          ) {
+            router.push(
+              "/login"
+            );
+
+            router.refresh();
+            return;
+          }
+
+          if (
+            result.nextConversationId
+          ) {
+            router.push(
+              `/chat/${result.nextConversationId}`
+            );
+
+            router.refresh();
+            return;
+          }
+
+          router.push("/");
+          router.refresh();
+        } catch (error) {
+          console.error(
+            "Failed to leave conversation:",
+            error
+          );
+        }
       }
-
-      router.push("/");
-    });
+    );
   }
 
   return (
     <button
       type="button"
-      onClick={handleLeave}
-      disabled={isPending}
+      onClick={
+        handleLeave
+      }
+      disabled={
+        isPending
+      }
       className="flex shrink-0 items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
     >
       <LogOut className="h-4 w-4" />
-      {isPending ? "Leaving..." : "Leave"}
+
+      {isPending
+        ? "Leaving..."
+        : "Leave"}
     </button>
   );
 }
