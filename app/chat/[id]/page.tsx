@@ -1,14 +1,19 @@
-import { notFound, redirect } from "next/navigation";
+import {
+  notFound,
+  redirect,
+} from "next/navigation";
 
 import { prisma } from "@/lib/db/prisma";
 import { requireUser } from "@/lib/auth/require-user";
 import { requireConversationAccess } from "@/lib/auth/require-conversation-access";
+import { markConversationRead } from "@/lib/conversations/mark-conversation-read";
 
 import { ChatHeader } from "@/components/chat/navigation/ChatHeader";
 import { ChatConversation } from "@/components/chat/conversation/ChatConversation";
 import { ChatShell } from "@/components/chat/navigation/ChatShell";
 import { ChatSidebar } from "@/components/chat/navigation/ChatSidebar";
 import { RealtimeConversationSync } from "@/components/chat/realtime/RealtimeConversationSync";
+import { RealtimeSidebarSync } from "@/components/chat/realtime/RealtimeSidebarSync";
 
 type Props = {
   params: Promise<{
@@ -22,7 +27,6 @@ export default async function ChatPage({
   const user = await requireUser();
 
   const { id } = await params;
-
   const conversationId = Number(id);
 
   if (
@@ -61,6 +65,11 @@ export default async function ChatPage({
 
     notFound();
   }
+
+  await markConversationRead({
+    conversationId,
+    userId: user.id,
+  });
 
   const conversation =
     await prisma.conversation.findUnique({
@@ -105,7 +114,7 @@ export default async function ChatPage({
     ),
   ];
 
-  const chats =
+  const accessibleChats =
     await prisma.conversation.findMany({
       where: {
         OR: [
@@ -124,6 +133,59 @@ export default async function ChatPage({
       orderBy: {
         updatedAt: "desc",
       },
+      select: {
+        id: true,
+        title: true,
+        ownerId: true,
+        readStates: {
+          where: {
+            userId: user.id,
+          },
+          select: {
+            lastReadAt: true,
+          },
+          take: 1,
+        },
+        messages: {
+          where: {
+            authorId: {
+              not: user.id,
+            },
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          select: {
+            createdAt: true,
+          },
+          take: 1,
+        },
+      },
+    });
+
+  const chats =
+    accessibleChats.map((chat) => {
+      const lastReadAt =
+        chat.readStates[0]?.lastReadAt;
+
+      const latestOtherMessageAt =
+        chat.messages[0]?.createdAt;
+
+      const hasUnread =
+        chat.id !== conversationId &&
+        Boolean(
+          latestOtherMessageAt &&
+            (!lastReadAt ||
+              latestOtherMessageAt >
+                lastReadAt)
+        );
+
+      return {
+        id: chat.id,
+        title: chat.title,
+        ownerId: chat.ownerId,
+        hasUnread,
+      };
     });
 
   const integrations =
@@ -193,9 +255,9 @@ export default async function ChatPage({
     ])
   );
 
-  const getAuthorName = (
+  function getAuthorName(
     authorId: string
-  ) => {
+  ) {
     if (authorId === "openai") {
       return "ChatGPT";
     }
@@ -212,45 +274,37 @@ export default async function ChatPage({
       authorNames.get(authorId) ??
       "Unknown user"
     );
-  };
+  }
 
   const messages =
     conversation.messages.map(
       (message) => ({
         id: message.id,
-
         authorType:
           message.authorType === "ai"
             ? ("ai" as const)
             : ("human" as const),
-
         authorName:
           getAuthorName(
             message.authorId
           ),
-
         content:
           message.content,
-
         createdAt:
           message.createdAt,
-
         isOwnMessage:
           message.authorId ===
           user.id,
-
         replyTo:
           message.replyTo
             ? {
                 id:
                   message.replyTo.id,
-
                 authorName:
                   getAuthorName(
                     message.replyTo
                       .authorId
                   ),
-
                 content:
                   message.replyTo
                     .content,
@@ -301,22 +355,31 @@ export default async function ChatPage({
   );
 
   return (
-    <ChatShell
-      sidebar={
-        <ChatSidebar
-          chats={
-            chats
-          }
-          currentUserId={
-            user.id
-          }
-          isGuest={
-            user.isGuest
-          }
-        />
+    <RealtimeSidebarSync
+      conversationIds={chats.map(
+        (chat) => chat.id
+      )}
+      activeConversationId={
+        conversationId
       }
     >
-      {chatContent}
-    </ChatShell>
+      <ChatShell
+        sidebar={
+          <ChatSidebar
+            chats={
+              chats
+            }
+            currentUserId={
+              user.id
+            }
+            isGuest={
+              user.isGuest
+            }
+          />
+        }
+      >
+        {chatContent}
+      </ChatShell>
+    </RealtimeSidebarSync>
   );
 }

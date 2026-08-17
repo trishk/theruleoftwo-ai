@@ -1,19 +1,27 @@
 import Link from "next/link";
-import { createChat, signOut } from "@/app/actions";
-import { ChatList } from "./ChatList";
-import { ThemeToggle } from "./ThemeToggle";
 import {
   LogOut,
   Plus,
   Settings,
 } from "lucide-react";
 
+import {
+  createChat,
+  signOut,
+} from "@/app/actions";
+
+import { ChatList } from "./ChatList";
+import { ThemeToggle } from "./ThemeToggle";
+
+type Chat = {
+  id: number;
+  title: string;
+  ownerId: string;
+  hasUnread?: boolean;
+};
+
 type Props = {
-  chats: {
-    id: number;
-    title: string;
-    ownerId: string;
-  }[];
+  chats: Chat[];
   currentUserId: string;
   isGuest?: boolean;
 };
@@ -42,17 +50,27 @@ export function ChatSidebar({
         )}
 
         <div className="mb-2 px-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-          Recent
+          {isGuest
+            ? "Conversations"
+            : "Recent"}
         </div>
 
         <ChatList
           chats={chats}
           currentUserId={currentUserId}
+          isGuest={isGuest}
         />
       </div>
 
       <div className="border-t border-border pt-3">
-        <div className="flex items-center justify-between">
+        <div
+          className={[
+            "flex items-center",
+            isGuest
+              ? "justify-start"
+              : "justify-between",
+          ].join(" ")}
+        >
           <div className="flex items-center gap-1">
             <ThemeToggle />
 
@@ -68,16 +86,18 @@ export function ChatSidebar({
             )}
           </div>
 
-          <form action={signOut}>
-            <button
-              type="submit"
-              aria-label="Sign out"
-              title="Sign out"
-              className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            >
-              <LogOut className="h-4 w-4" />
-            </button>
-          </form>
+          {!isGuest && (
+            <form action={signOut}>
+              <button
+                type="submit"
+                aria-label="Sign out"
+                title="Sign out"
+                className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            </form>
+          )}
         </div>
       </div>
     </div>

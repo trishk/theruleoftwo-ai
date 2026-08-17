@@ -1,6 +1,9 @@
 "use client";
 
-import { useRef, useState } from "react";
+import {
+  useRef,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 
 import { sendHumanMessage } from "@/app/actions";
@@ -127,15 +130,20 @@ export function useMessageComposer({
     try {
       await streamProviderResponse({
         conversationId,
-        messageId: sourceMessageId,
+        messageId:
+          sourceMessageId,
         provider,
-        signal: controller.signal,
+        signal:
+          controller.signal,
 
-        onDelta: (streamedText) => {
+        onDelta: (
+          streamedText
+        ) => {
           updateStreamingMessage(
             temporaryMessageId,
             {
-              content: streamedText,
+              content:
+                streamedText,
             }
           );
         },
@@ -196,7 +204,8 @@ export function useMessageComposer({
         updateStreamingMessage(
           temporaryMessageId,
           {
-            content: retryMessage,
+            content:
+              retryMessage,
             isStreaming: false,
             isError: true,
           }
@@ -284,12 +293,16 @@ export function useMessageComposer({
 
       const generationTasks =
         providers.map(
-          (provider, index) => {
+          (
+            provider,
+            index
+          ) => {
             const temporaryMessageId =
               -Date.now() -
               index -
               Math.floor(
-                Math.random() * 1000
+                Math.random() *
+                  1000
               );
 
             const authorName =
@@ -308,7 +321,8 @@ export function useMessageComposer({
                   content: "",
                   createdAt:
                     new Date(),
-                  isOwnMessage: false,
+                  isOwnMessage:
+                    false,
                   isStreaming: true,
                   isError: false,
                   provider,
