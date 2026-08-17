@@ -1,116 +1,195 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+
 import { prisma } from "@/lib/db/prisma";
 import { requireUser } from "@/lib/auth/require-user";
 import { PROVIDERS } from "@/lib/llm/providers";
+import type { Provider } from "@/lib/llm/types";
 import { encryptSecret } from "@/lib/security/encryption";
 
-export async function updateSelectedModel(
-    provider: string,
-    selectedModel: string
+function isProvider(
+  value: string
+): value is Provider {
+  return (
+    value === "openai" ||
+    value === "anthropic" ||
+    value === "google"
+  );
+}
+
+function getProviderConfig(
+  provider: string
 ) {
-    const user = await requireUser();
+  if (!isProvider(provider)) {
+    throw new Error(
+      "Invalid provider."
+    );
+  }
 
-    const providerConfig =
-        PROVIDERS[provider as keyof typeof PROVIDERS];
+  return {
+    provider,
+    config: PROVIDERS[provider],
+  };
+}
 
-    if (
-        !providerConfig ||
-        !(providerConfig.models as readonly string[]).includes(selectedModel)
-    ) {
-        throw new Error("Invalid provider or model.");
-    }
+function assertSettingsAccess(
+  isGuest: boolean
+) {
+  if (isGuest) {
+    throw new Error(
+      "Guests cannot modify integrations."
+    );
+  }
+}
 
-    await prisma.userIntegration.upsert({
-        where: {
-            userId_provider: {
-                userId: user.id,
-                provider,
-            },
-        },
-        update: {
-            selectedModel,
-        },
-        create: {
-            userId: user.id,
-            provider,
-            selectedModel,
-        },
-    });
+export async function updateSelectedModel(
+  provider: string,
+  selectedModel: string
+) {
+  const user = await requireUser();
 
-    revalidatePath("/settings");
+  assertSettingsAccess(
+    user.isGuest
+  );
+
+  const {
+    provider: validatedProvider,
+    config: providerConfig,
+  } = getProviderConfig(provider);
+
+  const allowedModels =
+    providerConfig.models as readonly string[];
+
+  if (
+    !allowedModels.includes(
+      selectedModel
+    )
+  ) {
+    throw new Error(
+      "Invalid model."
+    );
+  }
+
+  await prisma.userIntegration.upsert({
+    where: {
+      userId_provider: {
+        userId: user.id,
+        provider:
+          validatedProvider,
+      },
+    },
+    update: {
+      selectedModel,
+    },
+    create: {
+      userId: user.id,
+      provider:
+        validatedProvider,
+      selectedModel,
+    },
+  });
+
+  revalidatePath("/settings");
 }
 
 export async function saveIntegrationApiKey(
-    provider: string,
-    apiKey: string
+  provider: string,
+  apiKey: string
 ) {
-    const user = await requireUser();
+  const user = await requireUser();
 
-    const providerConfig =
-        PROVIDERS[provider as keyof typeof PROVIDERS];
+  assertSettingsAccess(
+    user.isGuest
+  );
 
-    if (!providerConfig) {
-        throw new Error("Invalid provider.");
-    }
+  const {
+    provider: validatedProvider,
+    config: providerConfig,
+  } = getProviderConfig(provider);
 
-    const trimmedApiKey = apiKey.trim();
+  const trimmedApiKey =
+    apiKey.trim();
 
-    if (!trimmedApiKey) {
-        throw new Error("API key is required.");
-    }
+  if (!trimmedApiKey) {
+    throw new Error(
+      "API key is required."
+    );
+  }
 
-    const encrypted = encryptSecret(trimmedApiKey);
+  const encrypted =
+    encryptSecret(
+      trimmedApiKey
+    );
 
-    await prisma.userIntegration.upsert({
-        where: {
-            userId_provider: {
-                userId: user.id,
-                provider,
-            },
-        },
-        update: {
-            encryptedApiKey: encrypted.encrypted,
-            keyIv: encrypted.iv,
-            keyAuthTag: encrypted.authTag,
-            storageMode: "persistent",
-        },
-        create: {
-            userId: user.id,
-            provider,
-            selectedModel: providerConfig.defaultModel,
-            encryptedApiKey: encrypted.encrypted,
-            keyIv: encrypted.iv,
-            keyAuthTag: encrypted.authTag,
-            storageMode: "persistent",
-        },
-    });
+  await prisma.userIntegration.upsert({
+    where: {
+      userId_provider: {
+        userId: user.id,
+        provider:
+          validatedProvider,
+      },
+    },
+    update: {
+      encryptedApiKey:
+        encrypted.encrypted,
+      keyIv:
+        encrypted.iv,
+      keyAuthTag:
+        encrypted.authTag,
+      storageMode:
+        "persistent",
+    },
+    create: {
+      userId:
+        user.id,
+      provider:
+        validatedProvider,
+      selectedModel:
+        providerConfig.defaultModel,
+      encryptedApiKey:
+        encrypted.encrypted,
+      keyIv:
+        encrypted.iv,
+      keyAuthTag:
+        encrypted.authTag,
+      storageMode:
+        "persistent",
+    },
+  });
 
-    revalidatePath("/settings");
+  revalidatePath("/settings");
 }
 
-export async function removeIntegration(provider: string) {
-    const user = await requireUser();
+export async function removeIntegration(
+  provider: string
+) {
+  const user = await requireUser();
 
-    const providerConfig =
-        PROVIDERS[provider as keyof typeof PROVIDERS];
+  assertSettingsAccess(
+    user.isGuest
+  );
 
-    if (!providerConfig) {
-        throw new Error("Invalid provider.");
-    }
+  const {
+    provider: validatedProvider,
+  } = getProviderConfig(provider);
 
-    await prisma.userIntegration.updateMany({
-        where: {
-            userId: user.id,
-            provider,
-        },
-        data: {
-            encryptedApiKey: null,
-            keyIv: null,
-            keyAuthTag: null,
-        },
-    });
+  await prisma.userIntegration.updateMany({
+    where: {
+      userId:
+        user.id,
+      provider:
+        validatedProvider,
+    },
+    data: {
+      encryptedApiKey:
+        null,
+      keyIv:
+        null,
+      keyAuthTag:
+        null,
+    },
+  });
 
-    revalidatePath("/settings");
+  revalidatePath("/settings");
 }

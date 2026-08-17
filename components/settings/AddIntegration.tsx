@@ -1,27 +1,52 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import {
+  useState,
+  useTransition,
+} from "react";
 import { X } from "lucide-react";
+
 import { saveIntegrationApiKey } from "@/app/actions";
 import { PROVIDERS } from "@/lib/llm/providers";
+import type { Provider } from "@/lib/llm/types";
 
 type Props = {
-  configuredProviders: string[];
+  configuredProviders: Provider[];
   onClose: () => void;
 };
+
+function isProvider(
+  value: string
+): value is Provider {
+  return (
+    value === "openai" ||
+    value === "anthropic" ||
+    value === "google"
+  );
+}
 
 export function AddIntegration({
   configuredProviders,
   onClose,
 }: Props) {
   const [provider, setProvider] =
-    useState<keyof typeof PROVIDERS>("openai");
+    useState<Provider>("openai");
 
-  const [apiKey, setApiKey] = useState("");
-  const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [apiKey, setApiKey] =
+    useState("");
 
-  const isReplacing = configuredProviders.includes(provider);
+  const [
+    isPending,
+    startTransition,
+  ] = useTransition();
+
+  const [error, setError] =
+    useState<string | null>(null);
+
+  const isReplacing =
+    configuredProviders.includes(
+      provider
+    );
 
   function handleClose() {
     setApiKey("");
@@ -29,9 +54,25 @@ export function AddIntegration({
     onClose();
   }
 
+  function handleProviderChange(
+    value: string
+  ) {
+    if (!isProvider(value)) {
+      return;
+    }
+
+    setProvider(value);
+    setError(null);
+  }
+
   function handleSave() {
-    if (!apiKey.trim()) {
-      setError("API key is required.");
+    const trimmedApiKey =
+      apiKey.trim();
+
+    if (!trimmedApiKey) {
+      setError(
+        "API key is required."
+      );
       return;
     }
 
@@ -39,12 +80,19 @@ export function AddIntegration({
 
     startTransition(async () => {
       try {
-        await saveIntegrationApiKey(provider, apiKey);
+        await saveIntegrationApiKey(
+          provider,
+          trimmedApiKey
+        );
 
         setApiKey("");
         onClose();
       } catch (err) {
-        setError("Could not save integration.");
+        console.error(err);
+
+        setError(
+          "Could not save integration."
+        );
       }
     });
   }
@@ -53,10 +101,13 @@ export function AddIntegration({
     <div className="w-full rounded-lg border border-border bg-card p-4">
       <div className="mb-5 flex items-start justify-between gap-4">
         <div>
-          <h3 className="font-medium">Add integration</h3>
+          <h3 className="font-medium">
+            Add integration
+          </h3>
 
           <p className="mt-1 text-sm text-muted-foreground">
-            Connect an AI provider using your API key.
+            Connect an AI provider using
+            your API key.
           </p>
         </div>
 
@@ -83,26 +134,36 @@ export function AddIntegration({
           <select
             id="provider"
             value={provider}
-            onChange={(e) => {
-              setProvider(
-                e.target.value as keyof typeof PROVIDERS
-              );
-              setError(null);
-            }}
+            onChange={(event) =>
+              handleProviderChange(
+                event.target.value
+              )
+            }
             disabled={isPending}
             className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
           >
-            {Object.entries(PROVIDERS).map(([id, config]) => (
-              <option key={id} value={id}>
-                {config.displayName}
-              </option>
-            ))}
+            {Object.entries(
+              PROVIDERS
+            ).map(
+              ([id, config]) => (
+                <option
+                  key={id}
+                  value={id}
+                >
+                  {
+                    config.displayName
+                  }
+                </option>
+              )
+            )}
           </select>
 
           {isReplacing && (
             <p className="mt-2 text-xs text-amber-500">
-              This provider is already configured. Saving will
-              replace the existing API key.
+              This provider is already
+              configured. Saving will
+              replace the existing API
+              key.
             </p>
           )}
         </div>
@@ -119,9 +180,16 @@ export function AddIntegration({
             id="apiKey"
             type="password"
             value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !isPending) {
+            onChange={(event) =>
+              setApiKey(
+                event.target.value
+              )
+            }
+            onKeyDown={(event) => {
+              if (
+                event.key === "Enter" &&
+                !isPending
+              ) {
                 handleSave();
               }
             }}
@@ -136,7 +204,8 @@ export function AddIntegration({
           />
 
           <p className="mt-1.5 text-xs text-muted-foreground">
-            Your API key is encrypted before being stored.
+            Your API key is encrypted
+            before being stored.
           </p>
         </div>
       </div>
@@ -160,7 +229,10 @@ export function AddIntegration({
         <button
           type="button"
           onClick={handleSave}
-          disabled={isPending || !apiKey.trim()}
+          disabled={
+            isPending ||
+            !apiKey.trim()
+          }
           className="h-9 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isPending

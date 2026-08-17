@@ -1,11 +1,16 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import {
+  useState,
+  useTransition,
+} from "react";
 import { Trash2 } from "lucide-react";
+
 import { removeIntegration } from "@/app/actions";
+import type { Provider } from "@/lib/llm/types";
 
 type Props = {
-  provider: string;
+  provider: Provider;
   providerName: string;
   configured: boolean;
 };
@@ -15,8 +20,11 @@ export function RemoveIntegrationButton({
   providerName,
   configured,
 }: Props) {
-  const [confirming, setConfirming] = useState(false);
-  const [isPending, startTransition] = useTransition();
+  const [confirming, setConfirming] =
+    useState(false);
+
+  const [isPending, startTransition] =
+    useTransition();
 
   if (!configured) {
     return null;
@@ -24,7 +32,10 @@ export function RemoveIntegrationButton({
 
   function handleRemove() {
     startTransition(async () => {
-      await removeIntegration(provider);
+      await removeIntegration(
+        provider
+      );
+
       setConfirming(false);
     });
   }
@@ -38,9 +49,11 @@ export function RemoveIntegrationButton({
 
         <button
           type="button"
-          onClick={() => setConfirming(false)}
+          onClick={() =>
+            setConfirming(false)
+          }
           disabled={isPending}
-          className="text-xs text-muted-foreground hover:text-foreground"
+          className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
         >
           Cancel
         </button>
@@ -51,7 +64,9 @@ export function RemoveIntegrationButton({
           disabled={isPending}
           className="text-xs font-medium text-destructive hover:underline disabled:opacity-50"
         >
-          {isPending ? "Removing..." : "Remove"}
+          {isPending
+            ? "Removing..."
+            : "Remove"}
         </button>
       </div>
     );
@@ -60,7 +75,9 @@ export function RemoveIntegrationButton({
   return (
     <button
       type="button"
-      onClick={() => setConfirming(true)}
+      onClick={() =>
+        setConfirming(true)
+      }
       aria-label={`Remove ${providerName}`}
       title={`Remove ${providerName}`}
       className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"

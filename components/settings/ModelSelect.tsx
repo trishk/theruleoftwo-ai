@@ -1,10 +1,15 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import {
+  useState,
+  useTransition,
+} from "react";
+
 import { updateSelectedModel } from "@/app/actions";
+import type { Provider } from "@/lib/llm/types";
 
 type Props = {
-  provider: string;
+  provider: Provider;
   models: readonly string[];
   selectedModel: string;
 };
@@ -14,14 +19,22 @@ export function ModelSelect({
   models,
   selectedModel,
 }: Props) {
-  const [value, setValue] = useState(selectedModel);
-  const [isPending, startTransition] = useTransition();
+  const [value, setValue] =
+    useState(selectedModel);
 
-  function handleChange(model: string) {
+  const [isPending, startTransition] =
+    useTransition();
+
+  function handleChange(
+    model: string
+  ) {
     setValue(model);
 
     startTransition(async () => {
-      await updateSelectedModel(provider, model);
+      await updateSelectedModel(
+        provider,
+        model
+      );
     });
   }
 
@@ -29,11 +42,18 @@ export function ModelSelect({
     <select
       value={value}
       disabled={isPending}
-      onChange={(e) => handleChange(e.target.value)}
+      onChange={(event) =>
+        handleChange(
+          event.target.value
+        )
+      }
       className="mt-2 h-9 rounded-md border border-border bg-background px-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
     >
       {models.map((model) => (
-        <option key={model} value={model}>
+        <option
+          key={model}
+          value={model}
+        >
           {model}
         </option>
       ))}
