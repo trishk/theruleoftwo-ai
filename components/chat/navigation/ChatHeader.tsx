@@ -1,13 +1,22 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Check, Link2 } from "lucide-react";
+import {
+  useEffect,
+  useState,
+  useTransition,
+} from "react";
+import {
+  Check,
+  Link2,
+} from "lucide-react";
 
 import {
   createConversationInvite,
   renameConversation,
 } from "@/app/actions";
+
 import { LeaveConversationButton } from "./LeaveConversationButton";
+import { useConversationRealtime } from "../realtime/RealtimeConversationSync";
 
 type Props = {
   conversationId?: number;
@@ -24,17 +33,37 @@ export function ChatHeader({
   isGuest = false,
   participants = [],
 }: Props) {
+  const {
+    broadcastConversationUpdated,
+  } = useConversationRealtime();
+
   const [isEditing, setIsEditing] =
     useState(false);
 
   const [value, setValue] =
     useState(title);
 
-  const [isPending, startTransition] =
-    useTransition();
+  const [
+    isPending,
+    startTransition,
+  ] = useTransition();
 
   const [copied, setCopied] =
     useState(false);
+
+  useEffect(() => {
+    if (!isEditing) {
+      setValue(title);
+    }
+  }, [
+    title,
+    isEditing,
+  ]);
+
+  function startEditing() {
+    setValue(title);
+    setIsEditing(true);
+  }
 
   function save() {
     if (!conversationId) {
@@ -54,12 +83,24 @@ export function ChatHeader({
     }
 
     startTransition(async () => {
-      await renameConversation(
-        conversationId,
-        trimmed
-      );
+      try {
+        await renameConversation(
+          conversationId,
+          trimmed
+        );
 
-      setIsEditing(false);
+        await broadcastConversationUpdated();
+
+        setIsEditing(false);
+      } catch (error) {
+        console.error(
+          "Failed to rename conversation:",
+          error
+        );
+
+        setValue(title);
+        setIsEditing(false);
+      }
     });
   }
 
@@ -69,23 +110,30 @@ export function ChatHeader({
     }
 
     startTransition(async () => {
-      const token =
-        await createConversationInvite(
-          conversationId
+      try {
+        const token =
+          await createConversationInvite(
+            conversationId
+          );
+
+        const inviteUrl =
+          `${window.location.origin}/invite/${token}`;
+
+        await navigator.clipboard.writeText(
+          inviteUrl
         );
 
-      const inviteUrl =
-        `${window.location.origin}/invite/${token}`;
+        setCopied(true);
 
-      await navigator.clipboard.writeText(
-        inviteUrl
-      );
-
-      setCopied(true);
-
-      window.setTimeout(() => {
-        setCopied(false);
-      }, 2000);
+        window.setTimeout(() => {
+          setCopied(false);
+        }, 2000);
+      } catch (error) {
+        console.error(
+          "Failed to create invite:",
+          error
+        );
+      }
     });
   }
 
@@ -125,9 +173,7 @@ export function ChatHeader({
             {conversationId ? (
               <button
                 type="button"
-                onClick={() =>
-                  setIsEditing(true)
-                }
+                onClick={startEditing}
                 className="max-w-full truncate text-left text-sm font-medium text-foreground hover:underline"
               >
                 {title}

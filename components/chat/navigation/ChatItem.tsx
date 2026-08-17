@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  useEffect,
   useState,
   useTransition,
 } from "react";
@@ -17,6 +18,9 @@ import {
   renameConversation,
 } from "@/app/actions";
 
+import { useConversationRealtime } from "../realtime/RealtimeConversationSync";
+import { useSidebarRealtime } from "../realtime/RealtimeSidebarSync";
+
 type Props = {
   id: number;
   title: string;
@@ -29,13 +33,22 @@ export function ChatItem({
   id,
   title,
   isOwner,
-  isGuest = false,
   hasUnread = false,
 }: Props) {
   const pathname = usePathname();
 
   const href = `/chat/${id}`;
   const isActive = pathname === href;
+
+  const {
+    broadcastConversationUpdated:
+      broadcastActiveConversationUpdated,
+  } = useConversationRealtime();
+
+  const {
+    broadcastConversationUpdated:
+      broadcastInactiveConversationUpdated,
+  } = useSidebarRealtime();
 
   const [menuOpen, setMenuOpen] =
     useState(false);
@@ -51,8 +64,28 @@ export function ChatItem({
     startTransition,
   ] = useTransition();
 
-  const canRename = !isGuest;
-  const canDelete = isOwner;
+  useEffect(() => {
+    if (!isEditing) {
+      setValue(title);
+    }
+  }, [title, isEditing]);
+
+  async function broadcastRename() {
+    if (isActive) {
+      await broadcastActiveConversationUpdated();
+      return;
+    }
+
+    await broadcastInactiveConversationUpdated(
+      id
+    );
+  }
+
+  function startEditing() {
+    setValue(title);
+    setMenuOpen(false);
+    setIsEditing(true);
+  }
 
   function save() {
     const trimmed = value.trim();
@@ -67,12 +100,24 @@ export function ChatItem({
     }
 
     startTransition(async () => {
-      await renameConversation(
-        id,
-        trimmed
-      );
+      try {
+        await renameConversation(
+          id,
+          trimmed
+        );
 
-      setIsEditing(false);
+        await broadcastRename();
+
+        setIsEditing(false);
+      } catch (error) {
+        console.error(
+          "Failed to rename conversation:",
+          error
+        );
+
+        setValue(title);
+        setIsEditing(false);
+      }
     });
   }
 
@@ -104,16 +149,12 @@ export function ChatItem({
     );
   }
 
-  const hasActions =
-    canRename || canDelete;
-
   return (
     <div className="group relative">
       <Link
         href={href}
         className={[
-          "flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors",
-          hasActions ? "pr-9" : "",
+          "flex items-center gap-2 rounded-md px-3 py-2 pr-9 text-sm transition-colors",
           isActive
             ? "bg-muted text-foreground"
             : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
@@ -138,39 +179,32 @@ export function ChatItem({
         )}
       </Link>
 
-      {hasActions && (
-        <button
-          type="button"
-          aria-label="Chat options"
-          title="Chat options"
-          onClick={() =>
-            setMenuOpen(
-              (open) => !open
-            )
-          }
-          className="absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-background hover:text-foreground group-hover:opacity-100"
-        >
-          <MoreHorizontal className="h-4 w-4" />
-        </button>
-      )}
+      <button
+        type="button"
+        aria-label="Chat options"
+        title="Chat options"
+        onClick={() =>
+          setMenuOpen(
+            (open) => !open
+          )
+        }
+        className="absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-background hover:text-foreground group-hover:opacity-100"
+      >
+        <MoreHorizontal className="h-4 w-4" />
+      </button>
 
-      {menuOpen && hasActions && (
+      {menuOpen && (
         <div className="absolute right-1 top-9 z-50 min-w-32 rounded-md border border-border bg-background p-1 shadow-md">
-          {canRename && (
-            <button
-              type="button"
-              onClick={() => {
-                setMenuOpen(false);
-                setIsEditing(true);
-              }}
-              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-foreground hover:bg-muted"
-            >
-              <Pencil className="h-4 w-4" />
-              Rename
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={startEditing}
+            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-foreground hover:bg-muted"
+          >
+            <Pencil className="h-4 w-4" />
+            Rename
+          </button>
 
-          {canDelete && (
+          {isOwner && (
             <button
               type="button"
               onClick={() => {

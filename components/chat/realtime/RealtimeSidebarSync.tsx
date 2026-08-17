@@ -1,6 +1,9 @@
 "use client";
 
 import {
+  createContext,
+  useCallback,
+  useContext,
   useEffect,
   useRef,
   type ReactNode,
@@ -9,6 +12,17 @@ import { useRouter } from "next/navigation";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 import { createClient } from "@/lib/supabase/client";
+
+type SidebarRealtimeContextValue = {
+  broadcastConversationUpdated: (
+    conversationId: number
+  ) => Promise<void>;
+};
+
+const SidebarRealtimeContext =
+  createContext<SidebarRealtimeContextValue | null>(
+    null
+  );
 
 type Props = {
   conversationIds: number[];
@@ -30,6 +44,10 @@ export function RealtimeSidebarSync({
     createClient()
   );
 
+  const channelsRef = useRef<
+    Map<number, RealtimeChannel>
+  >(new Map());
+
   useEffect(() => {
     routerRef.current = router;
   }, [router]);
@@ -45,7 +63,7 @@ export function RealtimeSidebarSync({
           activeConversationId
       );
 
-    const channels: RealtimeChannel[] =
+    const channels =
       inactiveConversationIds.map(
         (conversationId) => {
           const channel = supabase
@@ -55,7 +73,8 @@ export function RealtimeSidebarSync({
             .on(
               "broadcast",
               {
-                event: "message-created",
+                event:
+                  "message-created",
               },
               () => {
                 routerRef.current.refresh();
@@ -72,12 +91,18 @@ export function RealtimeSidebarSync({
               }
             );
 
+          channelsRef.current.set(
+            conversationId,
+            channel
+          );
+
           channel.subscribe(
             (status, error) => {
               if (
                 status ===
                   "CHANNEL_ERROR" ||
-                status === "TIMED_OUT"
+                status ===
+                  "TIMED_OUT"
               ) {
                 console.error(
                   `Sidebar realtime error for conversation ${conversationId}:`,
@@ -88,12 +113,24 @@ export function RealtimeSidebarSync({
             }
           );
 
-          return channel;
+          return {
+            conversationId,
+            channel,
+          };
         }
       );
 
     return () => {
-      for (const channel of channels) {
+      for (
+        const {
+          conversationId,
+          channel,
+        } of channels
+      ) {
+        channelsRef.current.delete(
+          conversationId
+        );
+
         void supabase.removeChannel(
           channel
         );
@@ -104,5 +141,54 @@ export function RealtimeSidebarSync({
     conversationIds,
   ]);
 
-  return children;
+  const broadcastConversationUpdated =
+    useCallback(
+      async (
+        conversationId: number
+      ) => {
+        const channel =
+          channelsRef.current.get(
+            conversationId
+          );
+
+        if (!channel) {
+          return;
+        }
+
+        await channel.send({
+          type: "broadcast",
+          event:
+            "conversation-updated",
+          payload: {
+            conversationId,
+          },
+        });
+      },
+      []
+    );
+
+  return (
+    <SidebarRealtimeContext.Provider
+      value={{
+        broadcastConversationUpdated,
+      }}
+    >
+      {children}
+    </SidebarRealtimeContext.Provider>
+  );
+}
+
+export function useSidebarRealtime() {
+  const context =
+    useContext(
+      SidebarRealtimeContext
+    );
+
+  if (!context) {
+    throw new Error(
+      "useSidebarRealtime must be used inside RealtimeSidebarSync."
+    );
+  }
+
+  return context;
 }

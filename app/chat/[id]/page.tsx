@@ -314,44 +314,38 @@ export default async function ChatPage({
     );
 
   const chatContent = (
-    <RealtimeConversationSync
-      conversationId={
-        conversation.id
-      }
-    >
-      <div className="flex h-dvh min-h-0 flex-col">
-        <ChatHeader
-          conversationId={
-            conversation.id
-          }
-          title={
-            conversation.title
-          }
-          isOwner={
-            conversation.ownerId ===
-            user.id
-          }
-          isGuest={
-            user.isGuest
-          }
-          participants={
-            participants
-          }
-        />
+    <div className="flex h-dvh min-h-0 flex-col">
+      <ChatHeader
+        conversationId={
+          conversation.id
+        }
+        title={
+          conversation.title
+        }
+        isOwner={
+          conversation.ownerId ===
+          user.id
+        }
+        isGuest={
+          user.isGuest
+        }
+        participants={
+          participants
+        }
+      />
 
-        <ChatConversation
-          conversationId={
-            conversation.id
-          }
-          messages={
-            messages
-          }
-          configuredProviders={
-            configuredProviders
-          }
-        />
-      </div>
-    </RealtimeConversationSync>
+      <ChatConversation
+        conversationId={
+          conversation.id
+        }
+        messages={
+          messages
+        }
+        configuredProviders={
+          configuredProviders
+        }
+      />
+    </div>
   );
 
   return (
@@ -363,23 +357,29 @@ export default async function ChatPage({
         conversationId
       }
     >
-      <ChatShell
-        sidebar={
-          <ChatSidebar
-            chats={
-              chats
-            }
-            currentUserId={
-              user.id
-            }
-            isGuest={
-              user.isGuest
-            }
-          />
+      <RealtimeConversationSync
+        conversationId={
+          conversationId
         }
       >
-        {chatContent}
-      </ChatShell>
+        <ChatShell
+          sidebar={
+            <ChatSidebar
+              chats={
+                chats
+              }
+              currentUserId={
+                user.id
+              }
+              isGuest={
+                user.isGuest
+              }
+            />
+          }
+        >
+          {chatContent}
+        </ChatShell>
+      </RealtimeConversationSync>
     </RealtimeSidebarSync>
   );
 }
