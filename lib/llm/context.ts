@@ -1,10 +1,23 @@
-import type { LLMMessage, Provider } from "./types";
+import type {
+  LLMMessage,
+  Provider,
+} from "./types";
 import { PROVIDER_META } from "./providerMeta";
+
+type ContextReply = {
+  id: number;
+  authorType: string;
+  authorId: string;
+  authorName?: string | null;
+  content: string;
+};
 
 type ContextMessage = {
   authorType: string;
   authorId: string;
+  authorName?: string | null;
   content: string;
+  replyTo?: ContextReply | null;
 };
 
 type BuildContextParams = {
@@ -15,27 +28,77 @@ type BuildContextParams = {
 };
 
 function getAuthorName(
+  authorType: string,
+  authorId: string,
+  authorName?: string | null,
+  currentUserId?: string,
+  currentUserName?: string | null
+) {
+  if (authorType === "human") {
+    if (
+      currentUserId &&
+      authorId === currentUserId
+    ) {
+      return (
+        currentUserName ||
+        authorName ||
+        "User"
+      );
+    }
+
+    return (
+      authorName ||
+      "Unknown user"
+    );
+  }
+
+  if (
+    authorId === "openai" ||
+    authorId === "anthropic" ||
+    authorId === "google"
+  ) {
+    return PROVIDER_META[
+      authorId
+    ].name;
+  }
+
+  return authorName || authorId;
+}
+
+function formatMessage(
   message: ContextMessage,
   currentUserId: string,
   currentUserName?: string | null
 ) {
-  if (message.authorType === "human") {
-    if (message.authorId === currentUserId) {
-      return currentUserName || "User";
-    }
+  const authorName =
+    getAuthorName(
+      message.authorType,
+      message.authorId,
+      message.authorName,
+      currentUserId,
+      currentUserName
+    );
 
-    return message.authorId;
+  const parts = [
+    `${authorName}: ${message.content}`,
+  ];
+
+  if (message.replyTo) {
+    const replyAuthorName =
+      getAuthorName(
+        message.replyTo.authorType,
+        message.replyTo.authorId,
+        message.replyTo.authorName,
+        currentUserId,
+        currentUserName
+      );
+
+    parts.push(
+      `Replying to ${replyAuthorName}: ${message.replyTo.content}`
+    );
   }
 
-  if (
-    message.authorId === "openai" ||
-    message.authorId === "anthropic" ||
-    message.authorId === "google"
-  ) {
-    return PROVIDER_META[message.authorId].name;
-  }
-
-  return message.authorId;
+  return parts.join("\n");
 }
 
 export function buildConversationContext({
@@ -47,11 +110,14 @@ export function buildConversationContext({
   instructions: string;
   messages: LLMMessage[];
 } {
-  const providerName = PROVIDER_META[provider].name;
+  const providerName =
+    PROVIDER_META[provider].name;
 
-  const userName = currentUserName || "User";
+  const userName =
+    currentUserName || "User";
 
-  const currentMessage = messages.at(-1);
+  const currentMessage =
+    messages.at(-1);
 
   if (!currentMessage) {
     return {
@@ -60,39 +126,48 @@ export function buildConversationContext({
     };
   }
 
-  const previousMessages = messages.slice(0, -1);
+  const previousMessages =
+    messages.slice(0, -1);
 
-  const transcript = previousMessages
-    .map((message) => {
-      const authorName = getAuthorName(
-        message,
-        currentUserId,
-        currentUserName
-      );
+  const transcript =
+    previousMessages
+      .map((message) =>
+        formatMessage(
+          message,
+          currentUserId,
+          currentUserName
+        )
+      )
+      .join("\n\n");
 
-      const content = message.content;
-
-      return `${authorName}: ${content}`;
-    })
-    .join("\n\n");
+  const currentContent =
+    formatMessage(
+      currentMessage,
+      currentUserId,
+      currentUserName
+    );
 
   const systemMessage = [
     `You are ${providerName}, participating in a group conversation.`,
-    `The current human participant's display name is ${userName}.`,
-    "The conversation may include humans and other AI assistants.",
-    "Human messages may address participants using @mentions such as @chatgpt, @claude, and @gemini.",
-    "Treat @mentions as meaningful conversation context, not as text to ignore.",
-    "If multiple participants are mentioned, each mentioned AI will respond separately as itself.",
-    "Words such as 'each', 'everyone', or 'you all' may refer to the participants mentioned in that message.",
+    `The human who triggered the current response is ${userName}.`,
+    "The conversation may contain multiple human participants and multiple AI assistants.",
+    "Each message in the transcript is explicitly attributed to its author.",
+    "Human display names identify different human participants. Treat messages from different humans as coming from different people.",
     "Messages from other AI assistants are their statements, not yours.",
-    "Use the conversation transcript as context when answering.",
+    "Human messages may address participants using @mentions such as @chatgpt, @claude, and @gemini.",
+    "Treat @mentions as meaningful conversation context.",
+    "If multiple AI participants are mentioned, each mentioned AI responds independently as itself.",
+    "Words such as 'each', 'everyone', 'both', or 'you all' may refer to participants mentioned in that message.",
+    "A message may include a 'Replying to' reference. Treat that reference as the specific message being replied to and use it to resolve otherwise ambiguous replies.",
+    "Use the full conversation transcript as context when answering the current message.",
     "Respond only as yourself.",
+    "Do not impersonate another participant.",
     "Do not automatically agree with other participants; provide your own independent assessment.",
 
     "Prioritize accuracy over completeness.",
     "Never fabricate facts, citations, statistics, sources, features, or capabilities.",
-    "Treat information stated by human participants in the conversation as provided context; do not require independent verification unless verification is relevant to the question.",
-    "If the answer is supported by the conversation context, answer directly.",
+    "Treat information stated by human participants as provided conversation context.",
+    "Do not require independent verification of user-provided context unless verification is relevant to the request.",
     "If required information is missing or uncertain, say so rather than guessing.",
     "Clearly flag information that may be time-sensitive or outdated when relevant.",
 
@@ -105,14 +180,21 @@ export function buildConversationContext({
     "Do not add speculative features, assumptions, generic caveats, or unsolicited next steps.",
   ].join(" ");
 
-  const currentContent = currentMessage.content;
-
-  const userMessage = transcript
-    ? `Conversation transcript:\n\n${transcript}\n\nCurrent message:\n${currentContent}`
-    : currentContent;
+  const userMessage =
+    transcript
+      ? [
+          "Conversation transcript:",
+          "",
+          transcript,
+          "",
+          "Current message:",
+          currentContent,
+        ].join("\n")
+      : currentContent;
 
   return {
-    instructions: systemMessage,
+    instructions:
+      systemMessage,
     messages: [
       {
         role: "user",

@@ -4,6 +4,8 @@ import { decryptSecret } from "@/lib/security/encryption";
 import { buildConversationContext } from "./context";
 import type { Provider } from "./types";
 
+const CONTEXT_MESSAGE_LIMIT = 50;
+
 type PrepareLLMRequestArgs = {
   conversationId: number;
   provider: Provider;
@@ -19,17 +21,117 @@ export async function prepareLLMRequest({
   currentUserName,
   ownerId,
 }: PrepareLLMRequestArgs) {
-  const history = await prisma.message.findMany({
-    where: {
-      conversationId,
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-    take: 50,
-  });
+  const history =
+    await prisma.message.findMany({
+      where: {
+        conversationId,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: CONTEXT_MESSAGE_LIMIT,
+      include: {
+        replyTo: {
+          select: {
+            id: true,
+            authorType: true,
+            authorId: true,
+            content: true,
+          },
+        },
+      },
+    });
 
   history.reverse();
+
+  const humanAuthorIds = [
+    ...new Set(
+      history.flatMap((message) => {
+        const ids: string[] = [];
+
+        if (
+          message.authorType === "human"
+        ) {
+          ids.push(message.authorId);
+        }
+
+        if (
+          message.replyTo?.authorType ===
+          "human"
+        ) {
+          ids.push(
+            message.replyTo.authorId
+          );
+        }
+
+        return ids;
+      })
+    ),
+  ];
+
+  const humanAuthors =
+    humanAuthorIds.length > 0
+      ? await prisma.user.findMany({
+          where: {
+            id: {
+              in: humanAuthorIds,
+            },
+          },
+          select: {
+            id: true,
+            name: true,
+          },
+        })
+      : [];
+
+  const humanAuthorNames = new Map(
+    humanAuthors.map((user) => [
+      user.id,
+      user.name,
+    ])
+  );
+
+  const contextMessages =
+    history.map((message) => ({
+      authorType:
+        message.authorType,
+      authorId:
+        message.authorId,
+      authorName:
+        message.authorType ===
+        "human"
+          ? humanAuthorNames.get(
+              message.authorId
+            ) ?? null
+          : null,
+      content:
+        message.content,
+      replyTo:
+        message.replyTo
+          ? {
+              id:
+                message.replyTo.id,
+              authorType:
+                message.replyTo
+                  .authorType,
+              authorId:
+                message.replyTo
+                  .authorId,
+              authorName:
+                message.replyTo
+                  .authorType ===
+                "human"
+                  ? humanAuthorNames.get(
+                      message.replyTo
+                        .authorId
+                    ) ?? null
+                  : null,
+              content:
+                message.replyTo
+                  .content,
+            }
+          : null,
+    }));
 
   const integration =
     await prisma.userIntegration.findUnique({
@@ -61,18 +163,21 @@ export async function prepareLLMRequest({
     integration.keyAuthTag
   );
 
-  const context = buildConversationContext({
-    provider,
-    messages: history,
-    currentUserId,
-    currentUserName,
-  });
+  const context =
+    buildConversationContext({
+      provider,
+      messages: contextMessages,
+      currentUserId,
+      currentUserName,
+    });
 
   return {
     provider,
     model: selectedModel,
     apiKey,
-    instructions: context.instructions,
-    messages: context.messages,
+    instructions:
+      context.instructions,
+    messages:
+      context.messages,
   };
 }
