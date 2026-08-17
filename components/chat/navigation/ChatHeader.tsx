@@ -7,7 +7,6 @@ import {
   createConversationInvite,
   renameConversation,
 } from "@/app/actions";
-import { ThemeToggle } from "./ThemeToggle";
 import { LeaveConversationButton } from "./LeaveConversationButton";
 
 type Props = {
@@ -25,12 +24,19 @@ export function ChatHeader({
   isGuest = false,
   participants = [],
 }: Props) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [value, setValue] = useState(title);
-  const [isPending, startTransition] = useTransition();
-  const [copied, setCopied] = useState(false);
+  const [isEditing, setIsEditing] =
+    useState(false);
 
-  const save = () => {
+  const [value, setValue] =
+    useState(title);
+
+  const [isPending, startTransition] =
+    useTransition();
+
+  const [copied, setCopied] =
+    useState(false);
+
+  function save() {
     if (!conversationId) {
       setIsEditing(false);
       return;
@@ -38,7 +44,10 @@ export function ChatHeader({
 
     const trimmed = value.trim();
 
-    if (!trimmed || trimmed === title) {
+    if (
+      !trimmed ||
+      trimmed === title
+    ) {
       setValue(title);
       setIsEditing(false);
       return;
@@ -52,9 +61,9 @@ export function ChatHeader({
 
       setIsEditing(false);
     });
-  };
+  }
 
-  const copyInviteLink = () => {
+  function copyInviteLink() {
     if (!conversationId) {
       return;
     }
@@ -78,7 +87,7 @@ export function ChatHeader({
         setCopied(false);
       }, 2000);
     });
-  };
+  }
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border pl-16 pr-4 md:px-6">
@@ -90,15 +99,21 @@ export function ChatHeader({
             disabled={isPending}
             maxLength={100}
             onChange={(event) =>
-              setValue(event.target.value)
+              setValue(
+                event.target.value
+              )
             }
             onBlur={save}
             onKeyDown={(event) => {
-              if (event.key === "Enter") {
+              if (
+                event.key === "Enter"
+              ) {
                 save();
               }
 
-              if (event.key === "Escape") {
+              if (
+                event.key === "Escape"
+              ) {
                 setValue(title);
                 setIsEditing(false);
               }
@@ -125,7 +140,9 @@ export function ChatHeader({
 
             {participants.length > 1 && (
               <div className="truncate text-xs text-muted-foreground">
-                {participants.join(" · ")}
+                {participants.join(
+                  " · "
+                )}
               </div>
             )}
           </div>
@@ -133,30 +150,38 @@ export function ChatHeader({
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        {isGuest && <ThemeToggle />}
+        {conversationId &&
+          isGuest && (
+            <LeaveConversationButton
+              conversationId={
+                conversationId
+              }
+            />
+          )}
 
-        {conversationId && isGuest && (
-          <LeaveConversationButton
-            conversationId={conversationId}
-          />
-        )}
+        {conversationId &&
+          isOwner && (
+            <button
+              type="button"
+              onClick={
+                copyInviteLink
+              }
+              disabled={
+                isPending
+              }
+              className="flex shrink-0 items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+            >
+              {copied ? (
+                <Check className="h-4 w-4" />
+              ) : (
+                <Link2 className="h-4 w-4" />
+              )}
 
-        {conversationId && isOwner && (
-          <button
-            type="button"
-            onClick={copyInviteLink}
-            disabled={isPending}
-            className="flex shrink-0 items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
-          >
-            {copied ? (
-              <Check className="h-4 w-4" />
-            ) : (
-              <Link2 className="h-4 w-4" />
-            )}
-
-            {copied ? "Copied" : "Invite"}
-          </button>
-        )}
+              {copied
+                ? "Copied"
+                : "Invite"}
+            </button>
+          )}
       </div>
     </header>
   );

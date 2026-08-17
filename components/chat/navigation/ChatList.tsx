@@ -1,11 +1,13 @@
 import { ChatItem } from "./ChatItem";
 
+type ChatListItem = {
+  id: number;
+  title: string;
+  ownerId: string;
+};
+
 type Props = {
-  chats: {
-    id: number;
-    title: string;
-    ownerId: string;
-  }[];
+  chats: ChatListItem[];
   currentUserId: string;
 };
 
@@ -15,7 +17,7 @@ export function ChatList({
 }: Props) {
   if (chats.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground">
+      <p className="px-2 text-sm text-muted-foreground">
         No chats yet.
       </p>
     );
@@ -28,7 +30,9 @@ export function ChatList({
           key={chat.id}
           id={chat.id}
           title={chat.title}
-          isOwner={chat.ownerId === currentUserId}
+          isOwner={
+            chat.ownerId === currentUserId
+          }
         />
       ))}
     </div>

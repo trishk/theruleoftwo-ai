@@ -1,4 +1,9 @@
+import { redirect } from "next/navigation";
+
 import { prisma } from "@/lib/db/prisma";
+import { getCurrentUser } from "@/lib/auth/require-user";
+import { joinConversationByInvite } from "@/app/actions";
+
 import { GuestJoinForm } from "@/components/chat/navigation/GuestJoinForm";
 import { RealtimeConversationSync } from "@/components/chat/realtime/RealtimeConversationSync";
 
@@ -8,22 +13,26 @@ type Props = {
   }>;
 };
 
-export default async function InvitePage({ params }: Props) {
+export default async function InvitePage({
+  params,
+}: Props) {
   const { token } = await params;
 
-  const invite = await prisma.conversationInvite.findUnique({
-    where: {
-      token,
-    },
-    include: {
-      conversation: {
-        select: {
-          id: true,
-          title: true,
+  const invite =
+    await prisma.conversationInvite.findUnique({
+      where: {
+        token,
+      },
+      include: {
+        conversation: {
+          select: {
+            id: true,
+            title: true,
+            ownerId: true,
+          },
         },
       },
-    },
-  });
+    });
 
   const invalid =
     !invite ||
@@ -40,14 +49,53 @@ export default async function InvitePage({ params }: Props) {
           </h1>
 
           <p className="mt-2 text-sm text-muted-foreground">
-            This invitation is invalid, expired, or has been revoked.
+            This invitation is invalid,
+            expired, or has been revoked.
           </p>
         </div>
       </main>
     );
   }
 
+  const currentUser =
+    await getCurrentUser();
 
+  if (currentUser) {
+    const isOwner =
+      invite.conversation.ownerId ===
+      currentUser.id;
+
+    const membership =
+      isOwner
+        ? null
+        : await prisma.conversationMember.findUnique({
+            where: {
+              conversationId_userId: {
+                conversationId:
+                  invite.conversationId,
+                userId:
+                  currentUser.id,
+              },
+            },
+            select: {
+              userId: true,
+            },
+          });
+
+    if (isOwner || membership) {
+      redirect(
+        `/chat/${invite.conversationId}`
+      );
+    }
+  }
+
+  async function joinExistingUser() {
+    "use server";
+
+    await joinConversationByInvite(
+      token
+    );
+  }
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-background px-6">
@@ -57,7 +105,8 @@ export default async function InvitePage({ params }: Props) {
         </h1>
 
         <p className="mt-2 text-sm text-muted-foreground">
-          You&apos;ve been invited to join:
+          You&apos;ve been invited to
+          join:
         </p>
 
         <div className="mt-4 rounded-md bg-muted px-4 py-3 font-medium">
@@ -65,9 +114,36 @@ export default async function InvitePage({ params }: Props) {
         </div>
 
         <RealtimeConversationSync
-          conversationId={invite.conversationId}
+          conversationId={
+            invite.conversationId
+          }
         >
-          <GuestJoinForm token={token} />
+          {currentUser ? (
+            <form
+              action={joinExistingUser}
+              className="mt-6"
+            >
+              <p className="mb-4 text-sm text-muted-foreground">
+                Join as{" "}
+                <span className="font-medium text-foreground">
+                  {currentUser.name ??
+                    currentUser.email ??
+                    "current user"}
+                </span>
+              </p>
+
+              <button
+                type="submit"
+                className="w-full rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+              >
+                Join conversation
+              </button>
+            </form>
+          ) : (
+            <GuestJoinForm
+              token={token}
+            />
+          )}
         </RealtimeConversationSync>
       </div>
     </main>

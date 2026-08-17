@@ -1,9 +1,11 @@
 import "server-only";
+
 import { redirect } from "next/navigation";
+
 import { prisma } from "@/lib/db/prisma";
 import { createClient } from "@/lib/supabase/server";
 
-export async function requireUser() {
+export async function getCurrentUser() {
   const supabase = await createClient();
 
   const {
@@ -12,14 +14,11 @@ export async function requireUser() {
   } = await supabase.auth.getUser();
 
   if (error || !user) {
-    redirect("/login");
+    return null;
   }
 
-  const isGuest = user.is_anonymous === true;
-
-  if (error || !user) {
-    redirect("/login");
-  }
+  const isGuest =
+    user.is_anonymous === true;
 
   const googleName =
     user.user_metadata?.full_name ??
@@ -31,29 +30,46 @@ export async function requireUser() {
     user.user_metadata?.picture ??
     null;
 
-  const appUser = await prisma.user.upsert({
-    where: {
-      id: user.id,
-    },
-    update: {
-      email: user.email ?? null,
-      avatarUrl: googleAvatar,
-    },
-    create: {
-      id: user.id,
-      email: user.email ?? null,
-      name: googleName,
-      avatarUrl: googleAvatar,
-    },
-  });
+  const appUser =
+    await prisma.user.upsert({
+      where: {
+        id: user.id,
+      },
+      update: {
+        email:
+          user.email ?? null,
+        avatarUrl:
+          googleAvatar,
+      },
+      create: {
+        id: user.id,
+        email:
+          user.email ?? null,
+        name:
+          googleName,
+        avatarUrl:
+          googleAvatar,
+      },
+    });
 
   return {
-  id: appUser.id,
-  email: appUser.email,
-  name: appUser.name,
-  avatarUrl: appUser.avatarUrl,
-  createdAt: appUser.createdAt,
-  updatedAt: appUser.updatedAt,
-  isGuest,
-};
+    id: appUser.id,
+    email: appUser.email,
+    name: appUser.name,
+    avatarUrl: appUser.avatarUrl,
+    createdAt: appUser.createdAt,
+    updatedAt: appUser.updatedAt,
+    isGuest,
+  };
+}
+
+export async function requireUser() {
+  const user =
+    await getCurrentUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  return user;
 }
