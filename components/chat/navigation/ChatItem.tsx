@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import {
+  usePathname,
+  useRouter,
+} from "next/navigation";
 import {
   useEffect,
   useState,
@@ -18,8 +21,8 @@ import {
   renameConversation,
 } from "@/app/actions";
 
-import { useConversationRealtime } from "../realtime/RealtimeConversationSync";
-import { useSidebarRealtime } from "../realtime/RealtimeSidebarSync";
+import { useOptionalConversationRealtime } from "../realtime/RealtimeConversationSync";
+import { useOptionalSidebarRealtime } from "../realtime/RealtimeSidebarSync";
 
 type Props = {
   id: number;
@@ -36,19 +39,17 @@ export function ChatItem({
   hasUnread = false,
 }: Props) {
   const pathname = usePathname();
+  const router = useRouter();
+
+  const conversationRealtime =
+    useOptionalConversationRealtime();
+
+  const sidebarRealtime =
+    useOptionalSidebarRealtime();
 
   const href = `/chat/${id}`;
-  const isActive = pathname === href;
-
-  const {
-    broadcastConversationUpdated:
-      broadcastActiveConversationUpdated,
-  } = useConversationRealtime();
-
-  const {
-    broadcastConversationUpdated:
-      broadcastInactiveConversationUpdated,
-  } = useSidebarRealtime();
+  const isActive =
+    pathname === href;
 
   const [menuOpen, setMenuOpen] =
     useState(false);
@@ -68,17 +69,28 @@ export function ChatItem({
     if (!isEditing) {
       setValue(title);
     }
-  }, [title, isEditing]);
+  }, [
+    title,
+    isEditing,
+  ]);
 
   async function broadcastRename() {
-    if (isActive) {
-      await broadcastActiveConversationUpdated();
+    if (
+      isActive &&
+      conversationRealtime
+    ) {
+      await conversationRealtime
+        .broadcastConversationUpdated();
+
       return;
     }
 
-    await broadcastInactiveConversationUpdated(
-      id
-    );
+    if (sidebarRealtime) {
+      await sidebarRealtime
+        .broadcastConversationUpdated(
+          id
+        );
+    }
   }
 
   function startEditing() {
@@ -88,7 +100,8 @@ export function ChatItem({
   }
 
   function save() {
-    const trimmed = value.trim();
+    const trimmed =
+      value.trim();
 
     if (
       !trimmed ||
@@ -107,6 +120,8 @@ export function ChatItem({
         );
 
         await broadcastRename();
+
+        router.refresh();
 
         setIsEditing(false);
       } catch (error) {
@@ -135,11 +150,15 @@ export function ChatItem({
         }
         onBlur={save}
         onKeyDown={(event) => {
-          if (event.key === "Enter") {
+          if (
+            event.key === "Enter"
+          ) {
             save();
           }
 
-          if (event.key === "Escape") {
+          if (
+            event.key === "Escape"
+          ) {
             setValue(title);
             setIsEditing(false);
           }
@@ -170,13 +189,14 @@ export function ChatItem({
           {title}
         </span>
 
-        {hasUnread && !isActive && (
-          <span
-            aria-label="Unread messages"
-            title="Unread messages"
-            className="h-2 w-2 shrink-0 rounded-full bg-foreground"
-          />
-        )}
+        {hasUnread &&
+          !isActive && (
+            <span
+              aria-label="Unread messages"
+              title="Unread messages"
+              className="h-2 w-2 shrink-0 rounded-full bg-foreground"
+            />
+          )}
       </Link>
 
       <button
@@ -197,7 +217,9 @@ export function ChatItem({
         <div className="absolute right-1 top-9 z-50 min-w-32 rounded-md border border-border bg-background p-1 shadow-md">
           <button
             type="button"
-            onClick={startEditing}
+            onClick={
+              startEditing
+            }
             className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-foreground hover:bg-muted"
           >
             <Pencil className="h-4 w-4" />
@@ -215,7 +237,9 @@ export function ChatItem({
                     `Delete "${title}"? This cannot be undone.`
                   );
 
-                if (!confirmed) {
+                if (
+                  !confirmed
+                ) {
                   return;
                 }
 

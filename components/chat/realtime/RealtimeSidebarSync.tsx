@@ -40,16 +40,18 @@ export function RealtimeSidebarSync({
   const routerRef =
     useRef(router);
 
-  const supabaseRef = useRef(
-    createClient()
-  );
+  const supabaseRef =
+    useRef(
+      createClient()
+    );
 
   const channelsRef = useRef<
     Map<number, RealtimeChannel>
   >(new Map());
 
   useEffect(() => {
-    routerRef.current = router;
+    routerRef.current =
+      router;
   }, [router]);
 
   useEffect(() => {
@@ -66,30 +68,31 @@ export function RealtimeSidebarSync({
     const channels =
       inactiveConversationIds.map(
         (conversationId) => {
-          const channel = supabase
-            .channel(
-              `conversation:${conversationId}`
-            )
-            .on(
-              "broadcast",
-              {
-                event:
-                  "message-created",
-              },
-              () => {
-                routerRef.current.refresh();
-              }
-            )
-            .on(
-              "broadcast",
-              {
-                event:
-                  "conversation-updated",
-              },
-              () => {
-                routerRef.current.refresh();
-              }
-            );
+          const channel =
+            supabase
+              .channel(
+                `conversation:${conversationId}`
+              )
+              .on(
+                "broadcast",
+                {
+                  event:
+                    "message-created",
+                },
+                () => {
+                  routerRef.current.refresh();
+                }
+              )
+              .on(
+                "broadcast",
+                {
+                  event:
+                    "conversation-updated",
+                },
+                () => {
+                  routerRef.current.refresh();
+                }
+              );
 
           channelsRef.current.set(
             conversationId,
@@ -97,7 +100,10 @@ export function RealtimeSidebarSync({
           );
 
           channel.subscribe(
-            (status, error) => {
+            (
+              status,
+              error
+            ) => {
               if (
                 status ===
                   "CHANNEL_ERROR" ||
@@ -191,4 +197,10 @@ export function useSidebarRealtime() {
   }
 
   return context;
+}
+
+export function useOptionalSidebarRealtime() {
+  return useContext(
+    SidebarRealtimeContext
+  );
 }

@@ -17,12 +17,13 @@ import { createClient } from "@/lib/supabase/client";
 type RealtimeContextValue = {
   broadcastMessageCreated: () => Promise<void>;
   broadcastConversationUpdated: () => Promise<void>;
-  broadcastSidebarUpdated: () => Promise<void>;
   isReady: boolean;
 };
 
 const RealtimeContext =
-  createContext<RealtimeContextValue | null>(null);
+  createContext<RealtimeContextValue | null>(
+    null
+  );
 
 type Props = {
   conversationId: number;
@@ -39,95 +40,61 @@ export function RealtimeConversationSync({
     createClient()
   );
 
-  const conversationChannelRef =
-    useRef<RealtimeChannel | null>(null);
+  const channelRef =
+    useRef<RealtimeChannel | null>(
+      null
+    );
 
-  const activityChannelRef =
-    useRef<RealtimeChannel | null>(null);
-
-  const [conversationReady, setConversationReady] =
-    useState(false);
-
-  const [activityReady, setActivityReady] =
+  const [isReady, setIsReady] =
     useState(false);
 
   useEffect(() => {
     const supabase =
       supabaseRef.current;
 
-    const conversationChannel =
-      supabase
-        .channel(
-          `conversation:${conversationId}`
-        )
-        .on(
-          "broadcast",
-          {
-            event: "message-created",
-          },
-          () => {
-            router.refresh();
-          }
-        )
-        .on(
-          "broadcast",
-          {
-            event:
-              "conversation-updated",
-          },
-          () => {
-            router.refresh();
-          }
-        );
-
-    const activityChannel =
-      supabase.channel(
-        "conversation-activity"
+    const channel = supabase
+      .channel(
+        `conversation:${conversationId}`
+      )
+      .on(
+        "broadcast",
+        {
+          event: "message-created",
+        },
+        () => {
+          router.refresh();
+        }
+      )
+      .on(
+        "broadcast",
+        {
+          event:
+            "conversation-updated",
+        },
+        () => {
+          router.refresh();
+        }
       );
 
-    conversationChannelRef.current =
-      conversationChannel;
+    channelRef.current =
+      channel;
 
-    activityChannelRef.current =
-      activityChannel;
-
-    conversationChannel.subscribe(
+    channel.subscribe(
       (status, error) => {
         if (
           status === "SUBSCRIBED"
         ) {
-          setConversationReady(true);
+          setIsReady(true);
         }
 
         if (
           status ===
             "CHANNEL_ERROR" ||
-          status === "TIMED_OUT"
-        ) {
-          console.error(
-            "Realtime conversation channel error:",
-            status,
-            error
-          );
-        }
-      }
-    );
-
-    activityChannel.subscribe(
-      (status, error) => {
-        if (
-          status === "SUBSCRIBED"
-        ) {
-          setActivityReady(true);
-        }
-
-        if (
           status ===
-            "CHANNEL_ERROR" ||
-          status === "TIMED_OUT"
+            "TIMED_OUT"
         ) {
           console.error(
-            "Realtime activity channel error:",
+            "Realtime channel error:",
             status,
             error
           );
@@ -136,29 +103,24 @@ export function RealtimeConversationSync({
     );
 
     return () => {
-      setConversationReady(false);
-      setActivityReady(false);
+      setIsReady(false);
 
-      conversationChannelRef.current =
-        null;
-
-      activityChannelRef.current =
+      channelRef.current =
         null;
 
       void supabase.removeChannel(
-        conversationChannel
-      );
-
-      void supabase.removeChannel(
-        activityChannel
+        channel
       );
     };
-  }, [conversationId, router]);
+  }, [
+    conversationId,
+    router,
+  ]);
 
   const broadcastMessageCreated =
     useCallback(async () => {
       const channel =
-        conversationChannelRef.current;
+        channelRef.current;
 
       if (!channel) {
         return;
@@ -166,7 +128,8 @@ export function RealtimeConversationSync({
 
       await channel.send({
         type: "broadcast",
-        event: "message-created",
+        event:
+          "message-created",
         payload: {},
       });
     }, []);
@@ -174,7 +137,7 @@ export function RealtimeConversationSync({
   const broadcastConversationUpdated =
     useCallback(async () => {
       const channel =
-        conversationChannelRef.current;
+        channelRef.current;
 
       if (!channel) {
         return;
@@ -188,33 +151,12 @@ export function RealtimeConversationSync({
       });
     }, []);
 
-  const broadcastSidebarUpdated =
-    useCallback(async () => {
-      const channel =
-        activityChannelRef.current;
-
-      if (!channel) {
-        return;
-      }
-
-      await channel.send({
-        type: "broadcast",
-        event: "sidebar-updated",
-        payload: {
-          conversationId,
-        },
-      });
-    }, [conversationId]);
-
   return (
     <RealtimeContext.Provider
       value={{
         broadcastMessageCreated,
         broadcastConversationUpdated,
-        broadcastSidebarUpdated,
-        isReady:
-          conversationReady &&
-          activityReady,
+        isReady,
       }}
     >
       {children}
@@ -224,7 +166,9 @@ export function RealtimeConversationSync({
 
 export function useConversationRealtime() {
   const context =
-    useContext(RealtimeContext);
+    useContext(
+      RealtimeContext
+    );
 
   if (!context) {
     throw new Error(
@@ -233,4 +177,10 @@ export function useConversationRealtime() {
   }
 
   return context;
+}
+
+export function useOptionalConversationRealtime() {
+  return useContext(
+    RealtimeContext
+  );
 }
