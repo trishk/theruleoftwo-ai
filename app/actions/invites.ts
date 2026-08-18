@@ -11,6 +11,11 @@ import { createClient } from "@/lib/supabase/server";
 
 import { getValidInvite } from "@/lib/invites/get-valid-invite";
 import { joinConversation } from "@/lib/invites/join-conversation";
+import {
+  createGuestUser,
+  validateGuestDisplayName,
+} from "@/lib/invites/create-guest-user";
+import { leaveConversationMembership } from "@/lib/invites/leave-conversation";
 
 const INVITE_EXPIRATION_MS =
   7 * 24 * 60 * 60 * 1000;
@@ -36,12 +41,15 @@ export async function createConversationInvite(
   }
 
   const token =
-    crypto.randomBytes(32).toString("hex");
+    crypto
+      .randomBytes(32)
+      .toString("hex");
 
-  const expiresAt = new Date(
-    Date.now() +
-      INVITE_EXPIRATION_MS
-  );
+  const expiresAt =
+    new Date(
+      Date.now() +
+        INVITE_EXPIRATION_MS
+    );
 
   await prisma.conversationInvite.create({
     data: {
@@ -58,16 +66,18 @@ export async function createConversationInvite(
 export async function joinConversationByInvite(
   token: string
 ) {
-  const user = await requireUser();
+  const user =
+    await requireUser();
 
   const invite =
-    await getValidInvite(token);
+    await getValidInvite(
+      token
+    );
 
   await joinConversation({
     conversationId:
       invite.conversationId,
-    userId:
-      user.id,
+    userId: user.id,
   });
 
   redirect(
@@ -80,65 +90,21 @@ export async function joinConversationAsGuest(
   displayName: string
 ) {
   const name =
-    displayName.trim();
-
-  if (!name) {
-    throw new Error(
-      "Display name is required."
+    validateGuestDisplayName(
+      displayName
     );
-  }
-
-  if (name.length > 50) {
-    throw new Error(
-      "Display name is too long."
-    );
-  }
 
   const invite =
-    await getValidInvite(token);
-
-  const supabase =
-    await createClient();
+    await getValidInvite(
+      token
+    );
 
   const {
-    data,
-    error,
+    userId,
   } =
-    await supabase.auth.signInAnonymously({
-      options: {
-        data: {
-          name,
-        },
-      },
-    });
-
-  if (error) {
-    throw new Error(
-      error.message
+    await createGuestUser(
+      name
     );
-  }
-
-  if (!data.user) {
-    throw new Error(
-      "Could not create guest user."
-    );
-  }
-
-  const userId =
-    data.user.id;
-
-  await prisma.user.upsert({
-    where: {
-      id: userId,
-    },
-    update: {
-      name,
-    },
-    create: {
-      id: userId,
-      name,
-    },
-  });
 
   await joinConversation({
     conversationId:
@@ -159,7 +125,8 @@ export async function joinConversationAsGuest(
 export async function leaveConversation(
   conversationId: number
 ) {
-  const user = await requireUser();
+  const user =
+    await requireUser();
 
   const conversation =
     await requireConversationAccess(
@@ -176,39 +143,12 @@ export async function leaveConversation(
     );
   }
 
-  await prisma.conversationMember.deleteMany({
-    where: {
+  const {
+    nextConversationId,
+  } =
+    await leaveConversationMembership({
       conversationId,
-      userId:
-        user.id,
-    },
-  });
-
-  const nextConversation =
-    await prisma.conversation.findFirst({
-      where: {
-        OR: [
-          {
-            ownerId:
-              user.id,
-          },
-          {
-            members: {
-              some: {
-                userId:
-                  user.id,
-              },
-            },
-          },
-        ],
-      },
-      orderBy: {
-        updatedAt:
-          "desc",
-      },
-      select: {
-        id: true,
-      },
+      userId: user.id,
     });
 
   revalidatePath(
@@ -218,7 +158,7 @@ export async function leaveConversation(
   revalidatePath("/");
 
   if (
-    !nextConversation &&
+    nextConversationId === null &&
     user.isGuest
   ) {
     const supabase =
@@ -238,16 +178,13 @@ export async function leaveConversation(
     }
 
     return {
-      nextConversationId:
-        null,
+      nextConversationId: null,
       signedOut: true,
     };
   }
 
   return {
-    nextConversationId:
-      nextConversation?.id ??
-      null,
+    nextConversationId,
     signedOut: false,
   };
 }
