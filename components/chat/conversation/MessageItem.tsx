@@ -1,9 +1,8 @@
 import { Reply, RotateCcw } from "lucide-react";
 import { PROVIDER_LIST } from "@/lib/llm/providerMeta";
-import type { AuthorType, ChatReply } from "./types";
+import type { ChatReply } from "./types";
 
 type Props = {
-    authorType: AuthorType;
     authorName: string;
     content: string;
     createdAt: Date;
@@ -15,7 +14,6 @@ type Props = {
 };
 
 export function MessageItem({
-    authorType,
     authorName,
     content,
     isOwnMessage,

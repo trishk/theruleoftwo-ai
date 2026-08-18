@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  useEffect,
   useState,
   useTransition,
 } from "react";
@@ -16,7 +15,7 @@ import {
 } from "@/app/actions";
 
 import { LeaveConversationButton } from "./LeaveConversationButton";
-import { useConversationRealtime } from "../realtime/RealtimeConversationSync";
+import { useOptionalConversationRealtime } from "../realtime/RealtimeConversationSync";
 
 type Props = {
   conversationId?: number;
@@ -33,15 +32,14 @@ export function ChatHeader({
   isGuest = false,
   participants = [],
 }: Props) {
-  const {
-    broadcastConversationUpdated,
-  } = useConversationRealtime();
+  const conversationRealtime =
+    useOptionalConversationRealtime();
 
   const [isEditing, setIsEditing] =
     useState(false);
 
   const [value, setValue] =
-    useState(title);
+    useState("");
 
   const [
     isPending,
@@ -51,23 +49,19 @@ export function ChatHeader({
   const [copied, setCopied] =
     useState(false);
 
-  useEffect(() => {
-    if (!isEditing) {
-      setValue(title);
-    }
-  }, [
-    title,
-    isEditing,
-  ]);
-
   function startEditing() {
     setValue(title);
     setIsEditing(true);
   }
 
+  function cancelEditing() {
+    setValue("");
+    setIsEditing(false);
+  }
+
   function save() {
     if (!conversationId) {
-      setIsEditing(false);
+      cancelEditing();
       return;
     }
 
@@ -77,8 +71,7 @@ export function ChatHeader({
       !trimmed ||
       trimmed === title
     ) {
-      setValue(title);
-      setIsEditing(false);
+      cancelEditing();
       return;
     }
 
@@ -89,17 +82,19 @@ export function ChatHeader({
           trimmed
         );
 
-        await broadcastConversationUpdated();
+        if (conversationRealtime) {
+          await conversationRealtime
+            .broadcastConversationUpdated();
+        }
 
-        setIsEditing(false);
+        cancelEditing();
       } catch (error) {
         console.error(
           "Failed to rename conversation:",
           error
         );
 
-        setValue(title);
-        setIsEditing(false);
+        cancelEditing();
       }
     });
   }
@@ -162,8 +157,7 @@ export function ChatHeader({
               if (
                 event.key === "Escape"
               ) {
-                setValue(title);
-                setIsEditing(false);
+                cancelEditing();
               }
             }}
             className="w-full max-w-md rounded-md border border-border bg-background px-2 py-1 text-sm font-medium text-foreground outline-none focus:ring-2 focus:ring-ring"

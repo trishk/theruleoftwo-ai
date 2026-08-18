@@ -58,6 +58,9 @@ export function RealtimeSidebarSync({
     const supabase =
       supabaseRef.current;
 
+    const channelsMap =
+      channelsRef.current;
+
     const inactiveConversationIds =
       conversationIds.filter(
         (conversationId) =>
@@ -94,7 +97,7 @@ export function RealtimeSidebarSync({
                 }
               );
 
-          channelsRef.current.set(
+          channelsMap.set(
             conversationId,
             channel
           );
@@ -133,9 +136,18 @@ export function RealtimeSidebarSync({
           channel,
         } of channels
       ) {
-        channelsRef.current.delete(
-          conversationId
-        );
+        const currentChannel =
+          channelsMap.get(
+            conversationId
+          );
+
+        if (
+          currentChannel === channel
+        ) {
+          channelsMap.delete(
+            conversationId
+          );
+        }
 
         void supabase.removeChannel(
           channel

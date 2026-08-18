@@ -109,11 +109,10 @@ export async function sendHumanMessage(
 ) {
     const user = await requireUser();
 
-    const conversation =
-        await requireConversationAccess(
-            conversationId,
-            user.id
-        );
+    await requireConversationAccess(
+        conversationId,
+        user.id
+    );
 
     const {
         messageId,
@@ -125,7 +124,7 @@ export async function sendHumanMessage(
         replyToId
     );
 
-    
+
 
     await prisma.conversation.update({
         where: {

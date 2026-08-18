@@ -6,7 +6,6 @@ import {
   useRouter,
 } from "next/navigation";
 import {
-  useEffect,
   useState,
   useTransition,
 } from "react";
@@ -58,21 +57,12 @@ export function ChatItem({
     useState(false);
 
   const [value, setValue] =
-    useState(title);
+    useState("");
 
   const [
     isPending,
     startTransition,
   ] = useTransition();
-
-  useEffect(() => {
-    if (!isEditing) {
-      setValue(title);
-    }
-  }, [
-    title,
-    isEditing,
-  ]);
 
   async function broadcastRename() {
     if (
@@ -99,6 +89,11 @@ export function ChatItem({
     setIsEditing(true);
   }
 
+  function cancelEditing() {
+    setValue("");
+    setIsEditing(false);
+  }
+
   function save() {
     const trimmed =
       value.trim();
@@ -107,8 +102,7 @@ export function ChatItem({
       !trimmed ||
       trimmed === title
     ) {
-      setValue(title);
-      setIsEditing(false);
+      cancelEditing();
       return;
     }
 
@@ -123,15 +117,14 @@ export function ChatItem({
 
         router.refresh();
 
-        setIsEditing(false);
+        cancelEditing();
       } catch (error) {
         console.error(
           "Failed to rename conversation:",
           error
         );
 
-        setValue(title);
-        setIsEditing(false);
+        cancelEditing();
       }
     });
   }
@@ -159,8 +152,7 @@ export function ChatItem({
           if (
             event.key === "Escape"
           ) {
-            setValue(title);
-            setIsEditing(false);
+            cancelEditing();
           }
         }}
         className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"

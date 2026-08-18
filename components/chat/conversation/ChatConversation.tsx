@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import {
+  useMemo,
+  useState,
+} from "react";
 
 import { MessageList } from "./MessageList";
 import { MessageComposer } from "../composer/MessageComposer";
@@ -48,36 +51,30 @@ export function ChatConversation({
       setStreamingMessages,
   });
 
-  useEffect(() => {
-    if (
-      streamingMessages.length === 0
-    ) {
-      return;
-    }
-
-    setStreamingMessages(
-      (current) =>
-        current.filter(
+  const visibleStreamingMessages =
+    useMemo(
+      () =>
+        streamingMessages.filter(
           (streamingMessage) =>
             !messages.some(
-              (message) =>
-                message.authorType ===
+              (persistedMessage) =>
+                persistedMessage.authorType ===
                   "ai" &&
-                message.authorName ===
+                persistedMessage.authorName ===
                   streamingMessage.authorName &&
-                message.content ===
+                persistedMessage.content ===
                   streamingMessage.content
             )
-        )
+        ),
+      [
+        messages,
+        streamingMessages,
+      ]
     );
-  }, [
-    messages,
-    streamingMessages.length,
-  ]);
 
   const allMessages = [
     ...messages,
-    ...streamingMessages,
+    ...visibleStreamingMessages,
   ];
 
   return (

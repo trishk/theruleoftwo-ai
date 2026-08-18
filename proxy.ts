@@ -1,61 +1,114 @@
 import { createServerClient } from "@supabase/ssr";
-import { NextResponse, type NextRequest } from "next/server";
+import {
+  NextResponse,
+  type NextRequest,
+} from "next/server";
 
-export async function proxy(request: NextRequest) {
+export async function proxy(
+  request: NextRequest
+) {
   let response = NextResponse.next({
     request,
   });
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          );
+  const supabase =
+    createServerClient(
+      process.env
+        .NEXT_PUBLIC_SUPABASE_URL!,
+      process.env
+        .NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(
+              ({
+                name,
+                value,
+              }) =>
+                request.cookies.set(
+                  name,
+                  value
+                )
+            );
 
-          response = NextResponse.next({
-            request,
-          });
+            response =
+              NextResponse.next({
+                request,
+              });
 
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
-          );
+            cookiesToSet.forEach(
+              ({
+                name,
+                value,
+                options,
+              }) =>
+                response.cookies.set(
+                  name,
+                  value,
+                  options
+                )
+            );
+          },
         },
-      },
-    }
-  );
+      }
+    );
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isLoginPage = request.nextUrl.pathname === "/login";
-  const isAuthCallback = request.nextUrl.pathname.startsWith("/auth/callback");
-  const isInvitePage = request.nextUrl.pathname.startsWith("/invite/");
+  const isLoginPage =
+    request.nextUrl.pathname ===
+    "/login";
+
+  const isAuthCallback =
+    request.nextUrl.pathname.startsWith(
+      "/auth/callback"
+    );
+
+  const isInvitePage =
+    request.nextUrl.pathname.startsWith(
+      "/invite/"
+    );
+
+  const isE2ELoginPage =
+    process.env.NODE_ENV !==
+      "production" &&
+    request.nextUrl.pathname ===
+      "/e2e-login";
 
   if (
     !user &&
     !isLoginPage &&
     !isAuthCallback &&
-    !isInvitePage
+    !isInvitePage &&
+    !isE2ELoginPage
   ) {
-    const url = request.nextUrl.clone();
+    const url =
+      request.nextUrl.clone();
+
     url.pathname = "/login";
 
-    return NextResponse.redirect(url);
+    return NextResponse.redirect(
+      url
+    );
   }
 
-  if (user && isLoginPage) {
-    const url = request.nextUrl.clone();
+  if (
+    user &&
+    isLoginPage
+  ) {
+    const url =
+      request.nextUrl.clone();
+
     url.pathname = "/";
 
-    return NextResponse.redirect(url);
+    return NextResponse.redirect(
+      url
+    );
   }
 
   return response;
