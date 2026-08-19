@@ -8,6 +8,7 @@ const CONTEXT_MESSAGE_LIMIT = 50;
 
 type PrepareLLMRequestArgs = {
   conversationId: number;
+  sourceMessageId: number;
   provider: Provider;
   currentUserId: string;
   currentUserName?: string | null;
@@ -16,6 +17,7 @@ type PrepareLLMRequestArgs = {
 
 export async function prepareLLMRequest({
   conversationId,
+  sourceMessageId,
   provider,
   currentUserId,
   currentUserName,
@@ -25,9 +27,12 @@ export async function prepareLLMRequest({
     await prisma.message.findMany({
       where: {
         conversationId,
+        id: {
+          lte: sourceMessageId,
+        },
       },
       orderBy: {
-        createdAt: "desc",
+        id: "desc",
       },
       take: CONTEXT_MESSAGE_LIMIT,
       include: {
@@ -72,16 +77,16 @@ export async function prepareLLMRequest({
   const humanAuthors =
     humanAuthorIds.length > 0
       ? await prisma.user.findMany({
-          where: {
-            id: {
-              in: humanAuthorIds,
-            },
+        where: {
+          id: {
+            in: humanAuthorIds,
           },
-          select: {
-            id: true,
-            name: true,
-          },
-        })
+        },
+        select: {
+          id: true,
+          name: true,
+        },
+      })
       : [];
 
   const humanAuthorNames = new Map(
@@ -99,37 +104,37 @@ export async function prepareLLMRequest({
         message.authorId,
       authorName:
         message.authorType ===
-        "human"
+          "human"
           ? humanAuthorNames.get(
-              message.authorId
-            ) ?? null
+            message.authorId
+          ) ?? null
           : null,
       content:
         message.content,
       replyTo:
         message.replyTo
           ? {
-              id:
-                message.replyTo.id,
-              authorType:
-                message.replyTo
-                  .authorType,
-              authorId:
-                message.replyTo
-                  .authorId,
-              authorName:
-                message.replyTo
-                  .authorType ===
+            id:
+              message.replyTo.id,
+            authorType:
+              message.replyTo
+                .authorType,
+            authorId:
+              message.replyTo
+                .authorId,
+            authorName:
+              message.replyTo
+                .authorType ===
                 "human"
-                  ? humanAuthorNames.get(
-                      message.replyTo
-                        .authorId
-                    ) ?? null
-                  : null,
-              content:
-                message.replyTo
-                  .content,
-            }
+                ? humanAuthorNames.get(
+                  message.replyTo
+                    .authorId
+                ) ?? null
+                : null,
+            content:
+              message.replyTo
+                .content,
+          }
           : null,
     }));
 

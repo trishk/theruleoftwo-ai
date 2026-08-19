@@ -46,6 +46,7 @@ export async function POST(
 
   const {
     conversationId,
+    messageId,
     provider,
     ownerId,
   } = validatedRequest;
@@ -74,6 +75,7 @@ export async function POST(
     llmRequest =
       await prepareLLMRequest({
         conversationId,
+        sourceMessageId: messageId,
         provider,
         currentUserId: user.id,
         currentUserName: user.name,
