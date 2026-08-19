@@ -66,7 +66,7 @@ export function LeaveConversationButton({
             result.nextConversationId
           ) {
             router.push(
-              `/chat/${result.nextConversationId}`
+              `/chat/${result.nextConversationPublicId}`
             );
 
             router.refresh();

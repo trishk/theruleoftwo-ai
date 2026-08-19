@@ -15,6 +15,7 @@ import { ThemeToggle } from "./ThemeToggle";
 
 type Chat = {
   id: number;
+  publicId: string;
   title: string;
   ownerId: string;
   hasUnread?: boolean;

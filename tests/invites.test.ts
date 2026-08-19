@@ -9,6 +9,7 @@ const {
   userUpsertMock,
   deleteManyMock,
   findFirstMock,
+  findUniqueMock,
   createClientMock,
   signInAnonymouslyMock,
   signOutMock,
@@ -23,6 +24,7 @@ const {
   userUpsertMock: vi.fn(),
   deleteManyMock: vi.fn(),
   findFirstMock: vi.fn(),
+  findUniqueMock: vi.fn(),
   createClientMock: vi.fn(),
   signInAnonymouslyMock: vi.fn(),
   signOutMock: vi.fn(),
@@ -59,6 +61,7 @@ vi.mock("@/lib/db/prisma", () => ({
     },
     conversation: {
       findFirst: findFirstMock,
+      findUnique: findUniqueMock,
     },
   },
 }));
@@ -150,6 +153,10 @@ describe("invite actions", () => {
       id: "guest-1",
     });
 
+    findUniqueMock.mockResolvedValue({
+      publicId: "conversation-public-id",
+    });
+
     const result = await joinConversationAsGuest(
       "token-1",
       " Guest User "
@@ -181,8 +188,19 @@ describe("invite actions", () => {
       userId: "guest-1",
     });
 
+    expect(findUniqueMock).toHaveBeenCalledWith({
+      where: {
+        id: 42,
+      },
+      select: {
+        publicId: true,
+      },
+    });
+
     expect(result).toEqual({
       conversationId: 42,
+      conversationPublicId:
+        "conversation-public-id",
     });
   });
 
@@ -240,6 +258,7 @@ describe("invite actions", () => {
 
     expect(result).toEqual({
       nextConversationId: null,
+      nextConversationPublicId: null,
       signedOut: true,
     });
   });

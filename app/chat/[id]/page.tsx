@@ -26,15 +26,24 @@ export default async function ChatPage({
 }: Props) {
   const user = await requireUser();
 
-  const { id } = await params;
-  const conversationId = Number(id);
+  const { id: publicId } = await params;
 
-  if (
-    !Number.isInteger(conversationId) ||
-    conversationId <= 0
-  ) {
+  const conversationLookup =
+    await prisma.conversation.findUnique({
+      where: {
+        publicId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+  if (!conversationLookup) {
     notFound();
   }
+
+  const conversationId =
+    conversationLookup.id;
 
   try {
     await requireConversationAccess(
@@ -52,13 +61,17 @@ export default async function ChatPage({
             createdAt: "desc",
           },
           select: {
-            conversationId: true,
+            conversation: {
+              select: {
+                publicId: true,
+              },
+            },
           },
         });
 
       if (membership) {
         redirect(
-          `/chat/${membership.conversationId}`
+          `/chat/${membership.conversation.publicId}`
         );
       }
     }
@@ -135,6 +148,7 @@ export default async function ChatPage({
       },
       select: {
         id: true,
+        publicId: true,
         title: true,
         ownerId: true,
         readStates: {
@@ -182,6 +196,7 @@ export default async function ChatPage({
 
       return {
         id: chat.id,
+        publicId: chat.publicId,
         title: chat.title,
         ownerId: chat.ownerId,
         hasUnread,

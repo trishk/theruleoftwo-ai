@@ -2,6 +2,7 @@ import { ChatItem } from "./ChatItem";
 
 type Chat = {
   id: number;
+  publicId: string;
   title: string;
   ownerId: string;
   hasUnread?: boolean;
@@ -32,6 +33,7 @@ export function ChatList({
         <ChatItem
           key={chat.id}
           id={chat.id}
+          publicId={chat.publicId}
           title={chat.title}
           isOwner={
             chat.ownerId ===

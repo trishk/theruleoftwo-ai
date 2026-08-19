@@ -48,7 +48,7 @@ export async function createConversationInvite(
   const expiresAt =
     new Date(
       Date.now() +
-        INVITE_EXPIRATION_MS
+      INVITE_EXPIRATION_MS
     );
 
   await prisma.conversationInvite.create({
@@ -80,8 +80,24 @@ export async function joinConversationByInvite(
     userId: user.id,
   });
 
+  const conversation =
+    await prisma.conversation.findUnique({
+      where: {
+        id: invite.conversationId,
+      },
+      select: {
+        publicId: true,
+      },
+    });
+
+  if (!conversation) {
+    throw new Error(
+      "Conversation not found."
+    );
+  }
+
   redirect(
-    `/chat/${invite.conversationId}`
+    `/chat/${conversation.publicId}`
   );
 }
 
@@ -112,13 +128,32 @@ export async function joinConversationAsGuest(
     userId,
   });
 
+  const conversation =
+    await prisma.conversation.findUnique({
+      where: {
+        id: invite.conversationId,
+      },
+      select: {
+        publicId: true,
+      },
+    });
+
+  if (!conversation) {
+    throw new Error(
+      "Conversation not found."
+    );
+  }
+
   revalidatePath(
-    `/chat/${invite.conversationId}`
+    "/chat",
+    "layout"
   );
 
   return {
     conversationId:
       invite.conversationId,
+    conversationPublicId:
+      conversation.publicId,
   };
 }
 
@@ -145,6 +180,7 @@ export async function leaveConversation(
 
   const {
     nextConversationId,
+    nextConversationPublicId,
   } =
     await leaveConversationMembership({
       conversationId,
@@ -152,7 +188,8 @@ export async function leaveConversation(
     });
 
   revalidatePath(
-    `/chat/${conversationId}`
+    "/chat",
+    "layout"
   );
 
   revalidatePath("/");
@@ -166,7 +203,7 @@ export async function leaveConversation(
 
     const {
       error:
-        signOutError,
+      signOutError,
     } =
       await supabase.auth.signOut();
 
@@ -179,12 +216,14 @@ export async function leaveConversation(
 
     return {
       nextConversationId: null,
+      nextConversationPublicId: null,
       signedOut: true,
     };
   }
 
   return {
     nextConversationId,
+    nextConversationPublicId,
     signedOut: false,
   };
 }

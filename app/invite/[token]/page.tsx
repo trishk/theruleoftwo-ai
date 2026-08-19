@@ -27,6 +27,7 @@ export default async function InvitePage({
         conversation: {
           select: {
             id: true,
+            publicId: true,
             title: true,
             ownerId: true,
           },
@@ -69,22 +70,22 @@ export default async function InvitePage({
       isOwner
         ? null
         : await prisma.conversationMember.findUnique({
-            where: {
-              conversationId_userId: {
-                conversationId:
-                  invite.conversationId,
-                userId:
-                  currentUser.id,
-              },
+          where: {
+            conversationId_userId: {
+              conversationId:
+                invite.conversationId,
+              userId:
+                currentUser.id,
             },
-            select: {
-              userId: true,
-            },
-          });
+          },
+          select: {
+            userId: true,
+          },
+        });
 
     if (isOwner || membership) {
       redirect(
-        `/chat/${invite.conversationId}`
+        `/chat/${invite.conversation.publicId}`
       );
     }
   }

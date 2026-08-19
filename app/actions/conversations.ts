@@ -27,7 +27,7 @@ export async function createChat() {
     });
 
   redirect(
-    `/chat/${conversation.id}`
+    `/chat/${conversation.publicId}`
   );
 }
 
@@ -91,7 +91,8 @@ export async function renameConversation(
   });
 
   revalidatePath(
-    `/chat/${conversationId}`
+    "/chat",
+    "layout"
   );
 
   revalidatePath("/");

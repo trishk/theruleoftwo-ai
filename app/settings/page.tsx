@@ -24,13 +24,17 @@ export default async function SettingsPage() {
           createdAt: "desc",
         },
         select: {
-          conversationId: true,
+          conversation: {
+            select: {
+              publicId: true,
+            },
+          },
         },
       });
 
     if (membership) {
       redirect(
-        `/chat/${membership.conversationId}`
+        `/chat/${membership.conversation.publicId}`
       );
     }
 
@@ -58,6 +62,7 @@ export default async function SettingsPage() {
       },
       select: {
         id: true,
+        publicId: true,
         title: true,
         ownerId: true,
       },
@@ -191,8 +196,8 @@ export default async function SettingsPage() {
                   const isConfigured =
                     Boolean(
                       integration?.encryptedApiKey &&
-                        integration?.keyIv &&
-                        integration?.keyAuthTag
+                      integration?.keyIv &&
+                      integration?.keyAuthTag
                     );
 
                   const selectedModel =

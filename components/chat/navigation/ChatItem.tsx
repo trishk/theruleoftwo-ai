@@ -25,6 +25,7 @@ import { useOptionalSidebarRealtime } from "../realtime/RealtimeSidebarSync";
 
 type Props = {
   id: number;
+  publicId: string;
   title: string;
   isOwner: boolean;
   isGuest?: boolean;
@@ -33,6 +34,7 @@ type Props = {
 
 export function ChatItem({
   id,
+  publicId,
   title,
   isOwner,
   hasUnread = false,
@@ -46,7 +48,7 @@ export function ChatItem({
   const sidebarRealtime =
     useOptionalSidebarRealtime();
 
-  const href = `/chat/${id}`;
+  const href = `/chat/${publicId}`;
   const isActive =
     pathname === href;
 

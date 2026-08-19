@@ -49,7 +49,7 @@ export function GuestJoinForm({
         }
 
         router.push(
-          `/chat/${result.conversationId}`
+          `/chat/${result.conversationPublicId}`
         );
       } catch (err) {
         console.error(err);

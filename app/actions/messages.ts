@@ -135,7 +135,7 @@ export async function sendHumanMessage(
         },
     });
 
-    revalidatePath(`/chat/${conversationId}`);
+    revalidatePath("/chat", "layout");
     revalidatePath("/");
 
     return {

@@ -6,6 +6,7 @@ import path from "path";
 let db: Database.Database;
 
 let conversationId: number;
+let conversationPublicId: string;
 let inviteToken: string;
 let ownerId: string;
 
@@ -16,6 +17,9 @@ test.beforeAll(() => {
 
   ownerId = `e2e-owner-${Date.now()}`;
   inviteToken = crypto.randomBytes(32).toString("hex");
+
+  conversationPublicId =
+    crypto.randomUUID().replaceAll("-", "");
 
   const now = new Date().toISOString();
 
@@ -40,13 +44,15 @@ test.beforeAll(() => {
 
   const conversationResult = db.prepare(`
     INSERT INTO Conversation (
+      publicId,
       title,
       ownerId,
       createdAt,
       updatedAt
     )
-    VALUES (?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?)
   `).run(
+    conversationPublicId,
     "E2E Realtime Test",
     ownerId,
     now,
@@ -154,7 +160,7 @@ test(
         pageA
       ).toHaveURL(
         new RegExp(
-          `/chat/${conversationId}$`
+          `/chat/${conversationPublicId}$`
         )
       );
 
@@ -179,7 +185,7 @@ test(
         pageB
       ).toHaveURL(
         new RegExp(
-          `/chat/${conversationId}$`
+          `/chat/${conversationPublicId}$`
         )
       );
 
