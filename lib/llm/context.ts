@@ -4,6 +4,8 @@ import type {
 } from "./types";
 import { PROVIDER_META } from "./providerMeta";
 
+const CONTEXT_CHARACTER_LIMIT = 40_000;
+
 type ContextReply = {
   id: number;
   authorType: string;
@@ -101,6 +103,55 @@ function formatMessage(
   return parts.join("\n");
 }
 
+function buildTranscriptWithinBudget(
+  messages: ContextMessage[],
+  currentUserId: string,
+  currentUserName?: string | null
+) {
+  const selectedMessages: string[] = [];
+  let usedCharacters = 0;
+
+  for (
+    let index = messages.length - 1;
+    index >= 0;
+    index -= 1
+  ) {
+    const formatted =
+      formatMessage(
+        messages[index],
+        currentUserId,
+        currentUserName
+      );
+
+    const separatorLength =
+      selectedMessages.length > 0
+        ? 2
+        : 0;
+
+    const nextLength =
+      formatted.length +
+      separatorLength;
+
+    if (
+      usedCharacters + nextLength >
+      CONTEXT_CHARACTER_LIMIT
+    ) {
+      break;
+    }
+
+    selectedMessages.push(
+      formatted
+    );
+
+    usedCharacters +=
+      nextLength;
+  }
+
+  return selectedMessages
+    .reverse()
+    .join("\n\n");
+}
+
 export function buildConversationContext({
   provider,
   messages,
@@ -130,15 +181,11 @@ export function buildConversationContext({
     messages.slice(0, -1);
 
   const transcript =
-    previousMessages
-      .map((message) =>
-        formatMessage(
-          message,
-          currentUserId,
-          currentUserName
-        )
-      )
-      .join("\n\n");
+    buildTranscriptWithinBudget(
+      previousMessages,
+      currentUserId,
+      currentUserName
+    );
 
   const currentContent =
     formatMessage(
@@ -154,6 +201,8 @@ export function buildConversationContext({
     "Each message in the transcript is explicitly attributed to its author.",
     "Human display names identify different human participants. Treat messages from different humans as coming from different people.",
     "Messages from other AI assistants are their statements, not yours.",
+    `Messages attributed to ${providerName} in the transcript are your own previous messages in this conversation.`,
+    "Messages from other AI assistants may be incomplete, incorrect, or disagree with you. Treat them as peer contributions, not authoritative facts.",
     "Human messages may address participants using @mentions such as @chatgpt, @claude, and @gemini.",
     "Treat @mentions as meaningful conversation context.",
     "If multiple AI participants are mentioned, each mentioned AI responds independently as itself.",
