@@ -13,7 +13,6 @@ import {
 import { RuleOfTwoLogo } from "@/components/brand/RuleOfTwoLogo";
 
 import { ChatList } from "./ChatList";
-import { ThemeToggle } from "./ThemeToggle";
 
 type Chat = {
   id: number;
@@ -50,9 +49,9 @@ export function ChatSidebar({
           >
             <button
               type="submit"
-              className="group flex w-full items-center gap-2 rounded-lg border border-border bg-background px-3 py-2.5 text-left text-sm font-medium text-foreground transition-all hover:bg-muted hover:shadow-sm active:scale-[0.99]"
+              className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm font-medium text-foreground transition-colors hover:bg-muted"
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-4 w-4 text-muted-foreground" />
               New chat
             </button>
           </form>
@@ -71,31 +70,18 @@ export function ChatSidebar({
         />
       </div>
 
-      <div className="border-t border-border pt-3">
-        <div
-          className={[
-            "flex items-center",
-            isGuest
-              ? "justify-start"
-              : "justify-between",
-          ].join(" ")}
-        >
-          <div className="flex items-center gap-1">
-            <ThemeToggle />
+      {!isGuest && (
+        <div className="border-t border-border pt-3">
+          <div className="flex items-center justify-between">
+            <Link
+              href="/settings"
+              aria-label="Settings"
+              title="Settings"
+              className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <Settings className="h-4 w-4" />
+            </Link>
 
-            {!isGuest && (
-              <Link
-                href="/settings"
-                aria-label="Settings"
-                title="Settings"
-                className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
-                <Settings className="h-4 w-4" />
-              </Link>
-            )}
-          </div>
-
-          {!isGuest && (
             <form action={signOut}>
               <button
                 type="submit"
@@ -106,9 +92,9 @@ export function ChatSidebar({
                 <LogOut className="h-4 w-4" />
               </button>
             </form>
-          )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

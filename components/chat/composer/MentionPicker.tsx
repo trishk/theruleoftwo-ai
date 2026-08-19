@@ -1,3 +1,4 @@
+import { ProviderIcon } from "@/components/brand/ProviderIcon";
 import { PROVIDER_LIST } from "@/lib/llm/providerMeta";
 import type { Provider } from "@/lib/llm/types";
 
@@ -14,35 +15,46 @@ export function MentionPicker({
   disabled = false,
   onChange,
 }: Props) {
-  function toggleMention(mention: string) {
-    const escapedMention = mention.replace(
-      /[.*+?^${}()|[\]\\]/g,
-      "\\$&"
-    );
+  function toggleMention(
+    mention: string
+  ) {
+    const escapedMention =
+      mention.replace(
+        /[.*+?^${}()|[\]\\]/g,
+        "\\$&"
+      );
 
-    const mentionRegex = new RegExp(
-      `${escapedMention}\\s*`,
-      "gi"
-    );
+    const mentionRegex =
+      new RegExp(
+        `${escapedMention}\\s*`,
+        "gi"
+      );
 
     if (
       message
         .toLowerCase()
-        .includes(mention.toLowerCase())
+        .includes(
+          mention.toLowerCase()
+        )
     ) {
       onChange(
         message
-          .replace(mentionRegex, "")
+          .replace(
+            mentionRegex,
+            ""
+          )
           .trimStart()
       );
 
       return;
     }
 
-    const trimmed = message.trimStart();
+    const trimmed =
+      message.trimStart();
 
     onChange(
-      `${mention} ${trimmed}`.trimEnd() + " "
+      `${mention} ${trimmed}`.trimEnd() +
+        " "
     );
   }
 
@@ -55,9 +67,12 @@ export function MentionPicker({
           )
         )
         .map((provider) => {
-          const isSelected = message
-            .toLowerCase()
-            .includes(provider.mention);
+          const isSelected =
+            message
+              .toLowerCase()
+              .includes(
+                provider.mention
+              );
 
           return (
             <button
@@ -70,13 +85,20 @@ export function MentionPicker({
               }
               disabled={disabled}
               className={[
-                "rounded-full border px-3 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+                "flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
                 isSelected
-                  ? `border-current bg-muted ${provider.colorClass}`
+                  ? "border-foreground/30 bg-muted text-foreground"
                   : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
               ].join(" ")}
             >
-              @{provider.name}
+              <ProviderIcon
+                provider={provider.id}
+                size={14}
+              />
+
+              <span>
+                {provider.name}
+              </span>
             </button>
           );
         })}

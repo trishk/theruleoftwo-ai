@@ -1,10 +1,13 @@
 import { redirect } from "next/navigation";
+
 import { updateDisplayName } from "@/app/actions";
 import { requireUser } from "@/lib/auth/require-user";
 import { prisma } from "@/lib/db/prisma";
 import { PROVIDERS } from "@/lib/llm/providers";
+
 import type { Provider } from "@/lib/llm/types";
 
+import { ProviderIcon } from "@/components/brand/ProviderIcon";
 import { ChatShell } from "@/components/chat/navigation/ChatShell";
 import { ChatSidebar } from "@/components/chat/navigation/ChatSidebar";
 import { AddIntegrationSection } from "@/components/settings/AddIntegrationSection";
@@ -137,7 +140,7 @@ export default async function SettingsPage() {
 
             <form
               action={updateDisplayName}
-              className="mt-4 rounded-lg border border-border bg-card p-4"
+              className="mt-4 rounded-xl border border-border bg-card p-5"
             >
               <label
                 htmlFor="displayName"
@@ -209,29 +212,42 @@ export default async function SettingsPage() {
                       key={
                         typedProviderId
                       }
-                      className="flex items-center justify-between gap-4 rounded-lg border border-border bg-card p-4"
+                      className="flex items-center justify-between gap-5 rounded-xl border border-border bg-card p-5"
                     >
-                      <div>
-                        <div className="font-medium">
-                          {
-                            provider.displayName
-                          }
+                      <div className="flex min-w-0 items-start gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-background">
+                          <ProviderIcon
+                            provider={
+                              typedProviderId
+                            }
+                            size={20}
+                          />
                         </div>
 
-                        <ModelSelect
-                          provider={
-                            typedProviderId
-                          }
-                          models={
-                            provider.models
-                          }
-                          selectedModel={
-                            selectedModel
-                          }
-                        />
+                        <div className="min-w-0">
+                          <div className="font-medium text-foreground">
+                            {
+                              provider.displayName
+                            }
+                          </div>
+
+                          <div className="mt-1">
+                            <ModelSelect
+                              provider={
+                                typedProviderId
+                              }
+                              models={
+                                provider.models
+                              }
+                              selectedModel={
+                                selectedModel
+                              }
+                            />
+                          </div>
+                        </div>
                       </div>
 
-                      <div className="flex items-center gap-4">
+                      <div className="flex shrink-0 items-center gap-4">
                         <div className="flex items-center gap-2">
                           <div
                             className={[

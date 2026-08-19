@@ -89,6 +89,7 @@ export function MessageList({
         {messages.map((message) => (
           <MessageItem
             key={message.id}
+            authorType={message.authorType}
             authorName={message.authorName}
             content={message.content}
             createdAt={message.createdAt}
