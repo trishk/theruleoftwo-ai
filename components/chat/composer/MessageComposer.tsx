@@ -79,7 +79,7 @@ export function MessageComposer({
 
   return (
     <div className="border-t border-border bg-background">
-      <div className="mx-auto w-full max-w-4xl px-4 py-4 sm:px-6">
+      <div className="mx-auto w-full max-w-4xl px-4 pb-6 pt-4 sm:px-6">
         <form
           onSubmit={handleSubmit}
         >

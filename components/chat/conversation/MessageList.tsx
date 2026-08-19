@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import {
+  useEffect,
+  useRef,
+} from "react";
+
+import { RuleOfTwoMark } from "@/components/brand/RuleOfTwoMark";
+
 import { MessageItem } from "./MessageItem";
 import type { ChatMessage } from "./types";
 
@@ -57,8 +63,18 @@ export function MessageList({
 
   if (messages.length === 0) {
     return (
-      <div className="flex min-h-0 flex-1 items-center justify-center text-sm text-muted-foreground">
-        No messages yet.
+      <div className="flex min-h-0 flex-1 items-center justify-center px-6">
+        <div className="flex flex-col items-center text-center">
+          <RuleOfTwoMark className="mb-5 h-8 opacity-80" />
+
+          <p className="text-base font-medium text-foreground">
+            Bring in another perspective.
+          </p>
+
+          <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+            Mention one or more AI participants to start.
+          </p>
+        </div>
       </div>
     );
   }
@@ -79,8 +95,12 @@ export function MessageList({
             isOwnMessage={message.isOwnMessage}
             isError={message.isError}
             replyTo={message.replyTo}
-            onReply={() => onReply(message)}
-            onRetry={() => onRetry(message)}
+            onReply={() =>
+              onReply(message)
+            }
+            onRetry={() =>
+              onRetry(message)
+            }
           />
         ))}
       </div>

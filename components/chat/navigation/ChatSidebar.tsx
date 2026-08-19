@@ -10,6 +10,8 @@ import {
   signOut,
 } from "@/app/actions";
 
+import { RuleOfTwoLogo } from "@/components/brand/RuleOfTwoLogo";
+
 import { ChatList } from "./ChatList";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -35,6 +37,12 @@ export function ChatSidebar({
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1">
+        <div className="mb-6 flex justify-center pt-1">
+          <RuleOfTwoLogo
+            markClassName="h-[22px]"
+          />
+        </div>
+
         {!isGuest && (
           <form
             action={createChat}

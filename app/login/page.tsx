@@ -1,5 +1,6 @@
 "use client";
 
+import { RuleOfTwoLogo } from "@/components/brand/RuleOfTwoLogo";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
@@ -15,11 +16,15 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center">
-      <div className="flex flex-col items-center gap-6">
-        <div className="text-center">
-          <h1 className="text-2xl font-semibold">TheRuleOfTwo</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
+    <main className="flex min-h-screen items-center justify-center bg-background px-6">
+      <div className="flex w-full max-w-sm flex-col items-center">
+        <div className="flex flex-col items-center">
+          <RuleOfTwoLogo
+            className="scale-125"
+            markClassName="h-6"
+          />
+
+          <p className="mt-5 text-center text-sm text-muted-foreground">
             Better decisions need more than one perspective.
           </p>
         </div>
@@ -27,7 +32,7 @@ export default function LoginPage() {
         <button
           type="button"
           onClick={signInWithGoogle}
-          className="rounded-md border px-4 py-2 text-sm font-medium"
+          className="mt-8 w-full rounded-md border border-border bg-background px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
         >
           Continue with Google
         </button>
