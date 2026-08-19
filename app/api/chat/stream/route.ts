@@ -3,7 +3,14 @@ import { NextRequest } from "next/server";
 import { requireUser } from "@/lib/auth/require-user";
 import { prepareLLMRequest } from "@/lib/llm/prepare-request";
 import { streamLLM } from "@/lib/llm/registry";
-import { checkRateLimit } from "@/lib/security/rate-limit";
+import {
+  checkDailyQuota,
+  checkRateLimit,
+} from "@/lib/security/rate-limit";
+import {
+  acquireGenerationLease,
+  releaseGenerationLease,
+} from "@/lib/security/generation-concurrency";
 
 import { getStreamErrorCode } from "@/lib/chat-stream/stream-errors";
 import { validateStreamRequest } from "@/lib/chat-stream/validate-stream-request";
@@ -51,9 +58,10 @@ export async function POST(
     ownerId,
   } = validatedRequest;
 
-  const rateLimit = checkRateLimit(
-    `llm:${user.id}`
-  );
+  const rateLimit =
+    await checkRateLimit(
+      `llm:${user.id}`
+    );
 
   if (!rateLimit.allowed) {
     return new Response(
@@ -69,6 +77,47 @@ export async function POST(
     );
   }
 
+  const generationLease =
+    await acquireGenerationLease(
+      user.id
+    );
+
+  if (!generationLease) {
+    return new Response(
+      "Too many concurrent generations.",
+      {
+        status: 429,
+        headers: {
+          "Retry-After": "5",
+        },
+      }
+    );
+  }
+
+  const generationLeaseToken =
+    generationLease.token;
+
+  let leaseReleased = false;
+
+  async function releaseLease() {
+    if (leaseReleased) {
+      return;
+    }
+
+    leaseReleased = true;
+
+    try {
+      await releaseGenerationLease(
+        generationLeaseToken
+      );
+    } catch (error) {
+      console.error(
+        "Failed to release generation lease:",
+        error
+      );
+    }
+  }
+
   let llmRequest;
 
   try {
@@ -82,6 +131,8 @@ export async function POST(
         ownerId,
       });
   } catch (error) {
+    await releaseLease();
+
     const message =
       error instanceof Error
         ? error.message
@@ -112,10 +163,49 @@ export async function POST(
     );
   }
 
-  const result = streamLLM(
-    llmRequest,
-    request.signal
-  );
+  const dailyQuota =
+    await checkDailyQuota(
+      user.id
+    );
+
+  if (!dailyQuota.allowed) {
+    await releaseLease();
+
+    return new Response(
+      "Daily generation quota exceeded.",
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(
+            dailyQuota.retryAfterSeconds
+          ),
+        },
+      }
+    );
+  }
+
+  let result;
+
+  try {
+    result = streamLLM(
+      llmRequest,
+      request.signal
+    );
+  } catch (error) {
+    await releaseLease();
+
+    console.error(
+      "Failed to start LLM stream:",
+      error
+    );
+
+    return new Response(
+      "Could not start generation.",
+      {
+        status: 500,
+      }
+    );
+  }
 
   let fullText = "";
   let persisted = false;
@@ -207,6 +297,8 @@ export async function POST(
           );
 
           controller.close();
+        } finally {
+          await releaseLease();
         }
       },
     });
