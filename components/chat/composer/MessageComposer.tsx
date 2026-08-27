@@ -55,6 +55,12 @@ export function MessageComposer({
       )}px`;
   }, [message]);
 
+  useEffect(() => {
+    if (replyTo) {
+      textareaRef.current?.focus();
+    }
+  }, [replyTo]);
+
   async function handleSubmit(
     event: React.FormEvent
   ) {

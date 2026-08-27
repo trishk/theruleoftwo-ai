@@ -5,6 +5,7 @@ import {
   render,
   screen,
 } from "@testing-library/react";
+import { useState } from "react";
 import {
   beforeEach,
   describe,
@@ -16,6 +17,7 @@ import {
 import "@testing-library/jest-dom/vitest";
 
 import { MessageList } from "@/components/chat/conversation/MessageList";
+import { MessageComposer } from "@/components/chat/composer/MessageComposer";
 import type { ChatMessage } from "@/components/chat/conversation/types";
 
 const noop = () => {};
@@ -86,6 +88,91 @@ describe("message reply availability", () => {
     expect(onReply).toHaveBeenCalledWith(
       message
     );
+  });
+
+  it("focuses the composer textarea after selecting a reply target", () => {
+    const message = createMessage({
+      id: 10,
+    });
+
+    function ReplyHarness() {
+      const [replyTo, setReplyTo] =
+        useState<ChatMessage | null>(null);
+
+      return (
+        <>
+          <MessageList
+            messages={[message]}
+            onReply={setReplyTo}
+            onRetry={noop}
+          />
+          <MessageComposer
+            message=""
+            sending={false}
+            error={null}
+            replyTo={replyTo}
+            configuredProviders={[]}
+            onMessageChange={noop}
+            onCancelReply={() =>
+              setReplyTo(null)
+            }
+            onSubmit={async () => {}}
+            onStopGeneration={noop}
+          />
+        </>
+      );
+    }
+
+    render(<ReplyHarness />);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Reply to Tudor",
+      })
+    );
+
+    expect(
+      screen.getByPlaceholderText(
+        "Ask for another perspective..."
+      )
+    ).toBe(document.activeElement);
+  });
+
+  it("continues to focus the composer textarea after selecting a mention", () => {
+    function MentionHarness() {
+      const [message, setMessage] =
+        useState("");
+
+      return (
+        <MessageComposer
+          message={message}
+          sending={false}
+          error={null}
+          replyTo={null}
+          configuredProviders={[
+            "openai",
+          ]}
+          onMessageChange={setMessage}
+          onCancelReply={noop}
+          onSubmit={async () => {}}
+          onStopGeneration={noop}
+        />
+      );
+    }
+
+    render(<MentionHarness />);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /ChatGPT/,
+      })
+    );
+
+    expect(
+      screen.getByPlaceholderText(
+        "Ask for another perspective..."
+      )
+    ).toBe(document.activeElement);
   });
 
   it("does not allow replying to an optimistic negative-id human message", () => {
