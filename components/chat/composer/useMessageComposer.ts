@@ -1,6 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 
 import { sendHumanMessage } from "@/app/actions";
@@ -51,6 +55,14 @@ export function useMessageComposer({
   const [error, setError] =
     useState<string | null>(null);
 
+  const isActiveRef = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      isActiveRef.current = false;
+    };
+  }, []);
+
   const {
     generateProviders,
     retryProvider:
@@ -79,6 +91,10 @@ export function useMessageComposer({
       sourceMessageId,
       temporaryMessageId
     );
+
+    if (!isActiveRef.current) {
+      return;
+    }
 
     router.refresh();
 
@@ -137,17 +153,27 @@ export function useMessageComposer({
         replyTo?.id ?? null
       );
 
-      await syncConversation();
+      if (isActiveRef.current) {
+        await syncConversation();
+      }
 
       await generateProviders(
         providers,
         messageId
       );
 
+      if (!isActiveRef.current) {
+        return;
+      }
+
       router.refresh();
 
       await syncConversation();
     } catch (submitError) {
+      if (!isActiveRef.current) {
+        return;
+      }
+
       console.error(
         submitError
       );
@@ -169,7 +195,9 @@ export function useMessageComposer({
         "Something went wrong. Please try again."
       );
     } finally {
-      setSending(false);
+      if (isActiveRef.current) {
+        setSending(false);
+      }
     }
   }
 

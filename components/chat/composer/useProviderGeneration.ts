@@ -150,6 +150,15 @@ export function useProviderGeneration({
       generatedContentRef.current;
 
     return () => {
+      for (
+        const controller of
+        abortControllersRef.current
+      ) {
+        controller.abort();
+      }
+
+      abortControllersRef.current = [];
+
       if (
         publicationFrameRef.current !==
         null

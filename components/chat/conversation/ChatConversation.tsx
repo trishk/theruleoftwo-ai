@@ -32,6 +32,21 @@ export function ChatConversation({
   messages,
   configuredProviders,
 }: Props) {
+  return (
+    <ChatConversationSession
+      key={conversationId}
+      conversationId={conversationId}
+      messages={messages}
+      configuredProviders={configuredProviders}
+    />
+  );
+}
+
+function ChatConversationSession({
+  conversationId,
+  messages,
+  configuredProviders,
+}: Props) {
   const [replyTo, setReplyTo] =
     useState<ChatReply | null>(null);
 

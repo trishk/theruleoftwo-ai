@@ -350,6 +350,93 @@ describe(
     );
 
     it(
+      "starts accepted generation after persistence resolves even when the conversation session unmounted",
+      async () => {
+        const pendingSend =
+          createDeferred<{
+            messageId: number;
+            providers: [
+              "openai",
+              "anthropic",
+              "google",
+            ];
+          }>();
+
+        sendHumanMessageMock.mockReturnValue(
+          pendingSend.promise
+        );
+
+        const {
+          result,
+          unmount,
+        } = renderHook(() =>
+          useTestHarness()
+        );
+
+        act(() => {
+          result.current.setMessage(
+            "@chatgpt @claude @gemini hello"
+          );
+        });
+
+        let submitPromise:
+          | Promise<void>
+          | undefined;
+
+        act(() => {
+          submitPromise =
+            result.current.submitMessage();
+        });
+
+        unmount();
+
+        await act(async () => {
+          pendingSend.resolve({
+            messageId: 321,
+            providers: [
+              "openai",
+              "anthropic",
+              "google",
+            ],
+          });
+
+          await submitPromise;
+        });
+
+        expect(
+          sendHumanMessageMock
+        ).toHaveBeenCalledWith(
+          42,
+          "@chatgpt @claude @gemini hello",
+          null
+        );
+
+        expect(
+          generateProvidersMock
+        ).toHaveBeenCalledTimes(1);
+
+        expect(
+          generateProvidersMock
+        ).toHaveBeenCalledWith(
+          [
+            "openai",
+            "anthropic",
+            "google",
+          ],
+          321
+        );
+
+        expect(
+          refreshMock
+        ).not.toHaveBeenCalled();
+
+        expect(
+          broadcastMessageCreatedMock
+        ).not.toHaveBeenCalled();
+      }
+    );
+
+    it(
       "refreshes locally once after a provider retry and then broadcasts to peers",
       async () => {
         const { result } =

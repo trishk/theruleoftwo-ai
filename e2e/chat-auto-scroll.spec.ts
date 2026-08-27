@@ -247,6 +247,10 @@ test("opens a client-switched conversation at its latest message", async ({
   );
 
   await page.reload();
+  const draftFromConversationA = `draft-a-${Date.now()}`;
+  await page
+    .getByPlaceholder("Ask for another perspective...")
+    .fill(draftFromConversationA);
   const conversationAList = page
     .locator("div.overflow-y-auto")
     .filter({ hasText: "Historic message 40" });
@@ -263,6 +267,9 @@ test("opens a client-switched conversation at its latest message", async ({
   await expect(page).toHaveURL(
     new RegExp(`/chat/${secondConversationPublicId}$`)
   );
+  await expect(
+    page.getByPlaceholder("Ask for another perspective...")
+  ).toHaveValue("");
 
   const conversationBList = page
     .locator("div.overflow-y-auto")
