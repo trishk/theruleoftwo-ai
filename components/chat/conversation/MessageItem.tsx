@@ -16,7 +16,7 @@ type Props = {
   isOwnMessage: boolean;
   isError?: boolean;
   replyTo?: ChatReply | null;
-  onReply: () => void;
+  onReply?: () => void;
   onRetry?: () => void;
 };
 
@@ -60,15 +60,17 @@ export function MessageItem({
               : "flex-row-reverse",
           ].join(" ")}
         >
-          <button
-            type="button"
-            onClick={onReply}
-            aria-label={`Reply to ${authorName}`}
-            title={`Reply to ${authorName}`}
-            className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-muted hover:text-foreground group-hover:opacity-100"
-          >
-            <Reply className="h-4 w-4" />
-          </button>
+          {onReply && (
+            <button
+              type="button"
+              onClick={onReply}
+              aria-label={`Reply to ${authorName}`}
+              title={`Reply to ${authorName}`}
+              className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-muted hover:text-foreground group-hover:opacity-100"
+            >
+              <Reply className="h-4 w-4" />
+            </button>
+          )}
 
           <div
             className={[
@@ -145,15 +147,17 @@ export function MessageItem({
             {provider?.name ?? authorName}
           </div>
 
-          <button
-            type="button"
-            onClick={onReply}
-            aria-label={`Reply to ${authorName}`}
-            title={`Reply to ${authorName}`}
-            className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-muted hover:text-foreground group-hover:opacity-100"
-          >
-            <Reply className="h-3.5 w-3.5" />
-          </button>
+          {onReply && (
+            <button
+              type="button"
+              onClick={onReply}
+              aria-label={`Reply to ${authorName}`}
+              title={`Reply to ${authorName}`}
+              className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-muted hover:text-foreground group-hover:opacity-100"
+            >
+              <Reply className="h-3.5 w-3.5" />
+            </button>
+          )}
 
           {isError &&
             onRetry && (

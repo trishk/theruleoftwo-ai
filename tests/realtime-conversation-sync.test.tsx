@@ -251,7 +251,9 @@ describe(
 
     it(
       "refreshes when a message-created broadcast is received",
-      () => {
+      async () => {
+        vi.useFakeTimers();
+
         render(
           <RealtimeConversationSync
             conversationId={42}
@@ -268,15 +270,27 @@ describe(
 
         expect(
           refreshMock
+        ).not.toHaveBeenCalled();
+
+        await act(async () => {
+          vi.advanceTimersByTime(25);
+        });
+
+        expect(
+          refreshMock
         ).toHaveBeenCalledTimes(
           1
         );
+
+        vi.useRealTimers();
       }
     );
 
     it(
       "refreshes when a conversation-updated broadcast is received",
-      () => {
+      async () => {
+        vi.useFakeTimers();
+
         render(
           <RealtimeConversationSync
             conversationId={42}
@@ -291,11 +305,62 @@ describe(
           )
           ?.();
 
+        await act(async () => {
+          vi.advanceTimersByTime(25);
+        });
+
         expect(
           refreshMock
         ).toHaveBeenCalledTimes(
           1
         );
+
+        vi.useRealTimers();
+      }
+    );
+
+    it(
+      "coalesces multiple realtime events within a short window into at most one refresh",
+      async () => {
+        vi.useFakeTimers();
+
+        render(
+          <RealtimeConversationSync
+            conversationId={42}
+          >
+            <TestConsumer />
+          </RealtimeConversationSync>
+        );
+
+        const messageCreated =
+          eventHandlers.get(
+            "message-created"
+          );
+
+        const conversationUpdated =
+          eventHandlers.get(
+            "conversation-updated"
+          );
+
+        messageCreated?.();
+        messageCreated?.();
+        conversationUpdated?.();
+        messageCreated?.();
+        conversationUpdated?.();
+
+        expect(
+          refreshMock
+        ).not.toHaveBeenCalled();
+
+        await act(async () => {
+          vi.advanceTimersByTime(25);
+        });
+
+        expect(
+          refreshMock
+        ).toHaveBeenCalledTimes(1);
+
+        vi.useRealTimers();
       }
     );
 

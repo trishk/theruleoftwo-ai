@@ -1,6 +1,9 @@
 "use client";
 
-import { useRef } from "react";
+import {
+  useEffect,
+  useRef,
+} from "react";
 
 import type { Provider } from "@/lib/llm/types";
 
@@ -36,6 +39,122 @@ export function useProviderGeneration({
   const abortControllersRef = useRef<
     AbortController[]
   >([]);
+
+  const pendingContentRef = useRef<
+    Map<number, string>
+  >(new Map());
+
+  const publicationFrameRef = useRef<
+    number | null
+  >(null);
+
+  function flushPendingContent() {
+    publicationFrameRef.current = null;
+
+    const pendingContent =
+      pendingContentRef.current;
+
+    if (pendingContent.size === 0) {
+      return;
+    }
+
+    const contentByMessage = new Map(
+      pendingContent
+    );
+
+    pendingContent.clear();
+
+    onStreamingMessagesChange(
+      (current) =>
+        current.map((item) => {
+          const content =
+            contentByMessage.get(
+              item.id
+            );
+
+          return content === undefined
+            ? item
+            : {
+                ...item,
+                content,
+              };
+        })
+    );
+  }
+
+  function scheduleContentPublication(
+    temporaryMessageId: number,
+    content: string
+  ) {
+    pendingContentRef.current.set(
+      temporaryMessageId,
+      content
+    );
+
+    if (
+      publicationFrameRef.current !==
+      null
+    ) {
+      return;
+    }
+
+    publicationFrameRef.current =
+      requestAnimationFrame(
+        flushPendingContent
+      );
+  }
+
+  function takePendingContent(
+    temporaryMessageId: number
+  ) {
+    const content =
+      pendingContentRef.current.get(
+        temporaryMessageId
+      );
+
+    pendingContentRef.current.delete(
+      temporaryMessageId
+    );
+
+    if (
+      pendingContentRef.current.size === 0 &&
+      publicationFrameRef.current !== null
+    ) {
+      cancelAnimationFrame(
+        publicationFrameRef.current
+      );
+
+      publicationFrameRef.current = null;
+    }
+
+    return content;
+  }
+
+  function discardPendingContent(
+    temporaryMessageId: number
+  ) {
+    takePendingContent(
+      temporaryMessageId
+    );
+  }
+
+  useEffect(() => {
+    const pendingContent =
+      pendingContentRef.current;
+
+    return () => {
+      if (
+        publicationFrameRef.current !==
+        null
+      ) {
+        cancelAnimationFrame(
+          publicationFrameRef.current
+        );
+      }
+
+      pendingContent.clear();
+    };
+  }, []);
 
   function updateStreamingMessage(
     temporaryMessageId: number,
@@ -99,16 +218,18 @@ export function useProviderGeneration({
         signal: controller.signal,
 
         onDelta: (streamedText) => {
-          updateStreamingMessage(
+          scheduleContentPublication(
             temporaryMessageId,
-            {
-              content: streamedText,
-            }
+            streamedText
           );
         },
 
         onError: (event) => {
           providerFailed = true;
+
+          discardPendingContent(
+            temporaryMessageId
+          );
 
           updateStreamingMessage(
             temporaryMessageId,
@@ -129,8 +250,21 @@ export function useProviderGeneration({
         return;
       }
 
-      removeStreamingMessage(
-        temporaryMessageId
+      const finalContent =
+        takePendingContent(
+          temporaryMessageId
+        );
+
+      updateStreamingMessage(
+        temporaryMessageId,
+        {
+          ...(finalContent === undefined
+            ? {}
+            : {
+                content: finalContent,
+              }),
+          isStreaming: false,
+        }
       );
     } catch (providerError) {
       const wasAborted =
@@ -140,6 +274,10 @@ export function useProviderGeneration({
           "AbortError";
 
       if (wasAborted) {
+        discardPendingContent(
+          temporaryMessageId
+        );
+
         removeStreamingMessage(
           temporaryMessageId
         );
@@ -152,6 +290,10 @@ export function useProviderGeneration({
           StreamRequestError &&
         providerError.status === 429
       ) {
+        discardPendingContent(
+          temporaryMessageId
+        );
+
         const retryAfter =
           providerError.retryAfterSeconds;
 
@@ -181,6 +323,10 @@ export function useProviderGeneration({
         getProviderDisplayName(
           provider
         );
+
+      discardPendingContent(
+        temporaryMessageId
+      );
 
       updateStreamingMessage(
         temporaryMessageId,
@@ -269,6 +415,10 @@ export function useProviderGeneration({
     sourceMessageId: number,
     temporaryMessageId: number
   ) {
+    discardPendingContent(
+      temporaryMessageId
+    );
+
     updateStreamingMessage(
       temporaryMessageId,
       {

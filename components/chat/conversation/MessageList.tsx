@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  memo,
   useEffect,
   useRef,
 } from "react";
@@ -16,6 +17,41 @@ type Props = {
   onRetry: (message: ChatMessage) => void;
 };
 
+type MessageRowProps = {
+  message: ChatMessage;
+  onReply: (message: ChatMessage) => void;
+  onRetry: (message: ChatMessage) => void;
+};
+
+const MessageRow = memo(
+  function MessageRow({
+    message,
+    onReply,
+    onRetry,
+  }: MessageRowProps) {
+    return (
+      <MessageItem
+        authorType={message.authorType}
+        authorName={message.authorName}
+        content={message.content}
+        createdAt={message.createdAt}
+        isOwnMessage={message.isOwnMessage}
+        isError={message.isError}
+        replyTo={message.replyTo}
+        onReply={
+          message.id > 0
+            ? () =>
+                onReply(message)
+            : undefined
+        }
+        onRetry={() =>
+          onRetry(message)
+        }
+      />
+    );
+  }
+);
+
 export function MessageList({
   messages,
   onReply,
@@ -26,6 +62,10 @@ export function MessageList({
 
   const shouldAutoScrollRef =
     useRef(true);
+
+  const scrollFrameRef = useRef<
+    number | null
+  >(null);
 
   useEffect(() => {
     const container =
@@ -38,11 +78,35 @@ export function MessageList({
       return;
     }
 
-    container.scrollTo({
-      top: container.scrollHeight,
-      behavior: "smooth",
-    });
+    if (scrollFrameRef.current !== null) {
+      return;
+    }
+
+    scrollFrameRef.current =
+      requestAnimationFrame(() => {
+        scrollFrameRef.current = null;
+
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: messages.some(
+            (message) =>
+              message.isStreaming
+          )
+            ? "auto"
+            : "smooth",
+        });
+      });
   }, [messages]);
+
+  useEffect(() => {
+    return () => {
+      if (scrollFrameRef.current !== null) {
+        cancelAnimationFrame(
+          scrollFrameRef.current
+        );
+      }
+    };
+  }, []);
 
   function handleScroll() {
     const container =
@@ -87,21 +151,11 @@ export function MessageList({
     >
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-6 sm:px-6">
         {messages.map((message) => (
-          <MessageItem
+          <MessageRow
             key={message.id}
-            authorType={message.authorType}
-            authorName={message.authorName}
-            content={message.content}
-            createdAt={message.createdAt}
-            isOwnMessage={message.isOwnMessage}
-            isError={message.isError}
-            replyTo={message.replyTo}
-            onReply={() =>
-              onReply(message)
-            }
-            onRetry={() =>
-              onRetry(message)
-            }
+            message={message}
+            onReply={onReply}
+            onRetry={onRetry}
           />
         ))}
       </div>

@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 import { createClient } from "@/lib/supabase/client";
+import { useCoalescedRouterRefresh } from "./useCoalescedRouterRefresh";
 
 type RealtimeContextValue = {
   broadcastMessageCreated: () => Promise<void>;
@@ -35,6 +36,11 @@ export function RealtimeConversationSync({
   children,
 }: Props) {
   const router = useRouter();
+
+  const scheduleRefresh =
+    useCoalescedRouterRefresh(
+      router.refresh
+    );
 
   const supabaseRef = useRef(
     createClient()
@@ -62,7 +68,7 @@ export function RealtimeConversationSync({
           event: "message-created",
         },
         () => {
-          router.refresh();
+          scheduleRefresh();
         }
       )
       .on(
@@ -72,7 +78,7 @@ export function RealtimeConversationSync({
             "conversation-updated",
         },
         () => {
-          router.refresh();
+          scheduleRefresh();
         }
       );
 
@@ -114,7 +120,7 @@ export function RealtimeConversationSync({
     };
   }, [
     conversationId,
-    router,
+    scheduleRefresh,
   ]);
 
   const broadcastMessageCreated =

@@ -1,13 +1,19 @@
 "use client";
 
 import {
+  useCallback,
+  useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
 import { MessageList } from "./MessageList";
 import { MessageComposer } from "../composer/MessageComposer";
 import { useMessageComposer } from "../composer/useMessageComposer";
+import {
+  isStreamingMessagePersisted,
+} from "./reconcileStreamingMessages";
 
 import type { Provider } from "@/lib/llm/types";
 import type {
@@ -30,6 +36,11 @@ export function ChatConversation({
     useState<ChatReply | null>(null);
 
   const [
+    optimisticMessages,
+    setOptimisticMessages,
+  ] = useState<ChatMessage[]>([]);
+
+  const [
     streamingMessages,
     setStreamingMessages,
   ] = useState<ChatMessage[]>([]);
@@ -47,23 +58,49 @@ export function ChatConversation({
     replyTo,
     onCancelReply: () =>
       setReplyTo(null),
+    onOptimisticMessagesChange:
+      setOptimisticMessages,
     onStreamingMessagesChange:
       setStreamingMessages,
   });
+
+  const retryProviderRef = useRef(
+    retryProvider
+  );
+
+  useEffect(() => {
+    retryProviderRef.current =
+      retryProvider;
+  }, [retryProvider]);
+
+  const visibleOptimisticMessages =
+    useMemo(
+      () =>
+        optimisticMessages.filter(
+          (optimisticMessage) =>
+            !messages.some(
+              (persistedMessage) =>
+                persistedMessage.authorType ===
+                  "human" &&
+                persistedMessage.isOwnMessage &&
+                persistedMessage.content ===
+                  optimisticMessage.content
+            )
+        ),
+      [
+        messages,
+        optimisticMessages,
+      ]
+    );
 
   const visibleStreamingMessages =
     useMemo(
       () =>
         streamingMessages.filter(
           (streamingMessage) =>
-            !messages.some(
-              (persistedMessage) =>
-                persistedMessage.authorType ===
-                  "ai" &&
-                persistedMessage.authorName ===
-                  streamingMessage.authorName &&
-                persistedMessage.content ===
-                  streamingMessage.content
+            !isStreamingMessagePersisted(
+              streamingMessage,
+              messages
             )
         ),
       [
@@ -74,36 +111,47 @@ export function ChatConversation({
 
   const allMessages = [
     ...messages,
+    ...visibleOptimisticMessages,
     ...visibleStreamingMessages,
   ];
+
+  const handleReply = useCallback(
+    (selectedMessage: ChatMessage) => {
+      setReplyTo({
+        id: selectedMessage.id,
+        authorName:
+          selectedMessage.authorName,
+        content:
+          selectedMessage.content,
+      });
+    },
+    []
+  );
+
+  const handleRetry = useCallback(
+    (selectedMessage: ChatMessage) => {
+      if (
+        !selectedMessage.provider ||
+        !selectedMessage.sourceMessageId
+      ) {
+        return;
+      }
+
+      void retryProviderRef.current(
+        selectedMessage.provider,
+        selectedMessage.sourceMessageId,
+        selectedMessage.id
+      );
+    },
+    []
+  );
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <MessageList
         messages={allMessages}
-        onReply={(message) =>
-          setReplyTo({
-            id: message.id,
-            authorName:
-              message.authorName,
-            content:
-              message.content,
-          })
-        }
-        onRetry={(message) => {
-          if (
-            !message.provider ||
-            !message.sourceMessageId
-          ) {
-            return;
-          }
-
-          void retryProvider(
-            message.provider,
-            message.sourceMessageId,
-            message.id
-          );
-        }}
+        onReply={handleReply}
+        onRetry={handleRetry}
       />
 
       <MessageComposer

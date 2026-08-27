@@ -17,6 +17,17 @@ export async function markConversationRead({
     userId
   );
 
+  await markConversationReadAfterAccessCheck({
+    conversationId,
+    userId,
+  });
+}
+
+export async function markConversationReadAfterAccessCheck({
+  conversationId,
+  userId,
+}: MarkConversationReadArgs) {
+
   await prisma.conversationReadState.upsert({
     where: {
       conversationId_userId: {

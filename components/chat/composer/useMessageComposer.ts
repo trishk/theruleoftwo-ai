@@ -17,6 +17,9 @@ type Props = {
   conversationId: number;
   replyTo: ChatReply | null;
   onCancelReply: () => void;
+  onOptimisticMessagesChange: React.Dispatch<
+    React.SetStateAction<ChatMessage[]>
+  >;
   onStreamingMessagesChange: React.Dispatch<
     React.SetStateAction<ChatMessage[]>
   >;
@@ -26,6 +29,7 @@ export function useMessageComposer({
   conversationId,
   replyTo,
   onCancelReply,
+  onOptimisticMessagesChange,
   onStreamingMessagesChange,
 }: Props) {
   const router = useRouter();
@@ -55,8 +59,6 @@ export function useMessageComposer({
   });
 
   async function syncConversation() {
-    router.refresh();
-
     if (isReady) {
       await broadcastMessageCreated();
     }
@@ -75,19 +77,53 @@ export function useMessageComposer({
       temporaryMessageId
     );
 
+    router.refresh();
+
     await syncConversation();
   }
 
   async function submitMessage() {
+    const submittedMessage =
+      message.trim();
+
     if (
-      !message.trim() ||
+      !submittedMessage ||
       sending
     ) {
       return;
     }
 
+    const temporaryMessageId =
+      -Date.now() -
+      Math.floor(
+        Math.random() * 1000
+      );
+
+    const optimisticMessage: ChatMessage =
+      {
+        id: temporaryMessageId,
+        authorType: "human",
+        authorName: "You",
+        content: submittedMessage,
+        createdAt: new Date(),
+        isOwnMessage: true,
+        isStreaming: false,
+        isError: false,
+        replyTo,
+      };
+
     setSending(true);
     setError(null);
+
+    onOptimisticMessagesChange(
+      (current) => [
+        ...current,
+        optimisticMessage,
+      ]
+    );
+
+    setMessage("");
+    onCancelReply();
 
     try {
       const {
@@ -95,12 +131,9 @@ export function useMessageComposer({
         providers,
       } = await sendHumanMessage(
         conversationId,
-        message,
+        submittedMessage,
         replyTo?.id ?? null
       );
-
-      setMessage("");
-      onCancelReply();
 
       await syncConversation();
 
@@ -109,10 +142,25 @@ export function useMessageComposer({
         messageId
       );
 
+      router.refresh();
+
       await syncConversation();
     } catch (submitError) {
       console.error(
         submitError
+      );
+
+      onOptimisticMessagesChange(
+        (current) =>
+          current.filter(
+            (item) =>
+              item.id !==
+              temporaryMessageId
+          )
+      );
+
+      setMessage(
+        submittedMessage
       );
 
       setError(

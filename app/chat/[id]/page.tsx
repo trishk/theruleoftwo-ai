@@ -6,7 +6,7 @@ import {
 import { prisma } from "@/lib/db/prisma";
 import { requireUser } from "@/lib/auth/require-user";
 import { requireConversationAccess } from "@/lib/auth/require-conversation-access";
-import { markConversationRead } from "@/lib/conversations/mark-conversation-read";
+import { markConversationReadAfterAccessCheck } from "@/lib/conversations/mark-conversation-read";
 
 import { ChatHeader } from "@/components/chat/navigation/ChatHeader";
 import { ChatConversation } from "@/components/chat/conversation/ChatConversation";
@@ -79,7 +79,7 @@ export default async function ChatPage({
     notFound();
   }
 
-  await markConversationRead({
+  await markConversationReadAfterAccessCheck({
     conversationId,
     userId: user.id,
   });

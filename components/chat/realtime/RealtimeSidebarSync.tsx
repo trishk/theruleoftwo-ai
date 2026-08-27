@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 import { createClient } from "@/lib/supabase/client";
+import { useCoalescedRouterRefresh } from "./useCoalescedRouterRefresh";
 
 type SidebarRealtimeContextValue = {
   broadcastConversationUpdated: (
@@ -37,8 +38,10 @@ export function RealtimeSidebarSync({
 }: Props) {
   const router = useRouter();
 
-  const routerRef =
-    useRef(router);
+  const scheduleRefresh =
+    useCoalescedRouterRefresh(
+      router.refresh
+    );
 
   const supabaseRef =
     useRef(
@@ -48,11 +51,6 @@ export function RealtimeSidebarSync({
   const channelsRef = useRef<
     Map<number, RealtimeChannel>
   >(new Map());
-
-  useEffect(() => {
-    routerRef.current =
-      router;
-  }, [router]);
 
   useEffect(() => {
     const supabase =
@@ -83,7 +81,7 @@ export function RealtimeSidebarSync({
                     "message-created",
                 },
                 () => {
-                  routerRef.current.refresh();
+                  scheduleRefresh();
                 }
               )
               .on(
@@ -93,7 +91,7 @@ export function RealtimeSidebarSync({
                     "conversation-updated",
                 },
                 () => {
-                  routerRef.current.refresh();
+                  scheduleRefresh();
                 }
               );
 
@@ -157,6 +155,7 @@ export function RealtimeSidebarSync({
   }, [
     activeConversationId,
     conversationIds,
+    scheduleRefresh,
   ]);
 
   const broadcastConversationUpdated =
