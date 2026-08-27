@@ -82,7 +82,7 @@ export function ChatItem({
     if (sidebarRealtime) {
       await sidebarRealtime
         .broadcastConversationUpdated(
-          id
+          publicId
         );
     }
   }

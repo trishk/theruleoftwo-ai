@@ -115,8 +115,8 @@ export default async function InvitePage({
         </div>
 
         <RealtimeConversationSync
-          conversationId={
-            invite.conversationId
+          conversationPublicId={
+            invite.conversation.publicId
           }
         >
           {currentUser ? (

@@ -392,16 +392,16 @@ export default async function ChatPage({
 
   return (
     <RealtimeSidebarSync
-      conversationIds={chats.map(
-        (chat) => chat.id
+      conversationPublicIds={chats.map(
+        (chat) => chat.publicId
       )}
-      activeConversationId={
-        conversationId
+      activeConversationPublicId={
+        publicId
       }
     >
       <RealtimeConversationSync
-        conversationId={
-          conversationId
+        conversationPublicId={
+          publicId
         }
       >
         <ChatShell

@@ -170,7 +170,7 @@ describe(
       () => {
         render(
           <RealtimeConversationSync
-            conversationId={42}
+            conversationPublicId="chat-public-id"
           >
             <TestConsumer />
           </RealtimeConversationSync>
@@ -179,7 +179,7 @@ describe(
         expect(
           channelMock
         ).toHaveBeenCalledWith(
-          "conversation:42"
+          "conversation:chat-public-id"
         );
 
         expect(
@@ -215,7 +215,7 @@ describe(
       async () => {
         render(
           <RealtimeConversationSync
-            conversationId={42}
+            conversationPublicId="chat-public-id"
           >
             <TestConsumer />
           </RealtimeConversationSync>
@@ -256,7 +256,7 @@ describe(
 
         render(
           <RealtimeConversationSync
-            conversationId={42}
+            conversationPublicId="chat-public-id"
           >
             <TestConsumer />
           </RealtimeConversationSync>
@@ -293,7 +293,7 @@ describe(
 
         render(
           <RealtimeConversationSync
-            conversationId={42}
+            conversationPublicId="chat-public-id"
           >
             <TestConsumer />
           </RealtimeConversationSync>
@@ -326,7 +326,7 @@ describe(
 
         render(
           <RealtimeConversationSync
-            conversationId={42}
+            conversationPublicId="chat-public-id"
           >
             <TestConsumer />
           </RealtimeConversationSync>
@@ -369,7 +369,7 @@ describe(
       async () => {
         render(
           <RealtimeConversationSync
-            conversationId={42}
+            conversationPublicId="chat-public-id"
           >
             <TestConsumer />
           </RealtimeConversationSync>
@@ -404,7 +404,7 @@ describe(
       async () => {
         render(
           <RealtimeConversationSync
-            conversationId={42}
+            conversationPublicId="chat-public-id"
           >
             <TestConsumer />
           </RealtimeConversationSync>
@@ -441,7 +441,7 @@ describe(
           unmount,
         } = render(
           <RealtimeConversationSync
-            conversationId={42}
+            conversationPublicId="chat-public-id"
           >
             <TestConsumer />
           </RealtimeConversationSync>

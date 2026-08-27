@@ -16,7 +16,7 @@ import { useCoalescedRouterRefresh } from "./useCoalescedRouterRefresh";
 
 type SidebarRealtimeContextValue = {
   broadcastConversationUpdated: (
-    conversationId: number
+    conversationPublicId: string
   ) => Promise<void>;
 };
 
@@ -26,14 +26,14 @@ const SidebarRealtimeContext =
   );
 
 type Props = {
-  conversationIds: number[];
-  activeConversationId: number;
+  conversationPublicIds: string[];
+  activeConversationPublicId: string;
   children: ReactNode;
 };
 
 export function RealtimeSidebarSync({
-  conversationIds,
-  activeConversationId,
+  conversationPublicIds,
+  activeConversationPublicId,
   children,
 }: Props) {
   const router = useRouter();
@@ -49,7 +49,7 @@ export function RealtimeSidebarSync({
     );
 
   const channelsRef = useRef<
-    Map<number, RealtimeChannel>
+    Map<string, RealtimeChannel>
   >(new Map());
 
   useEffect(() => {
@@ -59,20 +59,20 @@ export function RealtimeSidebarSync({
     const channelsMap =
       channelsRef.current;
 
-    const inactiveConversationIds =
-      conversationIds.filter(
-        (conversationId) =>
-          conversationId !==
-          activeConversationId
+    const inactiveConversationPublicIds =
+      conversationPublicIds.filter(
+        (conversationPublicId) =>
+          conversationPublicId !==
+          activeConversationPublicId
       );
 
     const channels =
-      inactiveConversationIds.map(
-        (conversationId) => {
+      inactiveConversationPublicIds.map(
+        (conversationPublicId) => {
           const channel =
             supabase
               .channel(
-                `conversation:${conversationId}`
+                `conversation:${conversationPublicId}`
               )
               .on(
                 "broadcast",
@@ -96,7 +96,7 @@ export function RealtimeSidebarSync({
               );
 
           channelsMap.set(
-            conversationId,
+            conversationPublicId,
             channel
           );
 
@@ -112,7 +112,7 @@ export function RealtimeSidebarSync({
                   "TIMED_OUT"
               ) {
                 console.error(
-                  `Sidebar realtime error for conversation ${conversationId}:`,
+                  `Sidebar realtime error for conversation ${conversationPublicId}:`,
                   status,
                   error
                 );
@@ -121,7 +121,7 @@ export function RealtimeSidebarSync({
           );
 
           return {
-            conversationId,
+            conversationPublicId,
             channel,
           };
         }
@@ -130,20 +130,20 @@ export function RealtimeSidebarSync({
     return () => {
       for (
         const {
-          conversationId,
+          conversationPublicId,
           channel,
         } of channels
       ) {
         const currentChannel =
           channelsMap.get(
-            conversationId
+            conversationPublicId
           );
 
         if (
           currentChannel === channel
         ) {
           channelsMap.delete(
-            conversationId
+            conversationPublicId
           );
         }
 
@@ -153,19 +153,19 @@ export function RealtimeSidebarSync({
       }
     };
   }, [
-    activeConversationId,
-    conversationIds,
+    activeConversationPublicId,
+    conversationPublicIds,
     scheduleRefresh,
   ]);
 
   const broadcastConversationUpdated =
     useCallback(
       async (
-        conversationId: number
+        conversationPublicId: string
       ) => {
         const channel =
           channelsRef.current.get(
-            conversationId
+            conversationPublicId
           );
 
         if (!channel) {
@@ -176,9 +176,7 @@ export function RealtimeSidebarSync({
           type: "broadcast",
           event:
             "conversation-updated",
-          payload: {
-            conversationId,
-          },
+          payload: {},
         });
       },
       []

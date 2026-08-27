@@ -27,12 +27,12 @@ const RealtimeContext =
   );
 
 type Props = {
-  conversationId: number;
+  conversationPublicId: string;
   children: ReactNode;
 };
 
 export function RealtimeConversationSync({
-  conversationId,
+  conversationPublicId,
   children,
 }: Props) {
   const router = useRouter();
@@ -60,7 +60,7 @@ export function RealtimeConversationSync({
 
     const channel = supabase
       .channel(
-        `conversation:${conversationId}`
+        `conversation:${conversationPublicId}`
       )
       .on(
         "broadcast",
@@ -119,7 +119,7 @@ export function RealtimeConversationSync({
       );
     };
   }, [
-    conversationId,
+    conversationPublicId,
     scheduleRefresh,
   ]);
 

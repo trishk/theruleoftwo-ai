@@ -2,7 +2,10 @@
 
 import {
   act,
+  fireEvent,
   render,
+  screen,
+  waitFor,
 } from "@testing-library/react";
 import {
   beforeEach,
@@ -52,7 +55,27 @@ vi.mock(
   })
 );
 
-import { RealtimeSidebarSync } from "@/components/chat/realtime/RealtimeSidebarSync";
+import {
+  RealtimeSidebarSync,
+  useSidebarRealtime,
+} from "@/components/chat/realtime/RealtimeSidebarSync";
+
+function TestConsumer() {
+  const { broadcastConversationUpdated } =
+    useSidebarRealtime();
+
+  return (
+    <button
+      onClick={() =>
+        void broadcastConversationUpdated(
+          "chat-two"
+        )
+      }
+    >
+      Broadcast conversation
+    </button>
+  );
+}
 
 describe(
   "RealtimeSidebarSync performance baselines",
@@ -108,10 +131,14 @@ describe(
     it("creates one channel for each inactive conversation", () => {
       render(
         <RealtimeSidebarSync
-          conversationIds={[
-            1, 2, 3, 4, 5,
+          conversationPublicIds={[
+            "chat-one",
+            "chat-two",
+            "chat-three",
+            "chat-four",
+            "chat-five",
           ]}
-          activeConversationId={3}
+          activeConversationPublicId="chat-three"
         >
           <div>Child</div>
         </RealtimeSidebarSync>
@@ -126,10 +153,10 @@ describe(
           ([topic]) => topic
         )
       ).toEqual([
-        "conversation:1",
-        "conversation:2",
-        "conversation:4",
-        "conversation:5",
+        "conversation:chat-one",
+        "conversation:chat-two",
+        "conversation:chat-four",
+        "conversation:chat-five",
       ]);
     });
 
@@ -138,8 +165,12 @@ describe(
 
       render(
         <RealtimeSidebarSync
-          conversationIds={[1, 2, 3]}
-          activeConversationId={1}
+          conversationPublicIds={[
+            "chat-one",
+            "chat-two",
+            "chat-three",
+          ]}
+          activeConversationPublicId="chat-one"
         >
           <div>Child</div>
         </RealtimeSidebarSync>
@@ -147,7 +178,7 @@ describe(
 
       const handlers =
         handlersByChannel.get(
-          "conversation:2"
+          "conversation:chat-two"
         );
 
       handlers
@@ -173,6 +204,70 @@ describe(
       ).toHaveBeenCalledTimes(1);
 
       vi.useRealTimers();
+    });
+
+    it("selects sidebar broadcast channels by publicId and sends a content-free payload", async () => {
+      render(
+        <RealtimeSidebarSync
+          conversationPublicIds={[
+            "chat-one",
+            "chat-two",
+          ]}
+          activeConversationPublicId="chat-one"
+        >
+          <TestConsumer />
+        </RealtimeSidebarSync>
+      );
+
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Broadcast conversation",
+        })
+      );
+
+      const channel = channelMock.mock.results[0]
+        ?.value as {
+        send: ReturnType<typeof vi.fn>;
+      };
+
+      await waitFor(() => {
+        expect(channel.send).toHaveBeenCalledWith({
+          type: "broadcast",
+          event: "conversation-updated",
+          payload: {},
+        });
+      });
+    });
+
+    it("removes every inactive channel on unmount", async () => {
+      const { unmount } = render(
+        <RealtimeSidebarSync
+          conversationPublicIds={[
+            "chat-one",
+            "chat-two",
+            "chat-three",
+          ]}
+          activeConversationPublicId="chat-one"
+        >
+          <div>Child</div>
+        </RealtimeSidebarSync>
+      );
+
+      const inactiveChannels = channelMock.mock.results.map(
+        ({ value }) => value
+      );
+
+      unmount();
+
+      await waitFor(() => {
+        expect(removeChannelMock).toHaveBeenCalledTimes(2);
+      });
+
+      expect(
+        removeChannelMock.mock.calls.map(
+          ([channel]) => channel
+        )
+      ).toEqual(inactiveChannels);
     });
   }
 );
