@@ -79,7 +79,7 @@ export async function POST(
 
   const generationLease =
     await acquireGenerationLease(
-      user.id
+      ownerId
     );
 
   if (!generationLease) {
@@ -169,7 +169,7 @@ export async function POST(
 
   const dailyQuota =
     await checkDailyQuota(
-      user.id
+      ownerId
     );
 
   if (!dailyQuota.allowed) {

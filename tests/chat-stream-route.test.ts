@@ -243,10 +243,44 @@ describe(
           content: "Hello world",
         });
 
+        expect(checkRateLimitMock).toHaveBeenCalledWith(
+          "llm:user-1"
+        );
+
+        expect(
+          acquireGenerationLeaseMock
+        ).toHaveBeenCalledWith(
+          "owner-1"
+        );
+
         expect(
           checkDailyQuotaMock
         ).toHaveBeenCalledWith(
-          "user-1"
+          "owner-1"
+        );
+
+        expect(
+          checkRateLimitMock.mock.invocationCallOrder[0]
+        ).toBeLessThan(
+          acquireGenerationLeaseMock.mock.invocationCallOrder[0]
+        );
+
+        expect(
+          acquireGenerationLeaseMock.mock.invocationCallOrder[0]
+        ).toBeLessThan(
+          prepareLLMRequestMock.mock.invocationCallOrder[0]
+        );
+
+        expect(
+          prepareLLMRequestMock.mock.invocationCallOrder[0]
+        ).toBeLessThan(
+          checkDailyQuotaMock.mock.invocationCallOrder[0]
+        );
+
+        expect(
+          checkDailyQuotaMock.mock.invocationCallOrder[0]
+        ).toBeLessThan(
+          streamLLMMock.mock.invocationCallOrder[0]
         );
 
         expect(
@@ -262,6 +296,138 @@ describe(
         );
       }
     );
+
+    it("charges an owner request to the owner's shared budget", async () => {
+      requireUserMock.mockResolvedValue({
+        id: "owner-1",
+        name: "Owner",
+      });
+
+      streamLLMMock.mockReturnValue({
+        textStream: createTextStream(["ok"]),
+      });
+
+      const response = await POST(createRequest() as never);
+      await response.text();
+
+      expect(checkRateLimitMock).toHaveBeenCalledWith("llm:owner-1");
+      expect(acquireGenerationLeaseMock).toHaveBeenCalledWith("owner-1");
+      expect(checkDailyQuotaMock).toHaveBeenCalledWith("owner-1");
+    });
+
+    it("charges a member and guest to the same owner quota and concurrency pool", async () => {
+      streamLLMMock.mockReturnValue({
+        textStream: createTextStream(["ok"]),
+      });
+
+      requireUserMock.mockResolvedValueOnce({
+        id: "member-1",
+        name: "Member One",
+      });
+      const firstResponse = await POST(createRequest() as never);
+      await firstResponse.text();
+
+      requireUserMock.mockResolvedValueOnce({
+        id: "guest-1",
+        name: "Guest One",
+        isGuest: true,
+      });
+      const secondResponse = await POST(createRequest() as never);
+      await secondResponse.text();
+
+      expect(checkRateLimitMock).toHaveBeenNthCalledWith(1, "llm:member-1");
+      expect(checkRateLimitMock).toHaveBeenNthCalledWith(2, "llm:guest-1");
+      expect(checkDailyQuotaMock).toHaveBeenNthCalledWith(1, "owner-1");
+      expect(checkDailyQuotaMock).toHaveBeenNthCalledWith(2, "owner-1");
+      expect(acquireGenerationLeaseMock).toHaveBeenNthCalledWith(1, "owner-1");
+      expect(acquireGenerationLeaseMock).toHaveBeenNthCalledWith(2, "owner-1");
+    });
+
+    it("keeps distinct guest requester limits while charging the same owner", async () => {
+      streamLLMMock.mockReturnValue({
+        textStream: createTextStream(["ok"]),
+      });
+      requireUserMock
+        .mockResolvedValueOnce({ id: "guest-a", name: "Guest A", isGuest: true })
+        .mockResolvedValueOnce({ id: "guest-b", name: "Guest B", isGuest: true });
+
+      const firstResponse = await POST(createRequest() as never);
+      await firstResponse.text();
+      const secondResponse = await POST(createRequest() as never);
+      await secondResponse.text();
+
+      expect(checkRateLimitMock).toHaveBeenNthCalledWith(1, "llm:guest-a");
+      expect(checkRateLimitMock).toHaveBeenNthCalledWith(2, "llm:guest-b");
+      expect(checkDailyQuotaMock).toHaveBeenNthCalledWith(1, "owner-1");
+      expect(checkDailyQuotaMock).toHaveBeenNthCalledWith(2, "owner-1");
+      expect(acquireGenerationLeaseMock).toHaveBeenNthCalledWith(1, "owner-1");
+      expect(acquireGenerationLeaseMock).toHaveBeenNthCalledWith(2, "owner-1");
+    });
+
+    it("accounts three accepted provider requests as three owner quota units and leases", async () => {
+      streamLLMMock.mockReturnValue({
+        textStream: createTextStream(["ok"]),
+      });
+      acquireGenerationLeaseMock
+        .mockResolvedValueOnce({ token: "lease-openai", slot: 1 })
+        .mockResolvedValueOnce({ token: "lease-anthropic", slot: 2 })
+        .mockResolvedValueOnce({ token: "lease-google", slot: 3 });
+
+      for (const provider of ["openai", "anthropic", "google"]) {
+        validateStreamRequestMock.mockResolvedValueOnce({
+          conversationId: 1,
+          messageId: 10,
+          provider,
+          ownerId: "owner-1",
+        });
+        const response = await POST(createRequest() as never);
+        await response.text();
+      }
+
+      expect(checkDailyQuotaMock).toHaveBeenCalledTimes(3);
+      expect(checkDailyQuotaMock).toHaveBeenNthCalledWith(1, "owner-1");
+      expect(checkDailyQuotaMock).toHaveBeenNthCalledWith(2, "owner-1");
+      expect(checkDailyQuotaMock).toHaveBeenNthCalledWith(3, "owner-1");
+      expect(acquireGenerationLeaseMock).toHaveBeenCalledTimes(3);
+      expect(releaseGenerationLeaseMock).toHaveBeenCalledWith("lease-openai");
+      expect(releaseGenerationLeaseMock).toHaveBeenCalledWith("lease-anthropic");
+      expect(releaseGenerationLeaseMock).toHaveBeenCalledWith("lease-google");
+    });
+
+    it("does not invoke a provider when conversation access validation fails", async () => {
+      validateStreamRequestMock.mockRejectedValue(
+        new Error("CONVERSATION_NOT_FOUND")
+      );
+      streamValidationErrorResponseMock.mockReturnValue(
+        new Response("Conversation not found.", { status: 404 })
+      );
+
+      const response = await POST(createRequest() as never);
+
+      expect(response.status).toBe(404);
+      expect(checkRateLimitMock).not.toHaveBeenCalled();
+      expect(acquireGenerationLeaseMock).not.toHaveBeenCalled();
+      expect(prepareLLMRequestMock).not.toHaveBeenCalled();
+      expect(checkDailyQuotaMock).not.toHaveBeenCalled();
+      expect(streamLLMMock).not.toHaveBeenCalled();
+    });
+
+    it("does not consume owner quota when authentication fails", async () => {
+      requireUserMock.mockRejectedValue(
+        new Error("Unauthorized")
+      );
+
+      await expect(
+        POST(createRequest() as never)
+      ).rejects.toThrow("Unauthorized");
+
+      expect(validateStreamRequestMock).not.toHaveBeenCalled();
+      expect(checkRateLimitMock).not.toHaveBeenCalled();
+      expect(acquireGenerationLeaseMock).not.toHaveBeenCalled();
+      expect(prepareLLMRequestMock).not.toHaveBeenCalled();
+      expect(checkDailyQuotaMock).not.toHaveBeenCalled();
+      expect(streamLLMMock).not.toHaveBeenCalled();
+    });
 
     it(
       "releases the lease when preparing the request fails",
@@ -326,7 +492,7 @@ describe(
         expect(
           checkDailyQuotaMock
         ).toHaveBeenCalledWith(
-          "user-1"
+          "owner-1"
         );
 
         expect(
@@ -500,7 +666,7 @@ describe(
         expect(
           checkDailyQuotaMock
         ).toHaveBeenCalledWith(
-          "user-1"
+          "owner-1"
         );
 
         expect(
@@ -565,6 +731,12 @@ describe(
         ).not.toHaveBeenCalled();
 
         expect(
+          checkDailyQuotaMock
+        ).toHaveBeenCalledWith(
+          "owner-1"
+        );
+
+        expect(
           releaseGenerationLeaseMock
         ).toHaveBeenCalledTimes(
           1
@@ -577,6 +749,41 @@ describe(
         );
       }
     );
+
+    it("treats a manual retry as a fresh gated and charged request", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => undefined);
+      acquireGenerationLeaseMock
+        .mockResolvedValueOnce({ token: "lease-first", slot: 1 })
+        .mockResolvedValueOnce({ token: "lease-retry", slot: 1 });
+      streamLLMMock
+        .mockReturnValueOnce({
+          textStream: {
+            async *[Symbol.asyncIterator]() {
+              throw new Error("provider failed");
+            },
+          },
+        })
+        .mockReturnValueOnce({ textStream: createTextStream(["retry ok"]) });
+
+      const firstResponse = await POST(createRequest() as never);
+      await firstResponse.text();
+      const retryResponse = await POST(createRequest() as never);
+      await retryResponse.text();
+
+      expect(checkRateLimitMock).toHaveBeenCalledTimes(2);
+      expect(acquireGenerationLeaseMock).toHaveBeenCalledTimes(2);
+      expect(prepareLLMRequestMock).toHaveBeenCalledTimes(2);
+      expect(checkDailyQuotaMock).toHaveBeenCalledTimes(2);
+      expect(streamLLMMock).toHaveBeenCalledTimes(2);
+      expect(releaseGenerationLeaseMock).toHaveBeenNthCalledWith(
+        1,
+        "lease-first"
+      );
+      expect(releaseGenerationLeaseMock).toHaveBeenNthCalledWith(
+        2,
+        "lease-retry"
+      );
+    });
 
     it("returns a machine-readable code when the provider is not configured", async () => {
       prepareLLMRequestMock.mockRejectedValue(

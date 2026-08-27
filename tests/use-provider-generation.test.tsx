@@ -113,6 +113,45 @@ describe("useProviderGeneration", () => {
         });
     });
 
+    it("fans one human message out to three independent provider requests", async () => {
+        streamProviderResponseMock.mockResolvedValue(undefined);
+
+        const { result } = renderHook(() => useTestHarness());
+
+        await act(async () => {
+            await result.current.generateProviders(
+                ["openai", "anthropic", "google"],
+                100
+            );
+        });
+
+        expect(streamProviderResponseMock).toHaveBeenCalledTimes(3);
+        expect(streamProviderResponseMock).toHaveBeenNthCalledWith(
+            1,
+            expect.objectContaining({
+                conversationId: 42,
+                messageId: 100,
+                provider: "openai",
+            })
+        );
+        expect(streamProviderResponseMock).toHaveBeenNthCalledWith(
+            2,
+            expect.objectContaining({
+                conversationId: 42,
+                messageId: 100,
+                provider: "anthropic",
+            })
+        );
+        expect(streamProviderResponseMock).toHaveBeenNthCalledWith(
+            3,
+            expect.objectContaining({
+                conversationId: 42,
+                messageId: 100,
+                provider: "google",
+            })
+        );
+    });
+
     it("keeps a stopped partial response visible", async () => {
         streamProviderResponseMock.mockImplementation(
             ({ onDelta, signal }) =>

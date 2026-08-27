@@ -224,6 +224,37 @@ describe("invite actions", () => {
     expect(deleteManyMock).not.toHaveBeenCalled();
   });
 
+  it("allows a member to leave the conversation", async () => {
+    requireUserMock.mockResolvedValue({
+      id: "member-1",
+      isGuest: false,
+    });
+    requireConversationAccessMock.mockResolvedValue({
+      id: 42,
+      ownerId: "owner-1",
+    });
+    deleteManyMock.mockResolvedValue({ count: 1 });
+    findFirstMock.mockResolvedValue({
+      id: 7,
+      publicId: "next-conversation",
+    });
+
+    const result = await leaveConversation(42);
+
+    expect(deleteManyMock).toHaveBeenCalledWith({
+      where: {
+        conversationId: 42,
+        userId: "member-1",
+      },
+    });
+    expect(result).toEqual({
+      nextConversationId: 7,
+      nextConversationPublicId: "next-conversation",
+      signedOut: false,
+    });
+    expect(signOutMock).not.toHaveBeenCalled();
+  });
+
   it("signs out a guest after leaving their last conversation", async () => {
     requireUserMock.mockResolvedValue({
       id: "guest-1",
