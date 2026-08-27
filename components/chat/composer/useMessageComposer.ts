@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { sendHumanMessage } from "@/app/actions";
 
 import { useConversationRealtime } from "../realtime/RealtimeConversationSync";
+import { createTemporaryMessageId } from "./createTemporaryMessageId";
 import { useProviderGeneration } from "./useProviderGeneration";
 
 import type {
@@ -94,10 +95,7 @@ export function useMessageComposer({
     }
 
     const temporaryMessageId =
-      -Date.now() -
-      Math.floor(
-        Math.random() * 1000
-      );
+      createTemporaryMessageId();
 
     const optimisticMessage: ChatMessage =
       {

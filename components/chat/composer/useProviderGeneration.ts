@@ -11,6 +11,7 @@ import {
   StreamRequestError,
   streamProviderResponse,
 } from "./streamProviderResponse";
+import { createTemporaryMessageId } from "./createTemporaryMessageId";
 
 import {
   getProviderDisplayName,
@@ -348,15 +349,10 @@ export function useProviderGeneration({
 
   function createStreamingMessage(
     provider: Provider,
-    sourceMessageId: number,
-    index: number
+    sourceMessageId: number
   ) {
     const temporaryMessageId =
-      -Date.now() -
-      index -
-      Math.floor(
-        Math.random() * 1000
-      );
+      createTemporaryMessageId();
 
     const authorName =
       getProviderDisplayName(provider);
@@ -389,12 +385,11 @@ export function useProviderGeneration({
   ) {
     const generationTasks =
       providers.map(
-        (provider, index) => {
+        (provider) => {
           const temporaryMessageId =
             createStreamingMessage(
               provider,
-              sourceMessageId,
-              index
+              sourceMessageId
             );
 
           return runProviderGeneration({
