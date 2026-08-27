@@ -36,6 +36,8 @@ export function MessageComposer({
     useRef<HTMLTextAreaElement | null>(
       null
     );
+  const wasSendingRef =
+    useRef(sending);
 
   useEffect(() => {
     const textarea =
@@ -60,6 +62,17 @@ export function MessageComposer({
       textareaRef.current?.focus();
     }
   }, [replyTo]);
+
+  useEffect(() => {
+    if (
+      wasSendingRef.current &&
+      !sending
+    ) {
+      textareaRef.current?.focus();
+    }
+
+    wasSendingRef.current = sending;
+  }, [sending]);
 
   async function handleSubmit(
     event: React.FormEvent
