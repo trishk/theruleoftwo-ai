@@ -3,6 +3,7 @@
 import {
   memo,
   useEffect,
+  useLayoutEffect,
   useRef,
 } from "react";
 
@@ -13,6 +14,8 @@ import type { ChatMessage } from "./types";
 
 type Props = {
   messages: ChatMessage[];
+  conversationId?: number;
+  followBottomSignal?: number;
   onReply: (message: ChatMessage) => void;
   onRetry: (message: ChatMessage) => void;
 };
@@ -57,6 +60,8 @@ const MessageRow = memo(
 
 export function MessageList({
   messages,
+  conversationId,
+  followBottomSignal = 0,
   onReply,
   onRetry,
 }: Props) {
@@ -66,13 +71,92 @@ export function MessageList({
   const shouldAutoScrollRef =
     useRef(true);
 
+  const lastScrollTopRef = useRef(0);
+
+  const lastFollowBottomSignalRef =
+    useRef(followBottomSignal);
+
+  const lastConversationIdRef =
+    useRef<number | undefined>(undefined);
+
+  const skipNextMessageScrollRef =
+    useRef(false);
+
   const scrollFrameRef = useRef<
     number | null
   >(null);
 
+  useLayoutEffect(() => {
+    if (
+      lastConversationIdRef.current ===
+      conversationId
+    ) {
+      return;
+    }
+
+    lastConversationIdRef.current =
+      conversationId;
+    shouldAutoScrollRef.current = true;
+    skipNextMessageScrollRef.current = true;
+
+    if (scrollFrameRef.current !== null) {
+      cancelAnimationFrame(
+        scrollFrameRef.current
+      );
+      scrollFrameRef.current = null;
+    }
+
+    const container =
+      scrollContainerRef.current;
+
+    if (!container) {
+      return;
+    }
+
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior: "auto",
+    });
+    lastScrollTopRef.current =
+      container.scrollTop;
+  }, [conversationId]);
+
+  useLayoutEffect(() => {
+    if (
+      lastFollowBottomSignalRef.current ===
+      followBottomSignal
+    ) {
+      return;
+    }
+
+    lastFollowBottomSignalRef.current =
+      followBottomSignal;
+    shouldAutoScrollRef.current = true;
+    skipNextMessageScrollRef.current = true;
+
+    const container =
+      scrollContainerRef.current;
+
+    if (!container) {
+      return;
+    }
+
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior: "auto",
+    });
+    lastScrollTopRef.current =
+      container.scrollTop;
+  }, [followBottomSignal]);
+
   useEffect(() => {
     const container =
       scrollContainerRef.current;
+
+    if (skipNextMessageScrollRef.current) {
+      skipNextMessageScrollRef.current = false;
+      return;
+    }
 
     if (
       !container ||
@@ -98,8 +182,11 @@ export function MessageList({
             ? "auto"
             : "smooth",
         });
+
+        lastScrollTopRef.current =
+          container.scrollTop;
       });
-  }, [messages]);
+  }, [followBottomSignal, messages]);
 
   useEffect(() => {
     return () => {
@@ -124,8 +211,18 @@ export function MessageList({
       container.scrollTop -
       container.clientHeight;
 
-    shouldAutoScrollRef.current =
-      distanceFromBottom < 120;
+    const movedUp =
+      container.scrollTop <
+      lastScrollTopRef.current;
+
+    lastScrollTopRef.current =
+      container.scrollTop;
+
+    if (distanceFromBottom < 120) {
+      shouldAutoScrollRef.current = true;
+    } else if (movedUp) {
+      shouldAutoScrollRef.current = false;
+    }
   }
 
   if (messages.length === 0) {

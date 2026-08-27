@@ -117,6 +117,7 @@ function useTestHarness() {
         setOptimisticMessages,
       onStreamingMessagesChange:
         setStreamingMessages,
+      onSubmitAccepted: vi.fn(),
     });
 
   return {

@@ -24,6 +24,7 @@ type Props = {
   onStreamingMessagesChange: React.Dispatch<
     React.SetStateAction<ChatMessage[]>
   >;
+  onSubmitAccepted: () => void;
 };
 
 export function useMessageComposer({
@@ -32,6 +33,7 @@ export function useMessageComposer({
   onCancelReply,
   onOptimisticMessagesChange,
   onStreamingMessagesChange,
+  onSubmitAccepted,
 }: Props) {
   const router = useRouter();
 
@@ -93,6 +95,8 @@ export function useMessageComposer({
     ) {
       return;
     }
+
+    onSubmitAccepted();
 
     const temporaryMessageId =
       createTemporaryMessageId();

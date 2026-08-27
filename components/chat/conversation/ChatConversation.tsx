@@ -45,6 +45,19 @@ export function ChatConversation({
     setStreamingMessages,
   ] = useState<ChatMessage[]>([]);
 
+  const [
+    followBottomSignal,
+    setFollowBottomSignal,
+  ] = useState(0);
+
+  const handleSubmitAccepted =
+    useCallback(() => {
+      setFollowBottomSignal(
+        (currentSignal) =>
+          currentSignal + 1
+      );
+    }, []);
+
   const {
     message,
     setMessage,
@@ -62,6 +75,8 @@ export function ChatConversation({
       setOptimisticMessages,
     onStreamingMessagesChange:
       setStreamingMessages,
+    onSubmitAccepted:
+      handleSubmitAccepted,
   });
 
   const retryProviderRef = useRef(
@@ -147,6 +162,10 @@ export function ChatConversation({
     <div className="flex min-h-0 flex-1 flex-col">
       <MessageList
         messages={allMessages}
+        conversationId={conversationId}
+        followBottomSignal={
+          followBottomSignal
+        }
         onReply={handleReply}
         onRetry={handleRetry}
       />
@@ -165,9 +184,7 @@ export function ChatConversation({
         onCancelReply={() =>
           setReplyTo(null)
         }
-        onSubmit={
-          submitMessage
-        }
+        onSubmit={submitMessage}
         onStopGeneration={
           stopGeneration
         }

@@ -94,14 +94,21 @@ vi.mock(
     () => ({
         MessageList: ({
             messages,
+            followBottomSignal,
         }: {
             messages: Array<{
                 id: number;
                 authorName: string;
                 content: string;
             }>;
+            followBottomSignal?: number;
         }) => (
-            <div data-testid="message-list">
+            <div
+                data-testid="message-list"
+                data-follow-bottom-signal={
+                    followBottomSignal
+                }
+            >
                 {messages.map(
                     (message) => (
                         <div
@@ -129,33 +136,48 @@ vi.mock(
             message,
             onMessageChange,
             onSubmit,
+            sending,
         }: {
             message: string;
             onMessageChange: (
                 value: string
             ) => void;
             onSubmit: () => Promise<void>;
+            sending: boolean;
         }) => (
-            <div>
+            <form
+                data-testid="composer-form"
+                onSubmit={(event) => {
+                    event.preventDefault();
+                    void onSubmit();
+                }}
+            >
                 <input
                     aria-label="message-input"
                     value={message}
+                    disabled={sending}
                     onChange={(event) =>
                         onMessageChange(
                             event.target.value
                         )
                     }
+                    onKeyDown={(event) => {
+                        if (
+                            event.key === "Enter" &&
+                            !event.shiftKey
+                        ) {
+                            event.preventDefault();
+                            event.currentTarget.form?.requestSubmit();
+                        }
+                    }}
                 />
 
                 <button
-                    type="button"
-                    onClick={() => {
-                        void onSubmit();
-                    }}
+                    type="submit"
                 >
                     Send
                 </button>
-            </div>
+            </form>
         ),
     })
 );
@@ -194,6 +216,135 @@ describe(
     () => {
         beforeEach(() => {
             vi.clearAllMocks();
+        });
+
+        it("does not request bottom following for empty Enter", () => {
+            render(
+                <ChatConversation
+                    conversationId={42}
+                    messages={[]}
+                    configuredProviders={[]}
+                />
+            );
+
+            fireEvent.keyDown(
+                screen.getByLabelText("message-input"),
+                { key: "Enter" }
+            );
+
+            expect(
+                screen.getByTestId("message-list")
+            ).toHaveAttribute(
+                "data-follow-bottom-signal",
+                "0"
+            );
+            expect(sendHumanMessageMock).not.toHaveBeenCalled();
+        });
+
+        it("does not request bottom following for whitespace Enter", () => {
+            render(
+                <ChatConversation
+                    conversationId={42}
+                    messages={[]}
+                    configuredProviders={[]}
+                />
+            );
+
+            fireEvent.change(
+                screen.getByLabelText("message-input"),
+                { target: { value: "   " } }
+            );
+            fireEvent.keyDown(
+                screen.getByLabelText("message-input"),
+                { key: "Enter" }
+            );
+
+            expect(
+                screen.getByTestId("message-list")
+            ).toHaveAttribute(
+                "data-follow-bottom-signal",
+                "0"
+            );
+            expect(sendHumanMessageMock).not.toHaveBeenCalled();
+        });
+
+        it("requests bottom following for an accepted Enter submit", async () => {
+            sendHumanMessageMock.mockResolvedValue({
+                messageId: 100,
+                providers: [],
+            });
+
+            render(
+                <ChatConversation
+                    conversationId={42}
+                    messages={[]}
+                    configuredProviders={[]}
+                />
+            );
+
+            fireEvent.change(
+                screen.getByLabelText("message-input"),
+                { target: { value: "hello" } }
+            );
+            fireEvent.keyDown(
+                screen.getByLabelText("message-input"),
+                { key: "Enter" }
+            );
+
+            await waitFor(() => {
+                expect(
+                    screen.getByTestId("message-list")
+                ).toHaveAttribute(
+                    "data-follow-bottom-signal",
+                    "1"
+                );
+            });
+        });
+
+        it("does not request another bottom follow for a duplicate submit while sending", async () => {
+            const pendingSend = createDeferred<{
+                messageId: number;
+                providers: Provider[];
+            }>();
+            sendHumanMessageMock.mockReturnValue(pendingSend.promise);
+
+            render(
+                <ChatConversation
+                    conversationId={42}
+                    messages={[]}
+                    configuredProviders={[]}
+                />
+            );
+
+            fireEvent.change(
+                screen.getByLabelText("message-input"),
+                { target: { value: "hello" } }
+            );
+            fireEvent.submit(screen.getByTestId("composer-form"));
+
+            await waitFor(() => {
+                expect(
+                    screen.getByTestId("message-list")
+                ).toHaveAttribute(
+                    "data-follow-bottom-signal",
+                    "1"
+                );
+            });
+
+            fireEvent.submit(screen.getByTestId("composer-form"));
+
+            expect(
+                screen.getByTestId("message-list")
+            ).toHaveAttribute(
+                "data-follow-bottom-signal",
+                "1"
+            );
+            expect(sendHumanMessageMock).toHaveBeenCalledTimes(1);
+
+            await act(async () => {
+                pendingSend.resolve({ messageId: 100, providers: [] });
+                await pendingSend.promise;
+            });
         });
 
         it(
