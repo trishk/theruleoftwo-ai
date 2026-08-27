@@ -100,6 +100,58 @@ describe(
       }
     );
 
+    it("reconciles a stopped partial response without displaying a duplicate", () => {
+      const stoppedPartial = createStreamingMessage({
+        content: "Partial response",
+        isStreaming: false,
+      });
+      const persistedPartial = createPersistedMessage({
+        content: "Partial response",
+      });
+
+      expect(reconcileStreamingMessages([stoppedPartial], [persistedPartial])).toEqual([]);
+    });
+
+    it("reconciles a persisted continuation of a stopped client partial", () => {
+      const stoppedPartial = createStreamingMessage({
+        content: "The answer is",
+        isStopped: true,
+      });
+      const persistedContinuation = createPersistedMessage({
+        content: "The answer is 4",
+      });
+
+      expect(
+        reconcileStreamingMessages([stoppedPartial], [persistedContinuation])
+      ).toEqual([]);
+    });
+
+    it("does not use one persisted continuation to reconcile two stopped rows", () => {
+      const first = createStreamingMessage({
+        id: -1,
+        content: "The answer is",
+        isStopped: true,
+      });
+      const second = createStreamingMessage({
+        id: -2,
+        content: "The answer is",
+        isStopped: true,
+      });
+      const persisted = createPersistedMessage({
+        content: "The answer is 4",
+      });
+
+      expect(reconcileStreamingMessages([first, second], [persisted])).toEqual([
+        second,
+      ]);
+    });
+
+    it("leaves no phantom row when the client saw no delta but persistence later arrives", () => {
+      const persisted = createPersistedMessage({ content: "Already generated" });
+
+      expect(reconcileStreamingMessages([], [persisted])).toEqual([]);
+    });
+
     it(
       "does not reconcile messages with different content",
       () => {

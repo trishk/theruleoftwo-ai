@@ -204,6 +204,37 @@ describe(
       }
     );
 
+    it.each([
+      ["@chatgpt", "New conversation"],
+      ["@chatgpt @claude", "New conversation"],
+      [" @chatgpt   ... !!! ", "New conversation"],
+      ["@chatgpt   A useful topic!", "A useful topic!"],
+      ["@chatgpt Întrebări și răspunsuri", "Întrebări și răspunsuri"],
+      ["@chatgpt 😀 🎉", "New conversation"],
+    ])("generates a non-empty first-message title for %s", async (content, expectedTitle) => {
+      conversationFindUniqueMock.mockResolvedValue({ title: "New Chat" });
+      messageCountMock.mockResolvedValue(0);
+
+      await sendHumanMessage(42, content);
+
+      expect(conversationUpdateMock).toHaveBeenNthCalledWith(1, {
+        where: { id: 42 },
+        data: { title: expectedTitle },
+      });
+      expect(expectedTitle.length).toBeLessThanOrEqual(50);
+    });
+
+    it("keeps generated titles within the existing 50-character limit", async () => {
+      conversationFindUniqueMock.mockResolvedValue({ title: "New Chat" });
+      messageCountMock.mockResolvedValue(0);
+
+      await sendHumanMessage(42, `@gemini ${"meaningful ".repeat(10)}`);
+
+      const title = conversationUpdateMock.mock.calls[0][0].data.title;
+      expect(title).toHaveLength(50);
+      expect(title.endsWith("...")).toBe(true);
+    });
+
     it(
       "keeps an existing New Chat title when the conversation already has messages",
       async () => {

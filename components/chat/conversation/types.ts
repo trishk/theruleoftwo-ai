@@ -16,7 +16,9 @@ export type ChatMessage = {
   createdAt: Date;
   isOwnMessage: boolean;
   isStreaming?: boolean;
+  isStopped?: boolean;
   isError?: boolean;
+  isRetryable?: boolean;
   provider?: Provider;
   sourceMessageId?: number;
   replyTo?: ChatReply | null;

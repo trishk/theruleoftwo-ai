@@ -44,8 +44,10 @@ const MessageRow = memo(
                 onReply(message)
             : undefined
         }
-        onRetry={() =>
-          onRetry(message)
+        onRetry={
+          message.isRetryable === false
+            ? undefined
+            : () => onRetry(message)
         }
       />
     );

@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { ProviderIcon } from "@/components/brand/ProviderIcon";
 import { PROVIDER_LIST } from "@/lib/llm/providerMeta";
 import type { Provider } from "@/lib/llm/types";
@@ -15,6 +17,20 @@ export function MentionPicker({
   disabled = false,
   onChange,
 }: Props) {
+  if (configuredProviders.length === 0) {
+    return (
+      <div className="mb-2 text-xs text-muted-foreground">
+        No AI providers are connected. Human-only messages still work.{" "}
+        <Link
+          href="/settings#integrations"
+          className="font-medium text-foreground underline underline-offset-2"
+        >
+          Configure Integrations
+        </Link>
+      </div>
+    );
+  }
+
   function toggleMention(
     mention: string
   ) {

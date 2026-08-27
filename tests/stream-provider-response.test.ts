@@ -175,6 +175,63 @@ describe("streamProviderResponse", () => {
     }
   });
 
+  it("classifies an unconfigured provider separately from transient failures", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("Provider is not configured.", {
+        status: 400,
+        headers: { "X-Chat-Error-Code": "provider_not_configured" },
+      })
+    );
+
+    await expect(
+      streamProviderResponse({
+        conversationId: 42,
+        messageId: 100,
+        provider: "openai",
+        signal: new AbortController().signal,
+        onDelta: vi.fn(),
+        onError: vi.fn(),
+      })
+    ).rejects.toMatchObject({
+      status: 400,
+      code: "provider_not_configured",
+    });
+  });
+
+  it("does not infer provider configuration errors from response text", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("Provider is not configured.", { status: 400 })
+    );
+
+    await expect(
+      streamProviderResponse({
+        conversationId: 42,
+        messageId: 100,
+        provider: "openai",
+        signal: new AbortController().signal,
+        onDelta: vi.fn(),
+        onError: vi.fn(),
+      })
+    ).rejects.toMatchObject({ status: 400, code: undefined });
+  });
+
+  it("keeps genuine provider failures classified as retryable failures", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("Could not start generation.", { status: 500 })
+    );
+
+    await expect(
+      streamProviderResponse({
+        conversationId: 42,
+        messageId: 100,
+        provider: "openai",
+        signal: new AbortController().signal,
+        onDelta: vi.fn(),
+        onError: vi.fn(),
+      })
+    ).rejects.toMatchObject({ status: 500, code: undefined });
+  });
+
   it("uses a 60 second fallback when Retry-After is missing", async () => {
     vi.spyOn(
       globalThis,

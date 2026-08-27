@@ -22,11 +22,13 @@ type StreamProviderResponseArgs = {
 export class StreamRequestError extends Error {
   status: number;
   retryAfterSeconds?: number;
+  code?: "provider_not_configured";
 
   constructor(
     message: string,
     status: number,
-    retryAfterSeconds?: number
+    retryAfterSeconds?: number,
+    code?: "provider_not_configured"
   ) {
     super(message);
 
@@ -34,6 +36,7 @@ export class StreamRequestError extends Error {
     this.status = status;
     this.retryAfterSeconds =
       retryAfterSeconds;
+    this.code = code;
   }
 }
 
@@ -94,7 +97,12 @@ export async function streamProviderResponse({
     throw new StreamRequestError(
       `Streaming failed for ${provider}.`,
       response.status,
-      retryAfterSeconds
+      retryAfterSeconds,
+      response.headers.get(
+        "X-Chat-Error-Code"
+      ) === "provider_not_configured"
+        ? "provider_not_configured"
+        : undefined
     );
   }
 

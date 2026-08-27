@@ -93,7 +93,9 @@ async function saveHumanMessage(
         .trim();
 
     const generatedTitle =
-      titleContent.length > 50
+      !/[\p{L}\p{N}]/u.test(titleContent)
+        ? "New conversation"
+        : titleContent.length > 50
         ? `${titleContent.slice(0, 47)}...`
         : titleContent;
 

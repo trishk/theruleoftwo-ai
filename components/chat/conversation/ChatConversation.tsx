@@ -12,7 +12,7 @@ import { MessageList } from "./MessageList";
 import { MessageComposer } from "../composer/MessageComposer";
 import { useMessageComposer } from "../composer/useMessageComposer";
 import {
-  isStreamingMessagePersisted,
+  reconcileStreamingMessages,
 } from "./reconcileStreamingMessages";
 
 import type { Provider } from "@/lib/llm/types";
@@ -96,12 +96,9 @@ export function ChatConversation({
   const visibleStreamingMessages =
     useMemo(
       () =>
-        streamingMessages.filter(
-          (streamingMessage) =>
-            !isStreamingMessagePersisted(
-              streamingMessage,
-              messages
-            )
+        reconcileStreamingMessages(
+          streamingMessages,
+          messages
         ),
       [
         messages,

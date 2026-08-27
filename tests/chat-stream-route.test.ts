@@ -577,5 +577,19 @@ describe(
         );
       }
     );
+
+    it("returns a machine-readable code when the provider is not configured", async () => {
+      prepareLLMRequestMock.mockRejectedValue(
+        new Error("Provider is not configured for this conversation.")
+      );
+
+      const response = await POST(createRequest() as never);
+
+      expect(response.status).toBe(400);
+      expect(response.headers.get("X-Chat-Error-Code")).toBe(
+        "provider_not_configured"
+      );
+      expect(await response.text()).toBe("Provider is not configured.");
+    });
   }
 );

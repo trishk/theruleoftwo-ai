@@ -45,6 +45,10 @@ export function useProviderGeneration({
     Map<number, string>
   >(new Map());
 
+  const generatedContentRef = useRef<
+    Map<number, string>
+  >(new Map());
+
   const publicationFrameRef = useRef<
     number | null
   >(null);
@@ -142,6 +146,8 @@ export function useProviderGeneration({
   useEffect(() => {
     const pendingContent =
       pendingContentRef.current;
+    const generatedContent =
+      generatedContentRef.current;
 
     return () => {
       if (
@@ -154,6 +160,7 @@ export function useProviderGeneration({
       }
 
       pendingContent.clear();
+      generatedContent.clear();
     };
   }, []);
 
@@ -219,6 +226,11 @@ export function useProviderGeneration({
         signal: controller.signal,
 
         onDelta: (streamedText) => {
+          generatedContentRef.current.set(
+            temporaryMessageId,
+            streamedText
+          );
+
           scheduleContentPublication(
             temporaryMessageId,
             streamedText
@@ -275,12 +287,49 @@ export function useProviderGeneration({
           "AbortError";
 
       if (wasAborted) {
+        const partialContent =
+          generatedContentRef.current.get(
+            temporaryMessageId
+          );
+
+        discardPendingContent(temporaryMessageId);
+
+        if (partialContent?.trim()) {
+          updateStreamingMessage(
+            temporaryMessageId,
+            {
+              content: partialContent,
+              isStreaming: false,
+              isStopped: true,
+            }
+          );
+        } else {
+          removeStreamingMessage(
+            temporaryMessageId
+          );
+        }
+
+        return;
+      }
+
+      if (
+        providerError instanceof
+          StreamRequestError &&
+        providerError.code ===
+          "provider_not_configured"
+      ) {
         discardPendingContent(
           temporaryMessageId
         );
 
-        removeStreamingMessage(
-          temporaryMessageId
+        updateStreamingMessage(
+          temporaryMessageId,
+          {
+            content: `${getProviderDisplayName(provider)} is not connected. Configure it in Settings → Integrations.`,
+            isStreaming: false,
+            isError: true,
+            isRetryable: false,
+          }
         );
 
         return;
@@ -339,6 +388,10 @@ export function useProviderGeneration({
         }
       );
     } finally {
+      generatedContentRef.current.delete(
+        temporaryMessageId
+      );
+
       abortControllersRef.current =
         abortControllersRef.current.filter(
           (item) =>

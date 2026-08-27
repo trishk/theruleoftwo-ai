@@ -146,6 +146,10 @@ export async function POST(
         "Provider is not configured.",
         {
           status: 400,
+          headers: {
+            "X-Chat-Error-Code":
+              "provider_not_configured",
+          },
         }
       );
     }

@@ -96,6 +96,20 @@ it("focuses the composer after sending with Enter", async () => {
   expect(textarea).toHaveFocus();
 });
 
+it("shows actionable setup guidance while keeping human-only send enabled", () => {
+  render(<ComposerHarness />);
+
+  expect(screen.getByText(/No AI providers are connected/)).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Configure Integrations" })).toHaveAttribute(
+    "href",
+    "/settings#integrations"
+  );
+
+  const textarea = screen.getByPlaceholderText("Ask for another perspective...");
+  fireEvent.change(textarea, { target: { value: "Hello humans" } });
+  expect(screen.getByRole("button", { name: "Send message" })).toBeEnabled();
+});
+
 it("accepts the next message immediately after an Enter submission", async () => {
   const submission = createDeferred();
 

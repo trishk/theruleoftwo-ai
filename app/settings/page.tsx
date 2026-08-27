@@ -171,7 +171,7 @@ export default async function SettingsPage() {
             </form>
           </section>
 
-          <section>
+          <section id="integrations">
             <AddIntegrationSection
               configuredProviders={
                 configuredProviders
