@@ -272,4 +272,111 @@ describe("message reply availability", () => {
       persistedMessage
     );
   });
+
+  it("renders outgoing human message bubbles on the right while keeping multiline text left-aligned", () => {
+    const multilineContent = "Line 1\nLine 2 is longer\nLine 3";
+    renderMessages([
+      createMessage({
+        id: 15,
+        isOwnMessage: true,
+        content: multilineContent,
+      }),
+    ]);
+
+    const contentElement = screen.getByText(
+      /Line 1[\s\S]*Line 2 is longer[\s\S]*Line 3/
+    );
+    expect(contentElement).toHaveClass("text-left");
+    expect(contentElement).toHaveClass("whitespace-pre-wrap");
+    expect(contentElement.closest(".justify-end")).toBeInTheDocument();
+  });
+
+  it("renders a compact accessible thinking state when an AI message is streaming with empty content and removes it when content arrives", () => {
+    const onReply = vi.fn();
+    const rendered = renderMessages(
+      [
+        createMessage({
+          id: -20,
+          authorType: "ai",
+          authorName: "ChatGPT",
+          content: "",
+          isStreaming: true,
+        }),
+      ],
+      onReply
+    );
+
+    const thinkingState = screen.getByRole("status");
+    expect(thinkingState).toBeInTheDocument();
+    expect(thinkingState).toHaveTextContent("Thinking...");
+
+    rendered.rerender(
+      <MessageList
+        messages={[
+          createMessage({
+            id: -20,
+            authorType: "ai",
+            authorName: "ChatGPT",
+            content: "First token received",
+            isStreaming: true,
+          }),
+        ]}
+        onReply={onReply}
+        onRetry={noop}
+      />
+    );
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByText("First token received")).toBeInTheDocument();
+
+    rendered.rerender(
+      <MessageList
+        messages={[
+          createMessage({
+            id: 205,
+            authorType: "ai",
+            authorName: "ChatGPT",
+            content: "First token received",
+            isStreaming: false,
+          }),
+        ]}
+        onReply={onReply}
+        onRetry={noop}
+      />
+    );
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByText("First token received")).toBeInTheDocument();
+  });
+
+  it("renders a subtle timestamp for messages using createdAt without timezone fragility", () => {
+    const timestamp = new Date(2026, 7, 27, 14, 30);
+    const expectedTime = timestamp.toLocaleTimeString([], {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+
+    renderMessages([
+      createMessage({
+        id: 30,
+        authorType: "human",
+        authorName: "Tudor",
+        createdAt: timestamp,
+      }),
+      createMessage({
+        id: 31,
+        authorType: "ai",
+        authorName: "ChatGPT",
+        createdAt: timestamp,
+      }),
+    ]);
+
+    const timeElements = screen.getAllByText(expectedTime);
+    expect(timeElements).toHaveLength(2);
+    timeElements.forEach((el) => {
+      expect(el.tagName).toBe("TIME");
+      expect(el).toHaveClass("text-xs", "text-muted-foreground");
+      expect(el).toHaveAttribute("dateTime", timestamp.toISOString());
+    });
+  });
 });

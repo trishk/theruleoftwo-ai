@@ -101,7 +101,7 @@ export function MentionPicker({
               }
               disabled={disabled}
               className={[
-                "flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+                "flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 md:min-h-0 md:min-w-0",
                 isSelected
                   ? "border-foreground/30 bg-muted text-foreground"
                   : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",

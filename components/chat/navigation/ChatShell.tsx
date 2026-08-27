@@ -29,7 +29,7 @@ export function ChatShell({ children, sidebar }: ChatShellProps) {
               type="button"
               onClick={() => setMobileSidebarOpen(true)}
               aria-label="Open navigation"
-              className="fixed left-3 top-3 z-30 flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-background text-lg shadow-sm md:hidden"
+              className="fixed left-3 top-3 z-30 flex h-11 w-11 items-center justify-center rounded-lg border border-border bg-background text-lg shadow-sm md:hidden"
             >
               <Menu className="h-5 w-5" />
             </button>

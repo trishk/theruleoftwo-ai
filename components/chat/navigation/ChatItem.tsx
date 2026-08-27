@@ -169,7 +169,7 @@ export function ChatItem({
       <Link
         href={href}
         className={[
-          "flex items-center gap-2.5 rounded-md px-3 py-2 pr-9 text-sm transition-colors",
+          "flex items-center gap-2.5 rounded-md px-3 py-2 pr-12 text-sm transition-colors md:pr-9",
           isActive
             ? "bg-muted text-foreground"
             : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
@@ -206,7 +206,7 @@ export function ChatItem({
             (open) => !open
           )
         }
-        className="absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-background hover:text-foreground group-hover:opacity-100"
+        className="absolute right-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground opacity-100 transition-all hover:bg-background hover:text-foreground md:right-1 md:h-7 md:w-7 md:opacity-0 md:group-hover:opacity-100"
       >
         <MoreHorizontal className="h-4 w-4" />
       </button>

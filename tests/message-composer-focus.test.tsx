@@ -181,3 +181,14 @@ it("keeps focus and inserts a newline with Shift+Enter without submitting", () =
     "First line\n"
   );
 });
+
+it("uses at least 16px font size on mobile to prevent iOS Safari auto-zoom while supporting desktop styling", () => {
+  render(<ComposerHarness />);
+
+  const textarea = screen.getByPlaceholderText(
+    "Ask for another perspective..."
+  );
+
+  expect(textarea).toHaveClass("text-base");
+  expect(textarea).toHaveClass("md:text-sm");
+});

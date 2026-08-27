@@ -15,17 +15,31 @@ type Props = {
   createdAt: Date;
   isOwnMessage: boolean;
   isError?: boolean;
+  isStreaming?: boolean;
   replyTo?: ChatReply | null;
   onReply?: () => void;
   onRetry?: () => void;
 };
 
+function formatMessageTime(createdAt: Date): string {
+  const date = createdAt instanceof Date ? createdAt : new Date(createdAt);
+  if (isNaN(date.getTime())) {
+    return "";
+  }
+  return date.toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 export function MessageItem({
   authorType,
   authorName,
   content,
+  createdAt,
   isOwnMessage,
   isError = false,
+  isStreaming = false,
   replyTo,
   onReply,
   onRetry,
@@ -41,6 +55,12 @@ export function MessageItem({
 
   const isHuman =
     authorType === "human";
+
+  const messageTimeIso =
+    createdAt instanceof Date && !isNaN(createdAt.getTime())
+      ? createdAt.toISOString()
+      : undefined;
+  const formattedTime = formatMessageTime(createdAt);
 
   if (isHuman) {
     return (
@@ -66,7 +86,7 @@ export function MessageItem({
               onClick={onReply}
               aria-label={`Reply to ${authorName}`}
               title={`Reply to ${authorName}`}
-              className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-muted hover:text-foreground group-hover:opacity-100"
+              className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-100 transition-all hover:bg-muted hover:text-foreground md:h-8 md:w-8 md:opacity-0 md:group-hover:opacity-100"
             >
               <Reply className="h-4 w-4" />
             </button>
@@ -80,13 +100,50 @@ export function MessageItem({
                 : "text-left",
             ].join(" ")}
           >
-            <div className="mb-1.5 text-sm font-semibold text-foreground">
-              {authorName}
+            <div
+              className={[
+                "mb-1.5 flex items-baseline gap-2 text-sm",
+                isOwnMessage
+                  ? "justify-end"
+                  : "justify-start",
+              ].join(" ")}
+            >
+              {isOwnMessage ? (
+                <>
+                  {formattedTime && (
+                    <time
+                      dateTime={messageTimeIso}
+                      suppressHydrationWarning
+                      className="text-xs text-muted-foreground"
+                    >
+                      {formattedTime}
+                    </time>
+                  )}
+                  <span className="font-semibold text-foreground">
+                    {authorName}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="font-semibold text-foreground">
+                    {authorName}
+                  </span>
+                  {formattedTime && (
+                    <time
+                      dateTime={messageTimeIso}
+                      suppressHydrationWarning
+                      className="text-xs text-muted-foreground"
+                    >
+                      {formattedTime}
+                    </time>
+                  )}
+                </>
+              )}
             </div>
 
             <div
               className={[
-                "rounded-2xl border px-4 py-3",
+                "rounded-2xl border px-4 py-3 text-left",
                 isOwnMessage
                   ? "border-[#2563EB] bg-[#2563EB] text-white"
                   : "border-border bg-background text-foreground",
@@ -113,7 +170,7 @@ export function MessageItem({
 
               <div
                 className={[
-                  "whitespace-pre-wrap text-sm leading-relaxed",
+                  "whitespace-pre-wrap text-left text-sm leading-relaxed",
                   isOwnMessage
                     ? "text-white"
                     : "text-foreground",
@@ -147,13 +204,23 @@ export function MessageItem({
             {provider?.name ?? authorName}
           </div>
 
+          {formattedTime && (
+            <time
+              dateTime={messageTimeIso}
+              suppressHydrationWarning
+              className="text-xs text-muted-foreground"
+            >
+              {formattedTime}
+            </time>
+          )}
+
           {onReply && (
             <button
               type="button"
               onClick={onReply}
               aria-label={`Reply to ${authorName}`}
               title={`Reply to ${authorName}`}
-              className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-muted hover:text-foreground group-hover:opacity-100"
+              className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground opacity-100 transition-all hover:bg-muted hover:text-foreground md:h-6 md:w-6 md:opacity-0 md:group-hover:opacity-100"
             >
               <Reply className="h-3.5 w-3.5" />
             </button>
@@ -185,9 +252,24 @@ export function MessageItem({
           </div>
         )}
 
-        <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
-          {content}
-        </div>
+        {isStreaming && !content ? (
+          <div
+            role="status"
+            aria-label="Thinking..."
+            className="flex items-center gap-2 py-1 text-xs text-muted-foreground"
+          >
+            <span className="inline-flex items-center gap-1" aria-hidden="true">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground" />
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground [animation-delay:150ms]" />
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground [animation-delay:300ms]" />
+            </span>
+            <span>Thinking...</span>
+          </div>
+        ) : (
+          <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+            {content}
+          </div>
+        )}
       </div>
     </div>
   );

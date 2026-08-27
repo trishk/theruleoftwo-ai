@@ -146,7 +146,7 @@ export function MessageComposer({
               placeholder="Ask for another perspective..."
               rows={1}
               disabled={sending}
-              className="max-h-40 min-h-10 flex-1 resize-none bg-transparent px-3 py-2 text-sm leading-relaxed outline-none placeholder:text-muted-foreground disabled:opacity-50"
+              className="max-h-40 min-h-10 flex-1 resize-none bg-transparent px-3 py-2 text-base leading-relaxed outline-none placeholder:text-muted-foreground disabled:opacity-50 md:text-sm"
             />
 
             <button
@@ -169,7 +169,7 @@ export function MessageComposer({
                   ? "Stop generation"
                   : "Send message"
               }
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-foreground text-background transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-foreground text-background transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30 md:h-10 md:w-10"
             >
               {sending ? (
                 <span

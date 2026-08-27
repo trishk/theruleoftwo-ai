@@ -37,6 +37,7 @@ const MessageRow = memo(
         createdAt={message.createdAt}
         isOwnMessage={message.isOwnMessage}
         isError={message.isError}
+        isStreaming={message.isStreaming}
         replyTo={message.replyTo}
         onReply={
           message.id > 0

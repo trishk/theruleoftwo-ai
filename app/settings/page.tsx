@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 
 import { updateDisplayName } from "@/app/actions";
 import { requireUser } from "@/lib/auth/require-user";
@@ -85,6 +87,10 @@ export default async function SettingsPage() {
       },
     });
 
+  const returnToChatHref = chats[0]
+    ? `/chat/${chats[0].publicId}`
+    : "/";
+
   const configuredProviders =
     integrations
       .filter(
@@ -118,6 +124,14 @@ export default async function SettingsPage() {
       <div className="h-dvh overflow-y-auto">
         <div className="mx-auto max-w-4xl px-6 py-10">
           <div className="mb-8">
+            <Link
+              href={returnToChatHref}
+              className="mb-4 inline-flex min-h-11 items-center gap-2 rounded-md px-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:hidden"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to chat
+            </Link>
+
             <h1 className="text-2xl font-semibold">
               Settings
             </h1>
