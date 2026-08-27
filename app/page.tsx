@@ -17,12 +17,16 @@ export default async function Home() {
       createdAt: "desc",
     },
     select: {
-      conversationId: true,
+      conversation: {
+        select: {
+          publicId: true,
+        },
+      },
     },
   });
 
   if (membership) {
-    redirect(`/chat/${membership.conversationId}`);
+    redirect(`/chat/${membership.conversation.publicId}`);
   }
 
   redirect("/login");
