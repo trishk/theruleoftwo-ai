@@ -45,8 +45,15 @@ export default async function ChatPage({
   const conversationId =
     conversationLookup.id;
 
+  let conversationAccess: Awaited<
+    ReturnType<
+      typeof requireConversationAccess
+    >
+  >;
+
   try {
-    await requireConversationAccess(
+    conversationAccess =
+      await requireConversationAccess(
       conversationId,
       user.id
     );
@@ -84,19 +91,23 @@ export default async function ChatPage({
     userId: user.id,
   });
 
+  const ownerId =
+    conversationAccess.ownerId;
+
+  const ownerName =
+    conversationAccess.owner.name ??
+    "Owner";
+
   const conversation =
     await prisma.conversation.findUnique({
       where: {
         id: conversationId,
       },
-      include: {
-        owner: {
-          select: {
-            name: true,
-          },
-        },
+      select: {
+        id: true,
+        title: true,
         members: {
-          include: {
+          select: {
             user: {
               select: {
                 name: true,
@@ -108,8 +119,19 @@ export default async function ChatPage({
           orderBy: {
             createdAt: "asc",
           },
-          include: {
-            replyTo: true,
+          select: {
+            id: true,
+            authorType: true,
+            authorId: true,
+            content: true,
+            createdAt: true,
+            replyTo: {
+              select: {
+                id: true,
+                authorId: true,
+                content: true,
+              },
+            },
           },
         },
       },
@@ -120,7 +142,7 @@ export default async function ChatPage({
   }
 
   const participants = [
-    conversation.owner.name ?? "Owner",
+    ownerName,
     ...conversation.members.map(
       (member) =>
         member.user.name ?? "Guest"
@@ -206,8 +228,13 @@ export default async function ChatPage({
   const integrations =
     await prisma.userIntegration.findMany({
       where: {
-        userId:
-          conversation.ownerId,
+        userId: ownerId,
+      },
+      select: {
+        provider: true,
+        encryptedApiKey: true,
+        keyIv: true,
+        keyAuthTag: true,
       },
     });
 
@@ -338,7 +365,7 @@ export default async function ChatPage({
           conversation.title
         }
         isOwner={
-          conversation.ownerId ===
+          ownerId ===
           user.id
         }
         isGuest={
