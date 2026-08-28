@@ -30,27 +30,58 @@ export async function getCurrentUser() {
     user.user_metadata?.picture ??
     null;
 
-  const appUser =
-    await prisma.user.upsert({
+  const syncedUser = {
+    email: user.email ?? null,
+    name: googleName,
+    avatarUrl: googleAvatar,
+  };
+
+  const existingUser =
+    await prisma.user.findUnique({
+      where: {
+        id: user.id,
+      },
+    });
+
+  let appUser = existingUser;
+
+  if (!appUser) {
+    appUser = await prisma.user.upsert({
       where: {
         id: user.id,
       },
       update: {
-        email:
-          user.email ?? null,
-        avatarUrl:
-          googleAvatar,
+        email: syncedUser.email,
+        avatarUrl: syncedUser.avatarUrl,
       },
       create: {
         id: user.id,
-        email:
-          user.email ?? null,
-        name:
-          googleName,
-        avatarUrl:
-          googleAvatar,
+        ...syncedUser,
       },
     });
+  } else {
+    const changedFields: {
+      email?: string | null;
+      avatarUrl?: string | null;
+    } = {};
+
+    if (appUser.email !== syncedUser.email) {
+      changedFields.email = syncedUser.email;
+    }
+
+    if (appUser.avatarUrl !== syncedUser.avatarUrl) {
+      changedFields.avatarUrl = syncedUser.avatarUrl;
+    }
+
+    if (Object.keys(changedFields).length > 0) {
+      appUser = await prisma.user.update({
+        where: {
+          id: user.id,
+        },
+        data: changedFields,
+      });
+    }
+  }
 
   return {
     id: appUser.id,
