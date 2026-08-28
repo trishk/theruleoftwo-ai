@@ -1,7 +1,12 @@
 import {
+  Copy,
   Reply,
   RotateCcw,
 } from "lucide-react";
+import {
+  useEffect,
+  useRef,
+} from "react";
 
 import { ProviderIcon } from "@/components/brand/ProviderIcon";
 import { PROVIDER_LIST } from "@/lib/llm/providerMeta";
@@ -9,6 +14,7 @@ import { PROVIDER_LIST } from "@/lib/llm/providerMeta";
 import type { ChatReply } from "./types";
 
 type Props = {
+  messageId: number;
   authorType: "human" | "ai";
   authorName: string;
   content: string;
@@ -17,6 +23,14 @@ type Props = {
   isError?: boolean;
   isStreaming?: boolean;
   replyTo?: ChatReply | null;
+  actionsOpen?: boolean;
+  onOpenActions?: (
+    trigger: HTMLElement
+  ) => void;
+  onCloseActions?: (
+    restoreFocus?: boolean
+  ) => void;
+  onCopy?: () => void;
   onReply?: () => void;
   onRetry?: () => void;
 };
@@ -33,6 +47,7 @@ function formatMessageTime(createdAt: Date): string {
 }
 
 export function MessageItem({
+  messageId,
   authorType,
   authorName,
   content,
@@ -41,9 +56,135 @@ export function MessageItem({
   isError = false,
   isStreaming = false,
   replyTo,
+  actionsOpen = false,
+  onOpenActions,
+  onCloseActions,
+  onCopy,
   onReply,
   onRetry,
 }: Props) {
+  const longPressTimerRef = useRef<
+    ReturnType<typeof setTimeout> | null
+  >(null);
+  const pointerStartRef = useRef<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(
+    null
+  );
+  const longPressOpenedRef = useRef(false);
+
+  function cancelLongPress() {
+    if (longPressTimerRef.current !== null) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    pointerStartRef.current = null;
+  }
+
+  useEffect(() => cancelLongPress, []);
+
+  useEffect(() => {
+    if (actionsOpen) {
+      menuRef.current
+        ?.querySelector<HTMLElement>(
+          '[role="menuitem"]'
+        )
+        ?.focus({ preventScroll: true });
+    }
+  }, [actionsOpen]);
+
+  function handlePointerDown(
+    event: React.PointerEvent<HTMLElement>
+  ) {
+    if (
+      event.pointerType !== "touch" ||
+      !onOpenActions
+    ) {
+      return;
+    }
+    cancelLongPress();
+    longPressOpenedRef.current = false;
+    pointerStartRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+    };
+    const trigger = event.currentTarget;
+    longPressTimerRef.current = setTimeout(() => {
+      longPressTimerRef.current = null;
+      pointerStartRef.current = null;
+      longPressOpenedRef.current = true;
+      onOpenActions(trigger);
+    }, 500);
+  }
+
+  function handlePointerMove(
+    event: React.PointerEvent<HTMLElement>
+  ) {
+    const start = pointerStartRef.current;
+    if (
+      !start ||
+      Math.hypot(
+        event.clientX - start.x,
+        event.clientY - start.y
+      ) <= 10
+    ) {
+      return;
+    }
+    cancelLongPress();
+  }
+
+  function handleContextMenu(
+    event: React.MouseEvent<HTMLElement>
+  ) {
+    if (longPressOpenedRef.current) {
+      event.preventDefault();
+      longPressOpenedRef.current = false;
+    }
+  }
+
+  const pointerProps = {
+    onPointerDown: handlePointerDown,
+    onPointerMove: handlePointerMove,
+    onPointerUp: cancelLongPress,
+    onPointerCancel: cancelLongPress,
+    onContextMenu: handleContextMenu,
+  };
+
+  const actionMenu = actionsOpen ? (
+    <div
+      ref={menuRef}
+      role="menu"
+      data-message-actions="true"
+      aria-label={`Message actions for ${authorName}`}
+      className="absolute right-0 top-full z-20 mt-1 min-w-32 overflow-hidden rounded-xl border border-border bg-background p-1 shadow-lg"
+    >
+      {onReply && (
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => {
+            onCloseActions?.(false);
+            onReply();
+          }}
+          className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-sm text-foreground hover:bg-muted focus:bg-muted focus:outline-none"
+        >
+          <Reply className="h-4 w-4" />
+          Reply
+        </button>
+      )}
+      <button
+        type="button"
+        role="menuitem"
+        onClick={onCopy}
+        className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-sm text-foreground hover:bg-muted focus:bg-muted focus:outline-none"
+      >
+        <Copy className="h-4 w-4" />
+        Copy
+      </button>
+    </div>
+  ) : null;
   const provider =
     PROVIDER_LIST.find(
       (item) =>
@@ -65,8 +206,11 @@ export function MessageItem({
   if (isHuman) {
     return (
       <div
+        data-testid={`message-${messageId}`}
+        tabIndex={-1}
+        {...pointerProps}
         className={[
-          "group flex py-3",
+          "group relative flex touch-pan-y py-3 [@media(pointer:coarse)]:select-none",
           isOwnMessage
             ? "justify-end"
             : "justify-start",
@@ -82,11 +226,12 @@ export function MessageItem({
         >
           {onReply && (
             <button
+              data-desktop-reply="true"
               type="button"
               onClick={onReply}
               aria-label={`Reply to ${authorName}`}
               title={`Reply to ${authorName}`}
-              className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-100 transition-all hover:bg-muted hover:text-foreground md:h-8 md:w-8 md:opacity-0 md:group-hover:opacity-100"
+              className="sr-only mt-1 shrink-0 rounded-md text-muted-foreground transition-all hover:bg-muted hover:text-foreground [@media(pointer:fine)]:not-sr-only [@media(pointer:fine)]:flex [@media(pointer:fine)]:h-8 [@media(pointer:fine)]:w-8 [@media(pointer:fine)]:items-center [@media(pointer:fine)]:justify-center [@media(pointer:fine)]:opacity-0 [@media(pointer:fine)]:group-hover:opacity-100 [@media(pointer:fine)]:focus:opacity-100"
             >
               <Reply className="h-4 w-4" />
             </button>
@@ -181,12 +326,18 @@ export function MessageItem({
             </div>
           </div>
         </div>
+        {actionMenu}
       </div>
     );
   }
 
   return (
-    <div className="group flex gap-3 py-3">
+    <div
+      data-testid={`message-${messageId}`}
+      tabIndex={-1}
+      {...pointerProps}
+      className="group relative flex touch-pan-y gap-3 py-3 [@media(pointer:coarse)]:select-none"
+    >
       <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center">
         {provider ? (
           <ProviderIcon
@@ -216,11 +367,12 @@ export function MessageItem({
 
           {onReply && (
             <button
+              data-desktop-reply="true"
               type="button"
               onClick={onReply}
               aria-label={`Reply to ${authorName}`}
               title={`Reply to ${authorName}`}
-              className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground opacity-100 transition-all hover:bg-muted hover:text-foreground md:h-6 md:w-6 md:opacity-0 md:group-hover:opacity-100"
+              className="sr-only rounded-md text-muted-foreground transition-all hover:bg-muted hover:text-foreground [@media(pointer:fine)]:not-sr-only [@media(pointer:fine)]:flex [@media(pointer:fine)]:h-6 [@media(pointer:fine)]:w-6 [@media(pointer:fine)]:items-center [@media(pointer:fine)]:justify-center [@media(pointer:fine)]:opacity-0 [@media(pointer:fine)]:group-hover:opacity-100 [@media(pointer:fine)]:focus:opacity-100"
             >
               <Reply className="h-3.5 w-3.5" />
             </button>
@@ -271,6 +423,7 @@ export function MessageItem({
           </div>
         )}
       </div>
+      {actionMenu}
     </div>
   );
 }

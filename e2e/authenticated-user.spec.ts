@@ -107,6 +107,39 @@ function messageBubbleContent(page: Page, text: string) {
     });
 }
 
+async function longPressMessage(
+    page: Page,
+    text: string
+) {
+    const message = messageBubbleContent(
+        page,
+        text
+    ).locator("xpath=ancestor::*[@data-testid][1]");
+
+    await message.dispatchEvent("pointerdown", {
+        pointerId: 1,
+        pointerType: "touch",
+        clientX: 20,
+        clientY: 20,
+        bubbles: true,
+    });
+
+    const menu = page.getByRole("menu", {
+        name: /^Message actions for/,
+    });
+    await expect(menu).toBeVisible();
+
+    await message.dispatchEvent("pointerup", {
+        pointerId: 1,
+        pointerType: "touch",
+        clientX: 20,
+        clientY: 20,
+        bubbles: true,
+    });
+
+    return menu;
+}
+
 async function assertMinTouchTarget(
     locator: Locator,
     label: string
@@ -413,7 +446,7 @@ test.describe("Mobile UX (Phase 1B)", () => {
         }
     });
 
-    test("reply and chat options controls are discoverable on touch without hovering", async ({
+    test("long press exposes message actions while chat options remain discoverable", async ({
         page,
     }) => {
         const user = await createE2EUser();
@@ -455,26 +488,32 @@ test.describe("Mobile UX (Phase 1B)", () => {
                 { name: /^Reply to/ }
             );
 
-            // The button exists in the DOM -- that alone is not evidence a
-            // touch user can discover it, since touch devices never trigger
-            // :hover / group-hover. Read the real computed opacity instead.
-            await expect(replyButton).toBeVisible();
+            const replyBox =
+                await replyButton.boundingBox();
 
-            const replyOpacity =
-                await replyButton.evaluate(
-                    (el) =>
-                        getComputedStyle(el)
-                            .opacity
-                );
+            expect(
+                replyBox?.width ?? 0,
+                "The screen-reader Reply control must not be a permanent visible mobile affordance"
+            ).toBeLessThanOrEqual(1);
 
-            expect
-                .soft(
-                    Number(replyOpacity),
-                    "Reply button must be visible on touch without :hover (computed opacity was " +
-                        replyOpacity +
-                        ")"
-                )
-                .toBeGreaterThan(0);
+            const menu = await longPressMessage(
+                page,
+                "mobile-touch-discoverability-check"
+            );
+
+            await expect(
+                menu.getByRole("menuitem", {
+                    name: "Reply",
+                })
+            ).toBeVisible();
+            await expect(
+                menu.getByRole("menuitem", {
+                    name: "Copy",
+                })
+            ).toBeVisible();
+
+            await page.keyboard.press("Escape");
+            await expect(menu).toBeHidden();
 
             await ensureMobileDrawerOpen(page);
 
@@ -610,11 +649,26 @@ test.describe("Mobile UX (Phase 1B)", () => {
                 "Composer send button"
             );
 
+            const messageActions =
+                await longPressMessage(
+                    page,
+                    "mobile-touch-target-size-check"
+                );
+
             await assertMinTouchTarget(
-                page.getByRole("button", {
-                    name: /^Reply to/,
-                }),
-                "Message reply button"
+                messageActions.getByRole(
+                    "menuitem",
+                    { name: "Reply" }
+                ),
+                "Message Reply action"
+            );
+
+            await assertMinTouchTarget(
+                messageActions.getByRole(
+                    "menuitem",
+                    { name: "Copy" }
+                ),
+                "Message Copy action"
             );
 
             const mentionChip = page.getByRole(
