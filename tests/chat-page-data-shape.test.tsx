@@ -6,25 +6,29 @@ const {
   requireConversationAccessMock,
   markConversationReadMock,
   conversationFindUniqueMock,
-  conversationFindManyMock,
   integrationFindManyMock,
   userFindManyMock,
   conversationMemberFindFirstMock,
   notFoundMock,
   redirectMock,
   chatHeaderMock,
+  chatConversationMock,
+  getConversationSummariesMock,
+  chatSidebarMock,
 } = vi.hoisted(() => ({
   requireUserMock: vi.fn(),
   requireConversationAccessMock: vi.fn(),
   markConversationReadMock: vi.fn(),
   conversationFindUniqueMock: vi.fn(),
-  conversationFindManyMock: vi.fn(),
   integrationFindManyMock: vi.fn(),
   userFindManyMock: vi.fn(),
   conversationMemberFindFirstMock: vi.fn(),
   notFoundMock: vi.fn(() => { throw new Error("NEXT_NOT_FOUND"); }),
   redirectMock: vi.fn(() => { throw new Error("NEXT_REDIRECT"); }),
   chatHeaderMock: vi.fn(() => null),
+  chatConversationMock: vi.fn(() => null),
+  getConversationSummariesMock: vi.fn(),
+  chatSidebarMock: vi.fn(() => null),
 }));
 
 vi.mock("@/lib/auth/require-user", () => ({
@@ -38,12 +42,14 @@ vi.mock("@/lib/auth/require-conversation-access", () => ({
 vi.mock("@/lib/conversations/mark-conversation-read", () => ({
   markConversationReadAfterAccessCheck: markConversationReadMock,
 }));
+vi.mock("@/lib/chat/get-conversation-summaries", () => ({
+  getConversationSummaries: getConversationSummariesMock,
+}));
 
 vi.mock("@/lib/db/prisma", () => ({
   prisma: {
     conversation: {
       findUnique: conversationFindUniqueMock,
-      findMany: conversationFindManyMock,
     },
     conversationMember: { findFirst: conversationMemberFindFirstMock },
     userIntegration: { findMany: integrationFindManyMock },
@@ -57,11 +63,11 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/components/chat/navigation/ChatHeader", () => ({ ChatHeader: chatHeaderMock }));
-vi.mock("@/components/chat/conversation/ChatConversation", () => ({ ChatConversation: () => null }));
+vi.mock("@/components/chat/conversation/ChatConversation", () => ({ ChatConversation: chatConversationMock }));
 vi.mock("@/components/chat/navigation/ChatShell", () => ({
-  ChatShell: ({ children }: { children: unknown }) => children,
+  ChatShell: ({ children, sidebar }: { children: React.ReactNode; sidebar: React.ReactNode }) => <>{sidebar}{children}</>,
 }));
-vi.mock("@/components/chat/navigation/ChatSidebar", () => ({ ChatSidebar: () => null }));
+vi.mock("@/components/chat/navigation/ChatSidebar", () => ({ ChatSidebar: chatSidebarMock }));
 vi.mock("@/components/chat/realtime/RealtimeConversationSync", () => ({ RealtimeConversationSync: ({ children }: { children: unknown }) => children }));
 vi.mock("@/components/chat/realtime/RealtimeSidebarSync", () => ({ RealtimeSidebarSync: ({ children }: { children: unknown }) => children }));
 
@@ -92,7 +98,7 @@ describe("chat page data shape", () => {
           replyTo: null,
         }],
       });
-    conversationFindManyMock.mockResolvedValue([]);
+    getConversationSummariesMock.mockResolvedValue([]);
     conversationMemberFindFirstMock.mockResolvedValue(null);
     integrationFindManyMock.mockResolvedValue([]);
     userFindManyMock.mockResolvedValue([{ id: "user-1", name: "User" }]);
@@ -106,7 +112,6 @@ describe("chat page data shape", () => {
       select: {
         id: true,
         title: true,
-        members: { select: { user: { select: { name: true } } } },
         messages: {
           orderBy: { createdAt: "asc" },
           select: {
@@ -115,7 +120,14 @@ describe("chat page data shape", () => {
             authorId: true,
             content: true,
             createdAt: true,
-            replyTo: { select: { id: true, authorId: true, content: true } },
+            replyTo: {
+              select: {
+                id: true,
+                authorType: true,
+                authorId: true,
+                content: true,
+              },
+            },
           },
         },
       },
@@ -139,6 +151,68 @@ describe("chat page data shape", () => {
 
     expect(chatHeaderMock).toHaveBeenCalledWith(
       expect.objectContaining({ isOwner: true }),
+      undefined,
+    );
+  });
+
+  it("uses shared summaries with the active conversation context", async () => {
+    const summaries = [{ id: 42, publicId: "public-id", title: "Measured chat" }];
+    getConversationSummariesMock.mockResolvedValue(summaries);
+
+    const page = await ChatPage({ params: Promise.resolve({ id: "public-id" }) });
+    renderToStaticMarkup(page);
+
+    expect(getConversationSummariesMock).toHaveBeenCalledWith({
+      currentUserId: "user-1",
+      activeConversationId: 42,
+    });
+    expect(chatSidebarMock).toHaveBeenCalledWith(
+      expect.objectContaining({ chats: summaries }),
+      undefined,
+    );
+  });
+
+  it("shapes persisted AI messages with explicit provider identity", async () => {
+    conversationFindUniqueMock.mockReset();
+    conversationFindUniqueMock
+      .mockResolvedValueOnce({ id: 42 })
+      .mockResolvedValueOnce({
+        id: 42,
+        title: "Measured chat",
+        members: [],
+        messages: [{
+          id: 8,
+          authorType: "ai",
+          authorId: "anthropic",
+          content: "A persisted answer",
+          createdAt: new Date("2026-08-27T00:00:00Z"),
+          replyTo: null,
+        }],
+      });
+
+    renderToStaticMarkup(
+      await ChatPage({ params: Promise.resolve({ id: "public-id" }) })
+    );
+
+    expect(chatConversationMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: [
+          expect.objectContaining({
+            authorType: "ai",
+            authorName: "Claude",
+            provider: "anthropic",
+            participant: {
+              id: "ai:anthropic",
+              displayName: "Claude",
+              type: "ai",
+              providerId: "anthropic",
+              avatarUrl: null,
+              initials: "CL",
+              isCurrentUser: false,
+            },
+          }),
+        ],
+      }),
       undefined,
     );
   });

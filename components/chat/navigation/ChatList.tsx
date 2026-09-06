@@ -1,15 +1,8 @@
 import { ChatItem } from "./ChatItem";
-
-type Chat = {
-  id: number;
-  publicId: string;
-  title: string;
-  ownerId: string;
-  hasUnread?: boolean;
-};
+import type { ConversationSummary } from "@/lib/chat/conversation-summary";
 
 type Props = {
-  chats: Chat[];
+  chats: ConversationSummary[];
   currentUserId: string;
   isGuest?: boolean;
 };
@@ -32,17 +25,9 @@ export function ChatList({
       {chats.map((chat) => (
         <ChatItem
           key={chat.id}
-          id={chat.id}
-          publicId={chat.publicId}
-          title={chat.title}
-          isOwner={
-            chat.ownerId ===
-            currentUserId
-          }
+          chat={chat}
+          currentUserId={currentUserId}
           isGuest={isGuest}
-          hasUnread={
-            chat.hasUnread ?? false
-          }
         />
       ))}
     </div>

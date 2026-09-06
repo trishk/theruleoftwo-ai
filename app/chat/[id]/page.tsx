@@ -7,6 +7,11 @@ import { prisma } from "@/lib/db/prisma";
 import { requireUser } from "@/lib/auth/require-user";
 import { requireConversationAccess } from "@/lib/auth/require-conversation-access";
 import { markConversationReadAfterAccessCheck } from "@/lib/conversations/mark-conversation-read";
+import {
+  createAiParticipantIdentity,
+  createHumanParticipantIdentity,
+} from "@/lib/chat/participant-identity";
+import { getConversationSummaries } from "@/lib/chat/get-conversation-summaries";
 
 import { ChatHeader } from "@/components/chat/navigation/ChatHeader";
 import { ChatConversation } from "@/components/chat/conversation/ChatConversation";
@@ -54,9 +59,9 @@ export default async function ChatPage({
   try {
     conversationAccess =
       await requireConversationAccess(
-      conversationId,
-      user.id
-    );
+        conversationId,
+        user.id
+      );
   } catch {
     if (user.isGuest) {
       const membership =
@@ -94,10 +99,6 @@ export default async function ChatPage({
   const ownerId =
     conversationAccess.ownerId;
 
-  const ownerName =
-    conversationAccess.owner.name ??
-    "Owner";
-
   const conversation =
     await prisma.conversation.findUnique({
       where: {
@@ -106,15 +107,6 @@ export default async function ChatPage({
       select: {
         id: true,
         title: true,
-        members: {
-          select: {
-            user: {
-              select: {
-                name: true,
-              },
-            },
-          },
-        },
         messages: {
           orderBy: {
             createdAt: "asc",
@@ -128,6 +120,7 @@ export default async function ChatPage({
             replyTo: {
               select: {
                 id: true,
+                authorType: true,
                 authorId: true,
                 content: true,
               },
@@ -141,88 +134,10 @@ export default async function ChatPage({
     notFound();
   }
 
-  const participants = [
-    ownerName,
-    ...conversation.members.map(
-      (member) =>
-        member.user.name ?? "Guest"
-    ),
-  ];
-
-  const accessibleChats =
-    await prisma.conversation.findMany({
-      where: {
-        OR: [
-          {
-            ownerId: user.id,
-          },
-          {
-            members: {
-              some: {
-                userId: user.id,
-              },
-            },
-          },
-        ],
-      },
-      orderBy: {
-        updatedAt: "desc",
-      },
-      select: {
-        id: true,
-        publicId: true,
-        title: true,
-        ownerId: true,
-        readStates: {
-          where: {
-            userId: user.id,
-          },
-          select: {
-            lastReadAt: true,
-          },
-          take: 1,
-        },
-        messages: {
-          where: {
-            authorId: {
-              not: user.id,
-            },
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-          select: {
-            createdAt: true,
-          },
-          take: 1,
-        },
-      },
-    });
-
   const chats =
-    accessibleChats.map((chat) => {
-      const lastReadAt =
-        chat.readStates[0]?.lastReadAt;
-
-      const latestOtherMessageAt =
-        chat.messages[0]?.createdAt;
-
-      const hasUnread =
-        chat.id !== conversationId &&
-        Boolean(
-          latestOtherMessageAt &&
-            (!lastReadAt ||
-              latestOtherMessageAt >
-                lastReadAt)
-        );
-
-      return {
-        id: chat.id,
-        publicId: chat.publicId,
-        title: chat.title,
-        ownerId: chat.ownerId,
-        hasUnread,
-      };
+    await getConversationSummaries({
+      currentUserId: user.id,
+      activeConversationId: conversationId,
     });
 
   const integrations =
@@ -287,72 +202,78 @@ export default async function ChatPage({
       select: {
         id: true,
         name: true,
+        avatarUrl: true,
       },
     });
 
-  const authorNames = new Map(
+  const humanParticipants = new Map(
     humanAuthors.map((author) => [
       author.id,
-      author.name,
+      createHumanParticipantIdentity({
+        id: author.id,
+        displayName: author.name,
+        avatarUrl: author.avatarUrl,
+        currentUserId: user.id,
+      }),
     ])
   );
 
-  function getAuthorName(
+  function getParticipant(
+    authorType: string,
     authorId: string
   ) {
-    if (authorId === "openai") {
-      return "ChatGPT";
-    }
-
-    if (authorId === "anthropic") {
-      return "Claude";
-    }
-
-    if (authorId === "google") {
-      return "Gemini";
+    if (authorType === "ai") {
+      return createAiParticipantIdentity(authorId);
     }
 
     return (
-      authorNames.get(authorId) ??
-      "Unknown user"
+      humanParticipants.get(authorId) ??
+      createHumanParticipantIdentity({
+        id: authorId,
+        displayName: null,
+        avatarUrl: null,
+        currentUserId: user.id,
+      })
     );
   }
 
   const messages =
     conversation.messages.map(
-      (message) => ({
-        id: message.id,
-        authorType:
-          message.authorType === "ai"
-            ? ("ai" as const)
-            : ("human" as const),
-        authorName:
-          getAuthorName(
+      (message) => {
+        const participant =
+          getParticipant(
+            message.authorType,
             message.authorId
-          ),
-        content:
-          message.content,
-        createdAt:
-          message.createdAt,
-        isOwnMessage:
-          message.authorId ===
-          user.id,
-        replyTo:
-          message.replyTo
+          );
+
+        return {
+          id: message.id,
+          authorType:
+            message.authorType === "ai"
+              ? ("ai" as const)
+              : ("human" as const),
+          authorName: participant.displayName,
+          participant,
+          provider:
+            message.authorType === "ai"
+              ? message.authorId
+              : undefined,
+          content: message.content,
+          createdAt: message.createdAt,
+          isOwnMessage:
+            message.authorId === user.id,
+          replyTo: message.replyTo
             ? {
-                id:
-                  message.replyTo.id,
-                authorName:
-                  getAuthorName(
-                    message.replyTo
-                      .authorId
-                  ),
-                content:
-                  message.replyTo
-                    .content,
+                id: message.replyTo.id,
+                authorName: getParticipant(
+                  message.replyTo.authorType,
+                  message.replyTo.authorId
+                ).displayName,
+                content: message.replyTo.content,
               }
             : null,
-      })
+        };
+      }
     );
 
   const chatContent = (
@@ -371,9 +292,9 @@ export default async function ChatPage({
         isGuest={
           user.isGuest
         }
-        participants={
-          participants
-        }
+        summary={chats.find(
+          (chat) => chat.id === conversation.id
+        )}
       />
 
       <ChatConversation

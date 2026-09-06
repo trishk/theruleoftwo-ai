@@ -893,6 +893,8 @@ describe(
                                 authorType: "ai",
                                 authorName:
                                     "ChatGPT",
+                                provider:
+                                    "openai",
                                 content:
                                     "ChatGPT finished response",
                                 createdAt:
@@ -905,6 +907,8 @@ describe(
                                 authorType: "ai",
                                 authorName:
                                     "Claude",
+                                provider:
+                                    "anthropic",
                                 content:
                                     "Claude finished response",
                                 createdAt:
@@ -1015,6 +1019,8 @@ describe(
                                             "ai",
                                         authorName:
                                             "ChatGPT",
+                                        provider:
+                                            "openai",
                                         content:
                                             "Persisted AI response",
                                         createdAt:

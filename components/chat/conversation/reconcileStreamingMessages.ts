@@ -7,8 +7,8 @@ export function isStreamingMessagePersisted(
   return persistedMessages.some(
     (persistedMessage) =>
       persistedMessage.authorType === "ai" &&
-      persistedMessage.authorName ===
-        streamingMessage.authorName &&
+      persistedMessage.provider ===
+        streamingMessage.provider &&
       persistedMessage.content ===
         streamingMessage.content
   );
@@ -35,12 +35,8 @@ export function reconcileStreamingMessages(
             ) &&
             persistedMessage.authorType ===
               "ai" &&
-            persistedMessage.authorName ===
-              streamingMessage.authorName &&
-            (!persistedMessage.provider ||
-              !streamingMessage.provider ||
-              persistedMessage.provider ===
-                streamingMessage.provider) &&
+            persistedMessage.provider ===
+              streamingMessage.provider &&
             (persistedMessage.content ===
               streamingMessage.content ||
               Boolean(

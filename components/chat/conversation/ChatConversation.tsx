@@ -16,6 +16,7 @@ import {
 } from "./reconcileStreamingMessages";
 
 import type { Provider } from "@/lib/llm/types";
+import { isKnownProvider } from "@/lib/chat/participant-identity";
 import type {
   ChatMessage,
   ChatReply,
@@ -159,6 +160,7 @@ function ChatConversationSession({
     (selectedMessage: ChatMessage) => {
       if (
         !selectedMessage.provider ||
+        !isKnownProvider(selectedMessage.provider) ||
         !selectedMessage.sourceMessageId
       ) {
         return;
