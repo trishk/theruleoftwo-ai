@@ -1,13 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { renderToStaticMarkup } from "react-dom/server";
 
 const {
   requireUserMock,
   findFirstMock,
   redirectMock,
+  getConversationSummariesMock,
+  chatSidebarMock,
 } = vi.hoisted(() => ({
   requireUserMock: vi.fn(),
   findFirstMock: vi.fn(),
   redirectMock: vi.fn(),
+  getConversationSummariesMock: vi.fn(),
+  chatSidebarMock: vi.fn(() => null),
 }));
 
 vi.mock("@/lib/auth/require-user", () => ({
@@ -26,16 +31,20 @@ vi.mock("next/navigation", () => ({
   redirect: redirectMock,
 }));
 
+vi.mock("@/lib/chat/get-conversation-summaries", () => ({
+  getConversationSummaries: getConversationSummariesMock,
+}));
+
 vi.mock("@/components/chat/navigation/ChatHeader", () => ({
   ChatHeader: () => null,
 }));
 
 vi.mock("@/components/chat/navigation/ChatShell", () => ({
-  ChatShell: () => null,
+  ChatShell: ({ sidebar }: { sidebar: unknown }) => sidebar,
 }));
 
 vi.mock("@/components/chat/navigation/ChatSidebar", () => ({
-  ChatSidebar: () => null,
+  ChatSidebar: chatSidebarMock,
 }));
 
 import Home from "@/app/page";
@@ -43,6 +52,7 @@ import Home from "@/app/page";
 describe("home page guest navigation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getConversationSummariesMock.mockResolvedValue([]);
 
     redirectMock.mockImplementation(() => {
       throw new Error("NEXT_REDIRECT");
@@ -83,5 +93,22 @@ describe("home page guest navigation", () => {
       "/chat/conversation-public-id"
     );
     expect(redirectMock).not.toHaveBeenCalledWith("/chat/42");
+  });
+
+  it("uses the shared conversation summary loader", async () => {
+    const summaries = [{ id: 1, publicId: "one", title: "One" }];
+    requireUserMock.mockResolvedValue({ id: "user-1", isGuest: false });
+    getConversationSummariesMock.mockResolvedValue(summaries);
+
+    renderToStaticMarkup(await Home());
+
+    expect(getConversationSummariesMock).toHaveBeenCalledWith({
+      currentUserId: "user-1",
+      activeConversationId: null,
+    });
+    expect(chatSidebarMock).toHaveBeenCalledWith(
+      expect.objectContaining({ chats: summaries }),
+      undefined,
+    );
   });
 });

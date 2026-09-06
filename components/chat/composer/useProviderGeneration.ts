@@ -6,6 +6,7 @@ import {
 } from "react";
 
 import type { Provider } from "@/lib/llm/types";
+import { createAiParticipantIdentity } from "@/lib/chat/participant-identity";
 
 import {
   StreamRequestError,
@@ -418,6 +419,8 @@ export function useProviderGeneration({
 
     const authorName =
       getProviderDisplayName(provider);
+    const participant =
+      createAiParticipantIdentity(provider);
 
     onStreamingMessagesChange(
       (current) => [
@@ -426,6 +429,7 @@ export function useProviderGeneration({
           id: temporaryMessageId,
           authorType: "ai",
           authorName,
+          participant,
           content: "",
           createdAt: new Date(),
           isOwnMessage: false,

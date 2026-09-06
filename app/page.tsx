@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import { ChatShell } from "@/components/chat/navigation/ChatShell";
 import { ChatSidebar } from "@/components/chat/navigation/ChatSidebar";
 import { requireUser } from "@/lib/auth/require-user";
+import { getConversationSummaries } from "@/lib/chat/get-conversation-summaries";
 import { redirect } from "next/navigation";
 
 export default async function Home() {
@@ -32,24 +33,9 @@ export default async function Home() {
   redirect("/login");
 }
 
-  const chats = await prisma.conversation.findMany({
-    where: {
-      OR: [
-        {
-          ownerId: user.id,
-        },
-        {
-          members: {
-            some: {
-              userId: user.id,
-            },
-          },
-        },
-      ],
-    },
-    orderBy: {
-      updatedAt: "desc",
-    },
+  const chats = await getConversationSummaries({
+    currentUserId: user.id,
+    activeConversationId: null,
   });
 
   return (

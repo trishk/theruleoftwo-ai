@@ -20,26 +20,29 @@ import {
   deleteConversation,
   renameConversation,
 } from "@/app/actions";
+import type { ConversationSummary } from "@/lib/chat/conversation-summary";
 
 import { useOptionalConversationRealtime } from "../realtime/RealtimeConversationSync";
 import { useOptionalSidebarRealtime } from "../realtime/RealtimeSidebarSync";
 
 type Props = {
-  id: number;
-  publicId: string;
-  title: string;
-  isOwner: boolean;
+  chat: ConversationSummary;
+  currentUserId: string;
   isGuest?: boolean;
-  hasUnread?: boolean;
 };
 
 export function ChatItem({
-  id,
-  publicId,
-  title,
-  isOwner,
-  hasUnread = false,
+  chat,
+  currentUserId,
 }: Props) {
+  const {
+    id,
+    publicId,
+    title,
+    ownerId,
+    hasUnread,
+  } = chat;
+  const isOwner = ownerId === currentUserId;
   const pathname = usePathname();
   const router = useRouter();
 

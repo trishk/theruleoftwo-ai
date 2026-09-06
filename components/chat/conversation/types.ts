@@ -1,4 +1,4 @@
-import type { Provider } from "@/lib/llm/types";
+import type { ParticipantIdentity } from "@/lib/chat/participant-identity";
 
 export type AuthorType = "human" | "ai";
 
@@ -19,7 +19,9 @@ export type ChatMessage = {
   isStopped?: boolean;
   isError?: boolean;
   isRetryable?: boolean;
-  provider?: Provider;
+  /** Explicit AI provider identity; never infer this from authorName. */
+  provider?: string;
+  participant?: ParticipantIdentity;
   sourceMessageId?: number;
   replyTo?: ChatReply | null;
 };

@@ -11,19 +11,12 @@ import {
 } from "@/app/actions";
 
 import { RuleOfTwoLogo } from "@/components/brand/RuleOfTwoLogo";
+import type { ConversationSummary } from "@/lib/chat/conversation-summary";
 
 import { ChatList } from "./ChatList";
 
-type Chat = {
-  id: number;
-  publicId: string;
-  title: string;
-  ownerId: string;
-  hasUnread?: boolean;
-};
-
 type Props = {
-  chats: Chat[];
+  chats: ConversationSummary[];
   currentUserId: string;
   isGuest?: boolean;
 };

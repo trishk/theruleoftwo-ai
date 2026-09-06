@@ -9,7 +9,10 @@ import {
 } from "react";
 
 import { ProviderIcon } from "@/components/brand/ProviderIcon";
-import { PROVIDER_LIST } from "@/lib/llm/providerMeta";
+import {
+  isKnownProvider,
+  type ParticipantIdentity,
+} from "@/lib/chat/participant-identity";
 
 import type { ChatReply } from "./types";
 
@@ -17,6 +20,8 @@ type Props = {
   messageId: number;
   authorType: "human" | "ai";
   authorName: string;
+  participant?: ParticipantIdentity;
+  provider?: string;
   content: string;
   createdAt: Date;
   isOwnMessage: boolean;
@@ -50,6 +55,8 @@ export function MessageItem({
   messageId,
   authorType,
   authorName,
+  participant,
+  provider: providerId,
   content,
   createdAt,
   isOwnMessage,
@@ -186,13 +193,11 @@ export function MessageItem({
     </div>
   ) : null;
   const provider =
-    PROVIDER_LIST.find(
-      (item) =>
-        item.id.toLowerCase() ===
-          authorName.toLowerCase() ||
-        item.name.toLowerCase() ===
-          authorName.toLowerCase()
-    );
+    providerId && isKnownProvider(providerId)
+      ? providerId
+      : undefined;
+  const displayName =
+    participant?.displayName ?? authorName;
 
   const isHuman =
     authorType === "human";
@@ -341,7 +346,7 @@ export function MessageItem({
       <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center">
         {provider ? (
           <ProviderIcon
-            provider={provider.id}
+            provider={provider}
             size={18}
           />
         ) : (
@@ -352,7 +357,7 @@ export function MessageItem({
       <div className="min-w-0 flex-1">
         <div className="mb-1.5 flex items-center gap-2">
           <div className="text-sm font-semibold text-foreground">
-            {provider?.name ?? authorName}
+            {displayName}
           </div>
 
           {formattedTime && (

@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { updateDisplayName } from "@/app/actions";
 import { requireUser } from "@/lib/auth/require-user";
 import { prisma } from "@/lib/db/prisma";
+import { getConversationSummaries } from "@/lib/chat/get-conversation-summaries";
 import { PROVIDERS } from "@/lib/llm/providers";
 
 import type { Provider } from "@/lib/llm/types";
@@ -47,30 +48,9 @@ export default async function SettingsPage() {
   }
 
   const chats =
-    await prisma.conversation.findMany({
-      where: {
-        OR: [
-          {
-            ownerId: user.id,
-          },
-          {
-            members: {
-              some: {
-                userId: user.id,
-              },
-            },
-          },
-        ],
-      },
-      orderBy: {
-        updatedAt: "desc",
-      },
-      select: {
-        id: true,
-        publicId: true,
-        title: true,
-        ownerId: true,
-      },
+    await getConversationSummaries({
+      currentUserId: user.id,
+      activeConversationId: null,
     });
 
   const integrations =

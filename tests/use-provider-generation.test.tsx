@@ -104,6 +104,15 @@ describe("useProviderGeneration", () => {
         ).toMatchObject({
             authorType: "ai",
             authorName: "ChatGPT",
+            participant: {
+                id: "ai:openai",
+                displayName: "ChatGPT",
+                type: "ai",
+                providerId: "openai",
+                avatarUrl: null,
+                initials: "CH",
+                isCurrentUser: false,
+            },
             content:
                 "Mocked LLM response",
             provider: "openai",

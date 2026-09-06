@@ -16,6 +16,7 @@ import {
   createConversationInvite,
   renameConversation,
 } from "@/app/actions";
+import type { ConversationSummary } from "@/lib/chat/conversation-summary";
 
 import { LeaveConversationButton } from "./LeaveConversationButton";
 import { useOptionalConversationRealtime } from "../realtime/RealtimeConversationSync";
@@ -25,7 +26,7 @@ type Props = {
   title?: string;
   isOwner?: boolean;
   isGuest?: boolean;
-  participants?: string[];
+  summary?: ConversationSummary;
 };
 
 export function ChatHeader({
@@ -33,7 +34,7 @@ export function ChatHeader({
   title = "Conversation",
   isOwner = false,
   isGuest = false,
-  participants = [],
+  summary,
 }: Props) {
   const conversationRealtime =
     useOptionalConversationRealtime();
@@ -53,7 +54,11 @@ export function ChatHeader({
     useState(false);
 
   const hasMultipleHumans =
-    participants.length > 1;
+    (summary?.humanCount ?? 0) > 1;
+  const humanParticipantNames =
+    summary?.participants
+      .filter((participant) => participant.type === "human")
+      .map((participant) => participant.displayName) ?? [];
 
   function startEditing() {
     setValue(title);
@@ -184,9 +189,9 @@ export function ChatHeader({
               </span>
             )}
 
-            {participants.length > 1 && (
+            {humanParticipantNames.length > 1 && (
               <div className="truncate text-xs text-muted-foreground">
-                {participants.join(
+                {humanParticipantNames.join(
                   " · "
                 )}
               </div>
