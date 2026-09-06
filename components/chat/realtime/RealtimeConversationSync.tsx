@@ -58,6 +58,8 @@ export function RealtimeConversationSync({
     const supabase =
       supabaseRef.current;
 
+    let disposed = false;
+
     const channel = supabase
       .channel(
         `conversation:${conversationPublicId}`
@@ -86,29 +88,40 @@ export function RealtimeConversationSync({
       channel;
 
     channel.subscribe(
-      (status, error) => {
+      (status) => {
+        if (disposed) {
+          return;
+        }
+
         if (
           status === "SUBSCRIBED"
         ) {
           setIsReady(true);
+          scheduleRefresh();
+
+          return;
         }
 
         if (
           status ===
             "CHANNEL_ERROR" ||
           status ===
-            "TIMED_OUT"
+            "TIMED_OUT" ||
+          status === "CLOSED"
         ) {
+          setIsReady(false);
+
           console.error(
-            "Realtime channel error:",
-            status,
-            error
+            "Realtime channel unavailable:",
+            status
           );
         }
       }
     );
 
     return () => {
+      disposed = true;
+
       setIsReady(false);
 
       channelRef.current =
@@ -132,12 +145,19 @@ export function RealtimeConversationSync({
         return;
       }
 
-      await channel.send({
-        type: "broadcast",
-        event:
-          "message-created",
-        payload: {},
-      });
+      const status =
+        await channel.send({
+          type: "broadcast",
+          event:
+            "message-created",
+          payload: {},
+        });
+
+      if (status !== "ok") {
+        throw new Error(
+          `Realtime broadcast returned ${status}`
+        );
+      }
     }, []);
 
   const broadcastConversationUpdated =

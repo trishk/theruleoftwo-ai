@@ -23,6 +23,7 @@ const {
   stopGenerationMock,
   refreshMock,
   broadcastMessageCreatedMock,
+  realtimeState,
 } = vi.hoisted(() => ({
   sendHumanMessageMock: vi.fn(),
   generateProvidersMock: vi.fn(),
@@ -31,6 +32,9 @@ const {
   refreshMock: vi.fn(),
   broadcastMessageCreatedMock:
     vi.fn(),
+  realtimeState: {
+    isReady: true,
+  },
 }));
 
 vi.mock(
@@ -57,7 +61,8 @@ vi.mock(
       () => ({
         broadcastMessageCreated:
           broadcastMessageCreatedMock,
-        isReady: true,
+        isReady:
+          realtimeState.isReady,
       }),
   })
 );
@@ -149,6 +154,8 @@ describe(
       broadcastMessageCreatedMock.mockResolvedValue(
         undefined
       );
+
+      realtimeState.isReady = true;
     });
 
     it(
@@ -346,6 +353,212 @@ describe(
         expect(
           broadcastMessageCreatedMock
         ).toHaveBeenCalledTimes(2);
+      }
+    );
+
+    it(
+      "does not keep the composer disabled when a broadcast never resolves",
+      async () => {
+        broadcastMessageCreatedMock.mockReturnValue(
+          new Promise(() => {})
+        );
+
+        const { result } =
+          renderHook(() =>
+            useTestHarness()
+          );
+
+        act(() => {
+          result.current.setMessage(
+            "@chatgpt hello"
+          );
+        });
+
+        await act(async () => {
+          await result.current.submitMessage();
+        });
+
+        expect(
+          result.current.sending
+        ).toBe(false);
+
+        expect(
+          result.current.error
+        ).toBeNull();
+      }
+    );
+
+    it(
+      "re-enables the composer after persistence in React Strict Mode",
+      async () => {
+        const { result } =
+          renderHook(
+            () =>
+              useTestHarness(),
+            {
+              reactStrictMode: true,
+            }
+          );
+
+        act(() => {
+          result.current.setMessage(
+            "hello"
+          );
+        });
+
+        await act(async () => {
+          await result.current.submitMessage();
+        });
+
+        expect(
+          result.current.sending
+        ).toBe(false);
+      }
+    );
+
+    it(
+      "starts provider generation while the realtime notification is pending",
+      async () => {
+        broadcastMessageCreatedMock.mockReturnValue(
+          new Promise(() => {})
+        );
+
+        const { result } =
+          renderHook(() =>
+            useTestHarness()
+          );
+
+        act(() => {
+          result.current.setMessage(
+            "@chatgpt hello"
+          );
+        });
+
+        await act(async () => {
+          await result.current.submitMessage();
+        });
+
+        expect(
+          generateProvidersMock
+        ).toHaveBeenCalledWith(
+          ["openai"],
+          100
+        );
+      }
+    );
+
+    it(
+      "attempts the background notification after persistence while the channel is not ready",
+      async () => {
+        realtimeState.isReady = false;
+
+        const { result } =
+          renderHook(() =>
+            useTestHarness()
+          );
+
+        act(() => {
+          result.current.setMessage(
+            "hello"
+          );
+        });
+
+        await act(async () => {
+          await result.current.submitMessage();
+        });
+
+        expect(
+          broadcastMessageCreatedMock
+        ).toHaveBeenCalledTimes(2);
+      }
+    );
+
+    it.each([
+      [
+        "a synchronous error",
+        () => {
+          broadcastMessageCreatedMock.mockImplementation(
+            () => {
+              throw new Error(
+                "sensitive synchronous detail"
+              );
+            }
+          );
+        },
+      ],
+      [
+        "a rejected promise",
+        () => {
+          broadcastMessageCreatedMock.mockRejectedValue(
+            new Error(
+              "sensitive rejection detail"
+            )
+          );
+        },
+      ],
+      [
+        "an error status",
+        () => {
+          broadcastMessageCreatedMock.mockRejectedValue(
+            new Error(
+              "Realtime broadcast returned error"
+            )
+          );
+        },
+      ],
+      [
+        "a timed-out status",
+        () => {
+          broadcastMessageCreatedMock.mockRejectedValue(
+            new Error(
+              "Realtime broadcast returned timed out"
+            )
+          );
+        },
+      ],
+    ])(
+      "keeps an already persisted message successful after %s",
+      async (_label, arrangeBroadcastFailure) => {
+        const consoleError =
+          vi.spyOn(
+            console,
+            "error"
+          ).mockImplementation(
+            () => {}
+          );
+
+        arrangeBroadcastFailure();
+
+        const { result } =
+          renderHook(() =>
+            useTestHarness()
+          );
+
+        act(() => {
+          result.current.setMessage(
+            "@chatgpt hello"
+          );
+        });
+
+        await act(async () => {
+          await result.current.submitMessage();
+        });
+
+        expect(
+          result.current.error
+        ).toBeNull();
+
+        expect(
+          result.current.optimisticMessages
+        ).toHaveLength(1);
+
+        expect(
+          consoleError
+        ).toHaveBeenCalledWith(
+          "Realtime message notification failed."
+        );
+
+        consoleError.mockRestore();
       }
     );
 

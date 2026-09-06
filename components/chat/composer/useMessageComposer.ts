@@ -43,7 +43,6 @@ export function useMessageComposer({
 
   const {
     broadcastMessageCreated,
-    isReady,
   } = useConversationRealtime();
 
   const [message, setMessage] =
@@ -58,6 +57,8 @@ export function useMessageComposer({
   const isActiveRef = useRef(true);
 
   useEffect(() => {
+    isActiveRef.current = true;
+
     return () => {
       isActiveRef.current = false;
     };
@@ -73,9 +74,19 @@ export function useMessageComposer({
     onStreamingMessagesChange,
   });
 
-  async function syncConversation() {
-    if (isReady) {
-      await broadcastMessageCreated();
+  function syncConversation() {
+    try {
+      void Promise.resolve(
+        broadcastMessageCreated()
+      ).catch(() => {
+        console.error(
+          "Realtime message notification failed."
+        );
+      });
+    } catch {
+      console.error(
+        "Realtime message notification failed."
+      );
     }
   }
 
@@ -98,7 +109,7 @@ export function useMessageComposer({
 
     router.refresh();
 
-    await syncConversation();
+    syncConversation();
   }
 
   async function submitMessage() {
@@ -154,7 +165,7 @@ export function useMessageComposer({
       );
 
       if (isActiveRef.current) {
-        await syncConversation();
+        syncConversation();
       }
 
       await generateProviders(
@@ -168,7 +179,7 @@ export function useMessageComposer({
 
       router.refresh();
 
-      await syncConversation();
+      syncConversation();
     } catch (submitError) {
       if (!isActiveRef.current) {
         return;

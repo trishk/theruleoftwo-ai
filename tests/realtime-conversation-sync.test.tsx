@@ -8,6 +8,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import {
+  afterEach,
   beforeEach,
   describe,
   expect,
@@ -38,6 +39,10 @@ let subscriptionCallback:
       status: string,
       error?: Error
     ) => void)
+  | undefined;
+
+let messageBroadcastPromise:
+  | Promise<void>
   | undefined;
 
 const eventHandlers =
@@ -85,9 +90,10 @@ function TestConsumer() {
       </div>
 
       <button
-        onClick={() =>
-          void broadcastMessageCreated()
-        }
+        onClick={() => {
+          messageBroadcastPromise =
+            broadcastMessageCreated();
+        }}
       >
         Broadcast message
       </button>
@@ -119,6 +125,9 @@ describe(
       eventHandlers.clear();
 
       subscriptionCallback =
+        undefined;
+
+      messageBroadcastPromise =
         undefined;
 
       onMock.mockImplementation(
@@ -163,6 +172,11 @@ describe(
       channelMock.mockReturnValue(
         fakeChannel
       );
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+      vi.restoreAllMocks();
     });
 
     it(
@@ -211,8 +225,10 @@ describe(
     );
 
     it(
-      "becomes ready after Supabase reports SUBSCRIBED",
+      "becomes ready and schedules one coalesced reconciliation after SUBSCRIBED",
       async () => {
+        vi.useFakeTimers();
+
         render(
           <RealtimeConversationSync
             conversationPublicId="chat-public-id"
@@ -229,23 +245,137 @@ describe(
           "not-ready"
         );
 
-        await act(
-          async () => {
-            subscriptionCallback?.(
-              "SUBSCRIBED"
-            );
-          }
-        );
-
-        await waitFor(() => {
-          expect(
-            screen.getByTestId(
-              "ready"
-            )
-          ).toHaveTextContent(
-            "ready"
+        await act(async () => {
+          subscriptionCallback?.(
+            "SUBSCRIBED"
           );
         });
+
+        expect(
+          screen.getByTestId(
+            "ready"
+          )
+        ).toHaveTextContent(
+          "ready"
+        );
+
+        expect(
+          refreshMock
+        ).not.toHaveBeenCalled();
+
+        await act(async () => {
+          vi.advanceTimersByTime(25);
+        });
+
+        expect(
+          refreshMock
+        ).toHaveBeenCalledTimes(1);
+
+        expect(
+          subscribeMock
+        ).toHaveBeenCalledTimes(1);
+
+        vi.useRealTimers();
+      }
+    );
+
+    it.each([
+      "CHANNEL_ERROR",
+      "TIMED_OUT",
+      "CLOSED",
+    ])(
+      "clears readiness when Supabase reports %s",
+      async (status) => {
+        const consoleError =
+          vi.spyOn(
+            console,
+            "error"
+          ).mockImplementation(
+            () => {}
+          );
+
+        render(
+          <RealtimeConversationSync
+            conversationPublicId="chat-public-id"
+          >
+            <TestConsumer />
+          </RealtimeConversationSync>
+        );
+
+        await act(async () => {
+          subscriptionCallback?.(
+            "SUBSCRIBED"
+          );
+          subscriptionCallback?.(
+            status
+          );
+        });
+
+        expect(
+          screen.getByTestId(
+            "ready"
+          )
+        ).toHaveTextContent(
+          "not-ready"
+        );
+
+        consoleError.mockRestore();
+      }
+    );
+
+    it(
+      "restores readiness and reconciles after a subsequent SUBSCRIBED status",
+      async () => {
+        vi.useFakeTimers();
+
+        const consoleError =
+          vi.spyOn(
+            console,
+            "error"
+          ).mockImplementation(
+            () => {}
+          );
+
+        render(
+          <RealtimeConversationSync
+            conversationPublicId="chat-public-id"
+          >
+            <TestConsumer />
+          </RealtimeConversationSync>
+        );
+
+        await act(async () => {
+          subscriptionCallback?.(
+            "SUBSCRIBED"
+          );
+          vi.advanceTimersByTime(25);
+          subscriptionCallback?.(
+            "CHANNEL_ERROR"
+          );
+          subscriptionCallback?.(
+            "SUBSCRIBED"
+          );
+          vi.advanceTimersByTime(25);
+        });
+
+        expect(
+          screen.getByTestId(
+            "ready"
+          )
+        ).toHaveTextContent(
+          "ready"
+        );
+
+        expect(
+          refreshMock
+        ).toHaveBeenCalledTimes(2);
+
+        expect(
+          subscribeMock
+        ).toHaveBeenCalledTimes(1);
+
+        consoleError.mockRestore();
+        vi.useRealTimers();
       }
     );
 
@@ -396,6 +526,42 @@ describe(
             payload: {},
           });
         });
+      }
+    );
+
+    it.each([
+      "error",
+      "timed out",
+    ])(
+      "rejects a non-ok %s message broadcast status",
+      async (status) => {
+        sendMock.mockResolvedValue(
+          status
+        );
+
+        render(
+          <RealtimeConversationSync
+            conversationPublicId="chat-public-id"
+          >
+            <TestConsumer />
+          </RealtimeConversationSync>
+        );
+
+        fireEvent.click(
+          screen.getByRole(
+            "button",
+            {
+              name:
+                "Broadcast message",
+            }
+          )
+        );
+
+        await expect(
+          messageBroadcastPromise
+        ).rejects.toThrow(
+          `Realtime broadcast returned ${status}`
+        );
       }
     );
 
