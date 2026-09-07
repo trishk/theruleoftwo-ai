@@ -221,6 +221,12 @@ describe(
 
           await submitPromise;
         });
+
+        expect(
+          result.current.optimisticMessages[0]
+        ).toMatchObject({
+          persistedMessageId: 100,
+        });
       }
     );
 

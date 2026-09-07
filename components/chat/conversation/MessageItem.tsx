@@ -3,6 +3,9 @@ import {
   Reply,
   RotateCcw,
 } from "lucide-react";
+import Image, {
+  type ImageLoaderProps,
+} from "next/image";
 import {
   useEffect,
   useRef,
@@ -10,6 +13,8 @@ import {
 
 import { ProviderIcon } from "@/components/brand/ProviderIcon";
 import {
+  createAiParticipantIdentity,
+  getParticipantInitials,
   isKnownProvider,
   type ParticipantIdentity,
 } from "@/lib/chat/participant-identity";
@@ -49,6 +54,29 @@ function formatMessageTime(createdAt: Date): string {
     hour: "numeric",
     minute: "2-digit",
   });
+}
+
+function getSafeAvatarUrl(avatarUrl: string | null | undefined) {
+  if (!avatarUrl) {
+    return null;
+  }
+
+  if (avatarUrl.startsWith("/") && !avatarUrl.startsWith("//")) {
+    return avatarUrl;
+  }
+
+  try {
+    const url = new URL(avatarUrl);
+    return url.protocol === "https:" || url.protocol === "http:"
+      ? avatarUrl
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function avatarImageLoader({ src }: ImageLoaderProps) {
+  return src;
 }
 
 export function MessageItem({
@@ -159,12 +187,27 @@ export function MessageItem({
     onContextMenu: handleContextMenu,
   };
 
+  const aiIdentity =
+    authorType === "ai"
+      ? createAiParticipantIdentity(
+          providerId ??
+            (participant?.type === "ai"
+              ? participant.providerId
+              : "")
+        )
+      : null;
+  const displayName = aiIdentity
+    ? aiIdentity.displayName
+    : participant?.type === "human"
+      ? participant.displayName
+      : authorName;
+
   const actionMenu = actionsOpen ? (
     <div
       ref={menuRef}
       role="menu"
       data-message-actions="true"
-      aria-label={`Message actions for ${authorName}`}
+      aria-label={`Message actions for ${displayName}`}
       className="absolute right-0 top-full z-20 mt-1 min-w-32 overflow-hidden rounded-xl border border-border bg-background p-1 shadow-lg"
     >
       {onReply && (
@@ -192,15 +235,24 @@ export function MessageItem({
       </button>
     </div>
   ) : null;
+  const initials = aiIdentity
+    ? aiIdentity.initials
+    : participant?.type === "human"
+      ? participant.initials
+      : getParticipantInitials(displayName);
+  const avatarUrl =
+    participant?.type === "human"
+      ? getSafeAvatarUrl(participant.avatarUrl)
+      : null;
   const provider =
-    providerId && isKnownProvider(providerId)
-      ? providerId
+    aiIdentity && isKnownProvider(aiIdentity.providerId)
+      ? aiIdentity.providerId
       : undefined;
-  const displayName =
-    participant?.displayName ?? authorName;
-
-  const isHuman =
-    authorType === "human";
+  const isCurrentUser =
+    authorType === "human" &&
+    (isOwnMessage ||
+      (participant?.type === "human" &&
+        participant.isCurrentUser));
 
   const messageTimeIso =
     createdAt instanceof Date && !isNaN(createdAt.getTime())
@@ -208,160 +260,64 @@ export function MessageItem({
       : undefined;
   const formattedTime = formatMessageTime(createdAt);
 
-  if (isHuman) {
-    return (
-      <div
-        data-testid={`message-${messageId}`}
-        tabIndex={-1}
-        {...pointerProps}
-        className={[
-          "group relative flex touch-pan-y py-3 [@media(pointer:coarse)]:select-none",
-          isOwnMessage
-            ? "justify-end"
-            : "justify-start",
-        ].join(" ")}
-      >
-        <div
-          className={[
-            "flex max-w-[78%] items-start gap-2",
-            isOwnMessage
-              ? "flex-row"
-              : "flex-row-reverse",
-          ].join(" ")}
-        >
-          {onReply && (
-            <button
-              data-desktop-reply="true"
-              type="button"
-              onClick={onReply}
-              aria-label={`Reply to ${authorName}`}
-              title={`Reply to ${authorName}`}
-              className="sr-only mt-1 shrink-0 rounded-md text-muted-foreground transition-all hover:bg-muted hover:text-foreground [@media(pointer:fine)]:not-sr-only [@media(pointer:fine)]:flex [@media(pointer:fine)]:h-8 [@media(pointer:fine)]:w-8 [@media(pointer:fine)]:items-center [@media(pointer:fine)]:justify-center [@media(pointer:fine)]:opacity-0 [@media(pointer:fine)]:group-hover:opacity-100 [@media(pointer:fine)]:focus:opacity-100"
-            >
-              <Reply className="h-4 w-4" />
-            </button>
-          )}
-
-          <div
-            className={[
-              "min-w-0",
-              isOwnMessage
-                ? "text-right"
-                : "text-left",
-            ].join(" ")}
-          >
-            <div
-              className={[
-                "mb-1.5 flex items-baseline gap-2 text-sm",
-                isOwnMessage
-                  ? "justify-end"
-                  : "justify-start",
-              ].join(" ")}
-            >
-              {isOwnMessage ? (
-                <>
-                  {formattedTime && (
-                    <time
-                      dateTime={messageTimeIso}
-                      suppressHydrationWarning
-                      className="text-xs text-muted-foreground"
-                    >
-                      {formattedTime}
-                    </time>
-                  )}
-                  <span className="font-semibold text-foreground">
-                    {authorName}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <span className="font-semibold text-foreground">
-                    {authorName}
-                  </span>
-                  {formattedTime && (
-                    <time
-                      dateTime={messageTimeIso}
-                      suppressHydrationWarning
-                      className="text-xs text-muted-foreground"
-                    >
-                      {formattedTime}
-                    </time>
-                  )}
-                </>
-              )}
-            </div>
-
-            <div
-              className={[
-                "rounded-2xl border px-4 py-3 text-left",
-                isOwnMessage
-                  ? "border-[#2563EB] bg-[#2563EB] text-white"
-                  : "border-border bg-background text-foreground",
-              ].join(" ")}
-            >
-              {replyTo && (
-                <div
-                  className={[
-                    "mb-2 rounded-md py-2 text-xs",
-                    isOwnMessage
-                      ? "border-r-2 border-white/40 bg-white/10 pl-2 pr-3 text-white/80"
-                      : "border-l-2 border-border bg-muted/40 pl-3 pr-2 text-muted-foreground",
-                  ].join(" ")}
-                >
-                  <div className="font-medium">
-                    {replyTo.authorName}
-                  </div>
-
-                  <div className="truncate">
-                    {replyTo.content}
-                  </div>
-                </div>
-              )}
-
-              <div
-                className={[
-                  "whitespace-pre-wrap text-left text-sm leading-relaxed",
-                  isOwnMessage
-                    ? "text-white"
-                    : "text-foreground",
-                ].join(" ")}
-              >
-                {content}
-              </div>
-            </div>
-          </div>
-        </div>
-        {actionMenu}
-      </div>
-    );
-  }
-
   return (
-    <div
+    <article
       data-testid={`message-${messageId}`}
+      data-current-user={isCurrentUser ? "true" : "false"}
       tabIndex={-1}
       {...pointerProps}
-      className="group relative flex touch-pan-y gap-3 py-3 [@media(pointer:coarse)]:select-none"
+      className={[
+        "group relative flex min-w-0 touch-pan-y items-start gap-3 rounded-lg px-2 py-2.5 text-left [@media(pointer:coarse)]:select-none sm:px-3",
+        isCurrentUser
+          ? "ml-auto w-fit max-w-[85%] bg-muted/20"
+          : "w-full",
+      ].join(" ")}
     >
-      <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center">
+      <div
+        data-message-part="identity"
+        aria-hidden="true"
+        className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted/50 text-[11px] font-semibold text-muted-foreground"
+      >
         {provider ? (
           <ProviderIcon
             provider={provider}
             size={18}
+            decorative
+          />
+        ) : avatarUrl ? (
+          <Image
+            src={avatarUrl}
+            alt=""
+            width={32}
+            height={32}
+            loader={avatarImageLoader}
+            unoptimized
+            referrerPolicy="no-referrer"
+            className="h-full w-full object-cover"
           />
         ) : (
-          <div className="h-2.5 w-2.5 rounded-full bg-zinc-500" />
+          <span>{initials}</span>
         )}
       </div>
 
       <div className="min-w-0 flex-1">
-        <div className="mb-1.5 flex items-center gap-2">
-          <div className="text-sm font-semibold text-foreground">
+        <div className="mb-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          <span
+            data-message-part="name"
+            className="text-sm font-semibold text-foreground"
+          >
             {displayName}
-          </div>
+          </span>
+
+          {isCurrentUser && displayName !== "You" && (
+            <span className="rounded-full border border-border px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
+              You
+            </span>
+          )}
 
           {formattedTime && (
             <time
+              data-message-part="timestamp"
               dateTime={messageTimeIso}
               suppressHydrationWarning
               className="text-xs text-muted-foreground"
@@ -375,8 +331,8 @@ export function MessageItem({
               data-desktop-reply="true"
               type="button"
               onClick={onReply}
-              aria-label={`Reply to ${authorName}`}
-              title={`Reply to ${authorName}`}
+              aria-label={`Reply to ${displayName}`}
+              title={`Reply to ${displayName}`}
               className="sr-only rounded-md text-muted-foreground transition-all hover:bg-muted hover:text-foreground [@media(pointer:fine)]:not-sr-only [@media(pointer:fine)]:flex [@media(pointer:fine)]:h-6 [@media(pointer:fine)]:w-6 [@media(pointer:fine)]:items-center [@media(pointer:fine)]:justify-center [@media(pointer:fine)]:opacity-0 [@media(pointer:fine)]:group-hover:opacity-100 [@media(pointer:fine)]:focus:opacity-100"
             >
               <Reply className="h-3.5 w-3.5" />
@@ -388,8 +344,8 @@ export function MessageItem({
               <button
                 type="button"
                 onClick={onRetry}
-                aria-label={`Retry ${authorName}`}
-                title={`Retry ${authorName}`}
+                aria-label={`Retry ${displayName}`}
+                title={`Retry ${displayName}`}
                 className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
@@ -411,6 +367,7 @@ export function MessageItem({
 
         {isStreaming && !content ? (
           <div
+            data-message-part="status"
             role="status"
             aria-label="Thinking..."
             className="flex items-center gap-2 py-1 text-xs text-muted-foreground"
@@ -423,12 +380,15 @@ export function MessageItem({
             <span>Thinking...</span>
           </div>
         ) : (
-          <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+          <div
+            data-message-part="body"
+            className="min-w-0 [overflow-wrap:anywhere] whitespace-pre-wrap text-sm leading-relaxed text-foreground"
+          >
             {content}
           </div>
         )}
       </div>
       {actionMenu}
-    </div>
+    </article>
   );
 }

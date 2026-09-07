@@ -23,5 +23,13 @@ export type ChatMessage = {
   provider?: string;
   participant?: ParticipantIdentity;
   sourceMessageId?: number;
+  /** Server acknowledgement used to reconcile an optimistic human row. */
+  persistedMessageId?: number;
   replyTo?: ChatReply | null;
+  /** Stable React identity while a temporary row reconciles to persistence. */
+  timelineKey?: string;
+  /** Temporary creation time retained during reconciliation for stable order. */
+  timelineCreatedAt?: Date;
+  /** Temporary ID retained as the equal-timestamp ordering tie-breaker. */
+  timelineOrderId?: number;
 };

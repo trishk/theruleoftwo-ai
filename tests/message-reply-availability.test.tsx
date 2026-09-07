@@ -232,6 +232,7 @@ describe("message reply availability", () => {
           id: -13,
           authorType: "ai",
           authorName: "ChatGPT",
+          provider: "openai",
           content: "Final answer",
           isStreaming: false,
         }),
@@ -250,6 +251,7 @@ describe("message reply availability", () => {
         id: 201,
         authorType: "ai",
         authorName: "ChatGPT",
+        provider: "openai",
         content: "Final answer",
         isStreaming: false,
       });
@@ -273,7 +275,7 @@ describe("message reply availability", () => {
     );
   });
 
-  it("renders outgoing human message bubbles on the right while keeping multiline text left-aligned", () => {
+  it("renders multiline own-human content in the shared left-aligned row anatomy", () => {
     const multilineContent = "Line 1\nLine 2 is longer\nLine 3";
     renderMessages([
       createMessage({
@@ -286,9 +288,14 @@ describe("message reply availability", () => {
     const contentElement = screen.getByText(
       /Line 1[\s\S]*Line 2 is longer[\s\S]*Line 3/
     );
-    expect(contentElement).toHaveClass("text-left");
     expect(contentElement).toHaveClass("whitespace-pre-wrap");
-    expect(contentElement.closest(".justify-end")).toBeInTheDocument();
+    const row = screen.getByTestId("message-15");
+    expect(row).toHaveAttribute("data-current-user", "true");
+    expect(row.className).not.toContain("justify-end");
+    expect(row.innerHTML).not.toContain("bg-[#2563EB]");
+    expect(
+      row.querySelectorAll("[data-message-part]")
+    ).toHaveLength(4);
   });
 
   it("renders a compact accessible thinking state when an AI message is streaming with empty content and removes it when content arrives", () => {

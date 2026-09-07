@@ -6,6 +6,7 @@ type Props = {
   provider: Provider;
   size?: number;
   className?: string;
+  decorative?: boolean;
 };
 
 const PROVIDER_ICONS: Record<
@@ -35,6 +36,7 @@ export function ProviderIcon({
   provider,
   size = 16,
   className = "",
+  decorative = false,
 }: Props) {
   const icon =
     PROVIDER_ICONS[provider];
@@ -42,7 +44,7 @@ export function ProviderIcon({
   return (
     <Image
       src={icon.src}
-      alt={icon.alt}
+      alt={decorative ? "" : icon.alt}
       width={size}
       height={size}
       className={[

@@ -7,14 +7,33 @@ import { Menu, X } from "lucide-react";
 type ChatShellProps = {
   children: ReactNode;
   sidebar?: ReactNode;
+  constrainToViewport?: boolean;
 };
 
-export function ChatShell({ children, sidebar }: ChatShellProps) {
+export function ChatShell({
+  children,
+  sidebar,
+  constrainToViewport = false,
+}: ChatShellProps) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   return (
-    <div className="min-h-dvh bg-background text-foreground">
-      <div className="mx-auto flex min-h-dvh w-full max-w-7xl">
+    <div
+      className={[
+        "bg-background text-foreground",
+        constrainToViewport
+          ? "h-dvh overflow-hidden"
+          : "min-h-dvh",
+      ].join(" ")}
+    >
+      <div
+        className={[
+          "mx-auto flex w-full max-w-7xl",
+          constrainToViewport
+            ? "h-full min-h-0"
+            : "min-h-dvh",
+        ].join(" ")}
+      >
         {sidebar && (
           <aside className="hidden w-72 shrink-0 border-r border-border md:block">
             <div className="sticky top-0 h-dvh overflow-y-auto p-4">
@@ -23,7 +42,14 @@ export function ChatShell({ children, sidebar }: ChatShellProps) {
           </aside>
         )}
 
-        <main className="relative min-w-0 flex-1">
+        <main
+          className={[
+            "relative min-w-0 flex-1",
+            constrainToViewport
+              ? "min-h-0 overflow-hidden"
+              : "",
+          ].join(" ")}
+        >
           {sidebar && (
             <button
               type="button"

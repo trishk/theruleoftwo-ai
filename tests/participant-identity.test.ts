@@ -45,15 +45,20 @@ describe("participant identity", () => {
     });
   });
 
-  it("uses the provider ID as the unknown-provider fallback", () => {
+  it("preserves an explicit unknown provider ID as its visible identity", () => {
     expect(createAiParticipantIdentity("future-model")).toEqual({
       id: "ai:future-model",
       displayName: "future-model",
       type: "ai",
       providerId: "future-model",
       avatarUrl: null,
-      initials: "FM",
+      initials: "AI",
       isCurrentUser: false,
     });
+  });
+
+  it("uses the neutral fallback only when the provider ID is empty", () => {
+    expect(createAiParticipantIdentity("").displayName).toBe("Unknown AI");
+    expect(createAiParticipantIdentity("   ").displayName).toBe("Unknown AI");
   });
 });

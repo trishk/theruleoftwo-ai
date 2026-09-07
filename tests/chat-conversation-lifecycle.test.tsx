@@ -241,6 +241,39 @@ describe(
             vi.clearAllMocks();
         });
 
+        it("passes one chronologically ordered timeline to MessageList", () => {
+            render(
+                <ChatConversation
+                    conversationId={42}
+                    messages={[
+                        {
+                            id: 2,
+                            authorType: "human",
+                            authorName: "Later",
+                            content: "Later persisted message",
+                            createdAt: new Date("2026-09-06T10:00:02.000Z"),
+                            isOwnMessage: false,
+                        },
+                        {
+                            id: 1,
+                            authorType: "human",
+                            authorName: "Earlier",
+                            content: "Earlier persisted message",
+                            createdAt: new Date("2026-09-06T10:00:01.000Z"),
+                            isOwnMessage: false,
+                        },
+                    ]}
+                    configuredProviders={[]}
+                />
+            );
+
+            expect(
+                screen.getByTestId("message-list")
+            ).toHaveTextContent(
+                /Earlier persisted message.*Later persisted message/
+            );
+        });
+
         it("clears draft and reply state when the conversation changes", () => {
             const conversationAMessage = {
                 id: 1,

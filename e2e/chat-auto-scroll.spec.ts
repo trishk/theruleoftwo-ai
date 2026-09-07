@@ -88,6 +88,27 @@ test.beforeAll(() => {
       new Date(Date.now() - (40 - index) * 1000).toISOString()
     );
   }
+
+  db.prepare(`
+    INSERT INTO Message (
+      conversationId, authorType, authorId, content, createdAt
+    ) VALUES (?, 'human', ?, ?, ?)
+  `).run(
+    conversationId,
+    ownerId,
+    `Mobile human line one\n${"human-unbroken-content-".repeat(12)}`,
+    new Date(Date.now() + 1000).toISOString()
+  );
+
+  db.prepare(`
+    INSERT INTO Message (
+      conversationId, authorType, authorId, content, createdAt
+    ) VALUES (?, 'ai', 'openai', ?, ?)
+  `).run(
+    conversationId,
+    `Mobile AI line one\n${"ai-unbroken-content-".repeat(14)}`,
+    new Date(Date.now() + 2000).toISOString()
+  );
 });
 
 test.afterAll(() => {
@@ -136,6 +157,71 @@ async function joinConversation(
     new RegExp(`/chat/${conversationPublicId}$`)
   );
 }
+
+test("keeps multiline human and AI rows within a narrow mobile viewport", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  await joinConversation(page, "Mobile Timeline Guest");
+
+  const humanBody = page
+    .locator('[data-message-part="body"]')
+    .filter({ hasText: "Mobile human line one" });
+  const aiBody = page
+    .locator('[data-message-part="body"]')
+    .filter({ hasText: "Mobile AI line one" });
+
+  await expect(humanBody).toBeVisible();
+  await expect(aiBody).toBeVisible();
+
+  for (const body of [humanBody, aiBody]) {
+    expect(
+      await body.evaluate(
+        (element) => element.scrollWidth <= element.clientWidth
+      )
+    ).toBe(true);
+  }
+
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth
+    )
+  ).toBe(true);
+});
+
+test("constrains chat scrolling to the message list", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await joinConversation(page, "Viewport Guest");
+
+  const messageList = page.getByTestId("message-list");
+
+  const dimensions = await page.evaluate(() => ({
+    documentClientHeight: document.documentElement.clientHeight,
+    documentScrollHeight: document.documentElement.scrollHeight,
+  }));
+  expect(
+    dimensions.documentScrollHeight - dimensions.documentClientHeight
+  ).toBeLessThanOrEqual(1);
+  expect(
+    await messageList.evaluate(
+      (element) => element.scrollHeight > element.clientHeight
+    )
+  ).toBe(true);
+  await expect(
+    page
+      .getByRole("main")
+      .getByRole("button", {
+        name: "E2E Auto-scroll Test",
+        exact: true,
+      })
+  ).toBeVisible();
+  await expect(
+    page.getByPlaceholder("Ask for another perspective...")
+  ).toBeVisible();
+
+  await page.evaluate(() => window.scrollTo(0, 100_000));
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+});
 
 test("shows a sent message and preserves deliberate history reading", async ({
   browser,

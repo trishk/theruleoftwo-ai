@@ -113,7 +113,10 @@ describe("chat page data shape", () => {
         id: true,
         title: true,
         messages: {
-          orderBy: { createdAt: "asc" },
+          orderBy: [
+            { createdAt: "asc" },
+            { id: "asc" },
+          ],
           select: {
             id: true,
             authorType: true,

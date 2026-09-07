@@ -165,6 +165,17 @@ export function useMessageComposer({
       );
 
       if (isActiveRef.current) {
+        onOptimisticMessagesChange(
+          (current) =>
+            current.map((item) =>
+              item.id === temporaryMessageId
+                ? {
+                    ...item,
+                    persistedMessageId: messageId,
+                  }
+                : item
+            )
+        );
         syncConversation();
       }
 

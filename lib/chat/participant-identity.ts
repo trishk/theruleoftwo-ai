@@ -68,9 +68,11 @@ export function isKnownProvider(providerId: string): providerId is Provider {
 export function createAiParticipantIdentity(
   providerId: string
 ): AiParticipantIdentity {
-  const displayName = isKnownProvider(providerId)
+  const knownProvider = isKnownProvider(providerId);
+  const explicitProviderId = providerId.trim();
+  const displayName = knownProvider
     ? PROVIDER_META[providerId].name
-    : providerId;
+    : explicitProviderId || "Unknown AI";
 
   return {
     id: `ai:${providerId}`,
@@ -78,7 +80,9 @@ export function createAiParticipantIdentity(
     type: "ai",
     providerId,
     avatarUrl: null,
-    initials: getParticipantInitials(displayName),
+    initials: knownProvider
+      ? getParticipantInitials(displayName)
+      : "AI",
     isCurrentUser: false,
   };
 }

@@ -116,6 +116,24 @@ describe("mobile message actions", () => {
     expect(screen.getByRole("menu", { name: /Message actions/ })).toBeInTheDocument();
   });
 
+  it("opens actions on both left- and right-aligned rows", () => {
+    renderList([
+      message(1),
+      { ...message(2), authorName: "You", isOwnMessage: true },
+    ]);
+
+    const leftRow = screen.getByTestId("message-1");
+    const rightRow = screen.getByTestId("message-2");
+    expect(leftRow.className).not.toContain("ml-auto");
+    expect(rightRow.className).toContain("ml-auto");
+
+    longPress(leftRow);
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+    longPress(rightRow);
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+  });
+
   it("cancels when the pointer moves meaningfully before the threshold", () => {
     renderList();
     const target = screen.getByTestId("message-1");

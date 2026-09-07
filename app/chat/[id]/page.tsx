@@ -108,9 +108,10 @@ export default async function ChatPage({
         id: true,
         title: true,
         messages: {
-          orderBy: {
-            createdAt: "asc",
-          },
+          orderBy: [
+            { createdAt: "asc" },
+            { id: "asc" },
+          ],
           select: {
             id: true,
             authorType: true,
@@ -277,7 +278,7 @@ export default async function ChatPage({
     );
 
   const chatContent = (
-    <div className="flex h-dvh min-h-0 flex-col">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <ChatHeader
         conversationId={
           conversation.id
@@ -326,6 +327,7 @@ export default async function ChatPage({
         }
       >
         <ChatShell
+          constrainToViewport
           sidebar={
             <ChatSidebar
               chats={

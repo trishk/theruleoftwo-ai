@@ -11,9 +11,7 @@ import {
 import { MessageList } from "./MessageList";
 import { MessageComposer } from "../composer/MessageComposer";
 import { useMessageComposer } from "../composer/useMessageComposer";
-import {
-  reconcileStreamingMessages,
-} from "./reconcileStreamingMessages";
+import { buildConversationTimeline } from "./buildConversationTimeline";
 
 import type { Provider } from "@/lib/llm/types";
 import { isKnownProvider } from "@/lib/chat/participant-identity";
@@ -104,44 +102,19 @@ function ChatConversationSession({
       retryProvider;
   }, [retryProvider]);
 
-  const visibleOptimisticMessages =
-    useMemo(
-      () =>
-        optimisticMessages.filter(
-          (optimisticMessage) =>
-            !messages.some(
-              (persistedMessage) =>
-                persistedMessage.authorType ===
-                  "human" &&
-                persistedMessage.isOwnMessage &&
-                persistedMessage.content ===
-                  optimisticMessage.content
-            )
-        ),
-      [
-        messages,
+  const allMessages = useMemo(
+    () =>
+      buildConversationTimeline({
+        persistedMessages: messages,
         optimisticMessages,
-      ]
-    );
-
-  const visibleStreamingMessages =
-    useMemo(
-      () =>
-        reconcileStreamingMessages(
-          streamingMessages,
-          messages
-        ),
-      [
-        messages,
         streamingMessages,
-      ]
-    );
-
-  const allMessages = [
-    ...messages,
-    ...visibleOptimisticMessages,
-    ...visibleStreamingMessages,
-  ];
+      }),
+    [
+      messages,
+      optimisticMessages,
+      streamingMessages,
+    ]
+  );
 
   const handleReply = useCallback(
     (selectedMessage: ChatMessage) => {
