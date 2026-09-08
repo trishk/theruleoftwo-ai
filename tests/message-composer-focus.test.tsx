@@ -192,3 +192,150 @@ it("uses at least 16px font size on mobile to prevent iOS Safari auto-zoom while
   expect(textarea).toHaveClass("text-base");
   expect(textarea).toHaveClass("md:text-sm");
 });
+
+it("exposes an accessible name that does not depend on the placeholder", () => {
+  render(<ComposerHarness />);
+
+  const textarea = screen.getByRole("textbox", {
+    name: "Message",
+  });
+
+  expect(textarea).toHaveAttribute(
+    "placeholder",
+    "Ask for another perspective..."
+  );
+});
+
+it("does not submit while an IME composition is active", () => {
+  const onSubmit = vi.fn(async () => {});
+
+  render(
+    <ComposerHarness
+      onSubmit={onSubmit}
+    />
+  );
+
+  const textarea = screen.getByRole("textbox", {
+    name: "Message",
+  });
+  fireEvent.change(textarea, {
+    target: { value: "Compus cu IME" },
+  });
+  fireEvent.keyDown(textarea, {
+    key: "Enter",
+    isComposing: true,
+  });
+
+  expect(onSubmit).not.toHaveBeenCalled();
+  expect(textarea).toHaveValue("Compus cu IME");
+});
+
+it("autosizes from its initial height through growth, caps at 160px, scrolls internally, and resets after send", async () => {
+  let scrollHeight = 40;
+  const originalDescriptor =
+    Object.getOwnPropertyDescriptor(
+      HTMLTextAreaElement.prototype,
+      "scrollHeight"
+    );
+
+  Object.defineProperty(
+    HTMLTextAreaElement.prototype,
+    "scrollHeight",
+    {
+      configurable: true,
+      get: () => scrollHeight,
+    }
+  );
+
+  try {
+    render(<ComposerHarness />);
+
+    const textarea = screen.getByRole("textbox", {
+      name: "Message",
+    });
+    expect(textarea).toHaveStyle({
+      height: "40px",
+      overflowY: "hidden",
+    });
+
+    scrollHeight = 96;
+    fireEvent.change(textarea, {
+      target: { value: "Two lines of content" },
+    });
+    expect(textarea).toHaveStyle({
+      height: "96px",
+      overflowY: "hidden",
+    });
+
+    scrollHeight = 240;
+    fireEvent.change(textarea, {
+      target: { value: "Enough content to exceed the cap" },
+    });
+    expect(textarea).toHaveStyle({
+      height: "160px",
+      overflowY: "auto",
+    });
+
+    scrollHeight = 40;
+    fireEvent.keyDown(textarea, {
+      key: "Enter",
+    });
+
+    await waitFor(() =>
+      expect(textarea).toHaveValue("")
+    );
+    expect(textarea).toHaveStyle({
+      height: "40px",
+      overflowY: "hidden",
+    });
+  } finally {
+    if (originalDescriptor) {
+      Object.defineProperty(
+        HTMLTextAreaElement.prototype,
+        "scrollHeight",
+        originalDescriptor
+      );
+    } else {
+      delete (HTMLTextAreaElement.prototype as unknown as {
+        scrollHeight?: number;
+      }).scrollHeight;
+    }
+  }
+});
+
+it("announces composer errors", () => {
+  render(
+    <MessageComposer
+      message=""
+      sending={false}
+      error="Message could not be sent"
+      replyTo={null}
+      configuredProviders={[]}
+      onMessageChange={noop}
+      onCancelReply={noop}
+      onSubmit={async () => {}}
+      onStopGeneration={noop}
+    />
+  );
+
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "Message could not be sent"
+  );
+});
+
+it("keeps the compact composer contained at narrow mobile widths", () => {
+  render(<ComposerHarness />);
+
+  const shell = screen.getByTestId("composer-shell");
+  const textarea = screen.getByRole("textbox", {
+    name: "Message",
+  });
+
+  expect(shell).toHaveClass(
+    "w-full",
+    "min-w-0",
+    "overflow-hidden"
+  );
+  expect(shell.firstElementChild).toHaveClass("min-w-0");
+  expect(textarea).toHaveClass("min-w-0", "flex-1");
+});

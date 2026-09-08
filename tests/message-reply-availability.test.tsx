@@ -138,6 +138,74 @@ describe("message reply availability", () => {
     ).toBe(document.activeElement);
   });
 
+  it("integrates a compact attributed and truncated reply preview into the composer shell", () => {
+    const longContent = "A very long reply ".repeat(30);
+
+    render(
+      <MessageComposer
+        message=""
+        sending={false}
+        error={null}
+        replyTo={{
+          id: 10,
+          authorName: "Tudor",
+          content: longContent,
+        }}
+        configuredProviders={[]}
+        onMessageChange={noop}
+        onCancelReply={noop}
+        onSubmit={async () => {}}
+        onStopGeneration={noop}
+      />
+    );
+
+    const shell = screen.getByTestId("composer-shell");
+    const preview = screen.getByTestId("reply-preview");
+    const content = preview.querySelector(
+      ".truncate"
+    );
+
+    expect(shell).toContainElement(preview);
+    expect(preview).toHaveClass("border-b");
+    expect(preview).not.toHaveClass("rounded-md", "mb-2");
+    expect(preview).toHaveTextContent("Replying to Tudor");
+    expect(content).toHaveTextContent(
+      longContent.trim()
+    );
+    expect(content).toHaveClass("truncate");
+  });
+
+  it("cancels reply with a mobile 44px hit target and a compact icon", () => {
+    const onCancelReply = vi.fn();
+
+    render(
+      <MessageComposer
+        message=""
+        sending={false}
+        error={null}
+        replyTo={{
+          id: 10,
+          authorName: "Tudor",
+          content: "Message",
+        }}
+        configuredProviders={[]}
+        onMessageChange={noop}
+        onCancelReply={onCancelReply}
+        onSubmit={async () => {}}
+        onStopGeneration={noop}
+      />
+    );
+
+    const cancel = screen.getByRole("button", {
+      name: "Cancel reply",
+    });
+    expect(cancel).toHaveClass("h-11", "w-11");
+    expect(cancel.firstElementChild).toHaveClass("text-base");
+
+    fireEvent.click(cancel);
+    expect(onCancelReply).toHaveBeenCalledOnce();
+  });
+
   it("continues to focus the composer textarea after selecting a mention", () => {
     function MentionHarness() {
       const [message, setMessage] =

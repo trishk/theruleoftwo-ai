@@ -10,7 +10,10 @@ export function ReplyPreview({
   onCancel,
 }: Props) {
   return (
-    <div className="mb-2 flex items-center justify-between gap-3 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs">
+    <div
+      data-testid="reply-preview"
+      className="flex min-w-0 items-center justify-between gap-3 border-b border-border px-3 py-1 text-xs"
+    >
       <div className="min-w-0">
         <div className="font-medium">
           Replying to {replyTo.authorName}
@@ -26,9 +29,14 @@ export function ReplyPreview({
         onClick={onCancel}
         aria-label="Cancel reply"
         title="Cancel reply"
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:h-8 md:w-8"
       >
-        ×
+        <span
+          aria-hidden="true"
+          className="text-base leading-none"
+        >
+          ×
+        </span>
       </button>
     </div>
   );
