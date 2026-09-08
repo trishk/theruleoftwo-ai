@@ -1,9 +1,20 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
-import { MentionPicker } from "./MentionPicker";
+import {
+  MentionPicker,
+  NoConfiguredAiNotice,
+} from "./MentionPicker";
 import { ReplyPreview } from "./ReplyPreview";
+import { PROVIDER_LIST } from "@/lib/llm/providerMeta";
 
 import type { ChatReply } from "../conversation/types";
 import type { Provider } from "@/lib/llm/types";
@@ -38,6 +49,116 @@ export function MessageComposer({
     );
   const wasSendingRef =
     useRef(sending);
+  const pendingCaretRef = useRef<number | null>(null);
+  const listboxId = useId();
+  const [mentionRange, setMentionRange] = useState<{
+    start: number;
+    end: number;
+    query: string;
+  } | null>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const configuredOptions = useMemo(
+    () =>
+      PROVIDER_LIST.filter((provider) =>
+        configuredProviders.includes(provider.id)
+      ),
+    [configuredProviders]
+  );
+  const filteredOptions = useMemo(() => {
+    const query = mentionRange?.query.toLocaleLowerCase() ?? "";
+
+    return configuredOptions.filter((provider) =>
+      [provider.name, provider.mention, provider.id].some((value) =>
+        value.toLocaleLowerCase().includes(query)
+      )
+    );
+  }, [configuredOptions, mentionRange?.query]);
+  const pickerOpen =
+    !sending &&
+    mentionRange !== null &&
+    configuredOptions.length > 0 &&
+    message.slice(mentionRange.start, mentionRange.end) ===
+      `@${mentionRange.query}`;
+
+  function findActiveMention(value: string, caret: number) {
+    const beforeCaret = value.slice(0, caret);
+    const match = beforeCaret.match(/(?:^|[^\p{L}\p{N}_])@([^\s@]*)$/u);
+
+    if (!match) {
+      return null;
+    }
+
+    const fragment = match[0].startsWith("@")
+      ? match[0]
+      : match[0].slice(1);
+
+    return {
+      start: caret - fragment.length,
+      end: caret,
+      query: fragment.slice(1),
+    };
+  }
+
+  function selectMention(mention: string) {
+    if (!mentionRange) {
+      return;
+    }
+
+    const after = message.slice(mentionRange.end);
+    const needsSpace = after.length === 0 || !/^\s/u.test(after);
+    const replacement = `${mention}${needsSpace ? " " : ""}`;
+    const nextMessage =
+      message.slice(0, mentionRange.start) + replacement + after;
+    const nextCaret = mentionRange.start + replacement.length;
+
+    setMentionRange(null);
+    onMessageChange(nextMessage);
+    pendingCaretRef.current = nextCaret;
+  }
+
+  function openMentionPicker() {
+    const textarea = textareaRef.current;
+
+    if (!textarea || sending || configuredOptions.length === 0) {
+      return;
+    }
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const currentRange = start === end
+      ? findActiveMention(message, start)
+      : null;
+
+    if (currentRange) {
+      setMentionRange(currentRange);
+      setActiveIndex(0);
+      textarea.focus();
+      return;
+    }
+
+    const needsDelimiter = /[\p{L}\p{N}_]$/u.test(message.slice(0, start));
+    const insertion = `${needsDelimiter ? " " : ""}@`;
+    const mentionStart = start + insertion.length - 1;
+    const nextMessage =
+      message.slice(0, start) + insertion + message.slice(end);
+    const nextCaret = start + insertion.length;
+    onMessageChange(nextMessage);
+    setMentionRange({ start: mentionStart, end: nextCaret, query: "" });
+    setActiveIndex(0);
+    pendingCaretRef.current = nextCaret;
+  }
+
+  useLayoutEffect(() => {
+    if (pendingCaretRef.current === null) {
+      return;
+    }
+
+    const caret = pendingCaretRef.current;
+    pendingCaretRef.current = null;
+    textareaRef.current?.focus();
+    textareaRef.current?.setSelectionRange(caret, caret);
+  }, [message]);
 
   useEffect(() => {
     const textarea =
@@ -89,10 +210,48 @@ export function MessageComposer({
   function handleKeyDown(
     event: React.KeyboardEvent<HTMLTextAreaElement>
   ) {
+    if (event.nativeEvent.isComposing) {
+      return;
+    }
+
+    if (pickerOpen) {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+
+        if (filteredOptions.length > 0) {
+          const direction = event.key === "ArrowDown" ? 1 : -1;
+          setActiveIndex((current) =>
+            (current + direction + filteredOptions.length) %
+            filteredOptions.length
+          );
+        }
+        return;
+      }
+
+      if (event.key === "Enter" || event.key === "Tab") {
+        const option = filteredOptions[activeIndex];
+        if (option) {
+          event.preventDefault();
+          selectMention(option.mention);
+          return;
+        }
+
+        setMentionRange(null);
+        if (event.key === "Tab") {
+          return;
+        }
+      }
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMentionRange(null);
+        return;
+      }
+    }
+
     if (
       event.key === "Enter" &&
-      !event.shiftKey &&
-      !event.nativeEvent.isComposing
+      !event.shiftKey
     ) {
       event.preventDefault();
 
@@ -116,23 +275,11 @@ export function MessageComposer({
             </div>
           )}
 
-          <MentionPicker
-            message={message}
-            configuredProviders={
-              configuredProviders
-            }
-            disabled={sending}
-            onChange={(value) => {
-              onMessageChange(value);
-
-              textareaRef.current
-                ?.focus();
-            }}
-          />
+          {configuredOptions.length === 0 && <NoConfiguredAiNotice />}
 
           <div
             data-testid="composer-shell"
-            className="w-full min-w-0 overflow-hidden rounded-2xl border border-border bg-muted/30 shadow-sm transition-colors focus-within:border-muted-foreground/50"
+            className="relative w-full min-w-0 rounded-2xl border border-border bg-muted/30 shadow-sm transition-colors focus-within:border-muted-foreground/50"
           >
             {replyTo && (
               <ReplyPreview
@@ -144,18 +291,39 @@ export function MessageComposer({
             )}
 
             <div className="flex min-w-0 items-end gap-2 p-2">
+              <MentionPicker
+                open={pickerOpen}
+                disabled={sending || configuredOptions.length === 0}
+                options={filteredOptions}
+                activeIndex={activeIndex}
+                listboxId={listboxId}
+                onTrigger={openMentionPicker}
+                onSelect={(provider) => selectMention(provider.mention)}
+              />
+
               <textarea
                 ref={textareaRef}
                 value={message}
-                onChange={(event) =>
-                  onMessageChange(
-                    event.target.value
-                  )
-                }
+                onChange={(event) => {
+                  const value = event.target.value;
+                  const caret = event.target.selectionStart;
+                  onMessageChange(value);
+                  setMentionRange(findActiveMention(value, caret));
+                  setActiveIndex(0);
+                }}
                 onKeyDown={
                   handleKeyDown
                 }
                 aria-label="Message"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded={pickerOpen}
+                aria-controls={pickerOpen ? listboxId : undefined}
+                aria-activedescendant={
+                  pickerOpen && filteredOptions[activeIndex]
+                    ? `${listboxId}-${filteredOptions[activeIndex].id}`
+                    : undefined
+                }
                 placeholder="Ask for another perspective..."
                 rows={1}
                 disabled={sending}

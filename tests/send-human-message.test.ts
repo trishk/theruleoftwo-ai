@@ -209,6 +209,7 @@ describe(
       ["@chatgpt @claude", "New conversation"],
       [" @chatgpt   ... !!! ", "New conversation"],
       ["@chatgpt   A useful topic!", "A useful topic!"],
+      ["@chatgptxyz remains text", "@chatgptxyz remains text"],
       ["@chatgpt Întrebări și răspunsuri", "Întrebări și răspunsuri"],
       ["@chatgpt 😀 🎉", "New conversation"],
     ])("generates a non-empty first-message title for %s", async (content, expectedTitle) => {

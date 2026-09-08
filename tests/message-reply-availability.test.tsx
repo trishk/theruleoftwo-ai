@@ -230,11 +230,8 @@ describe("message reply availability", () => {
 
     render(<MentionHarness />);
 
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /ChatGPT/,
-      })
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Mention an AI" }));
+    fireEvent.click(screen.getByRole("option", { name: /ChatGPT/ }));
 
     expect(
       screen.getByPlaceholderText(

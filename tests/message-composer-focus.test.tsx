@@ -196,7 +196,7 @@ it("uses at least 16px font size on mobile to prevent iOS Safari auto-zoom while
 it("exposes an accessible name that does not depend on the placeholder", () => {
   render(<ComposerHarness />);
 
-  const textarea = screen.getByRole("textbox", {
+  const textarea = screen.getByRole("combobox", {
     name: "Message",
   });
 
@@ -215,7 +215,7 @@ it("does not submit while an IME composition is active", () => {
     />
   );
 
-  const textarea = screen.getByRole("textbox", {
+  const textarea = screen.getByRole("combobox", {
     name: "Message",
   });
   fireEvent.change(textarea, {
@@ -250,7 +250,7 @@ it("autosizes from its initial height through growth, caps at 160px, scrolls int
   try {
     render(<ComposerHarness />);
 
-    const textarea = screen.getByRole("textbox", {
+    const textarea = screen.getByRole("combobox", {
       name: "Message",
     });
     expect(textarea).toHaveStyle({
@@ -327,15 +327,11 @@ it("keeps the compact composer contained at narrow mobile widths", () => {
   render(<ComposerHarness />);
 
   const shell = screen.getByTestId("composer-shell");
-  const textarea = screen.getByRole("textbox", {
+  const textarea = screen.getByRole("combobox", {
     name: "Message",
   });
 
-  expect(shell).toHaveClass(
-    "w-full",
-    "min-w-0",
-    "overflow-hidden"
-  );
+  expect(shell).toHaveClass("relative", "w-full", "min-w-0");
   expect(shell.firstElementChild).toHaveClass("min-w-0");
   expect(textarea).toHaveClass("min-w-0", "flex-1");
 });

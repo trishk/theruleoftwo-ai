@@ -3,7 +3,10 @@
 import { revalidatePath } from "next/cache";
 
 import { prisma } from "@/lib/db/prisma";
-import { extractMentions } from "@/lib/llm/mentions";
+import {
+  extractMentions,
+  removeAiMentions,
+} from "@/lib/llm/mentions";
 import { requireUser } from "@/lib/auth/require-user";
 import { requireConversationAccess } from "@/lib/auth/require-conversation-access";
 
@@ -84,11 +87,7 @@ async function saveHumanMessage(
     conversationRecord.title === "New Chat"
   ) {
     const titleContent =
-      trimmedContent
-        .replace(
-          /@(chatgpt|claude|gemini)\b/gi,
-          ""
-        )
+      removeAiMentions(trimmedContent)
         .replace(/\s+/g, " ")
         .trim();
 
