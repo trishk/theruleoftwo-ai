@@ -57,6 +57,7 @@ const MessageRow = memo(
         isOwnMessage={message.isOwnMessage}
         isError={message.isError}
         isStreaming={message.isStreaming}
+        isStopped={message.isStopped}
         replyTo={message.replyTo}
         actionsOpen={actionsOpen}
         onOpenActions={(trigger) =>

@@ -50,7 +50,7 @@ export function ProviderIcon({
       className={[
         "shrink-0 object-contain",
         provider === "openai"
-          ? "invert"
+          ? "dark:invert"
           : "",
         className,
       ].join(" ")}

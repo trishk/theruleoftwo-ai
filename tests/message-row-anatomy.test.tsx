@@ -117,7 +117,7 @@ describe("shared message row anatomy", () => {
     }
   });
 
-  it("aligns current-user rows right and all other participants left while preserving left-aligned text", () => {
+  it("aligns current-user rows right while other human and AI rows remain full-width", () => {
     const currentUser = createHumanParticipantIdentity({
       id: "user-1",
       displayName: "Ada Lovelace",
@@ -136,6 +136,7 @@ describe("shared message row anatomy", () => {
         authorName: currentUser.displayName,
         participant: currentUser,
         isOwnMessage: true,
+        content: `Long contribution ${"segment".repeat(50)}`,
       }),
       createMessage(2, {
         authorName: otherHuman.displayName,
@@ -154,9 +155,13 @@ describe("shared message row anatomy", () => {
     expect(ownRow.className).toContain("ml-auto");
     expect(ownRow.className).toContain("w-fit");
     expect(ownRow.className).toContain("max-w-[85%]");
+    expect(ownRow.className).toContain("bg-muted/20");
     expect(ownRow.className).toContain("text-left");
     expect(ownRow.innerHTML).not.toContain("bg-[#2563EB]");
     expect(ownRow).toHaveAttribute("data-current-user", "true");
+    expect(
+      ownRow.querySelector('[data-message-part="body"]')
+    ).toHaveClass("[overflow-wrap:anywhere]");
 
     for (const id of [2, 3]) {
       const row = screen.getByTestId(`message-${id}`);
@@ -192,10 +197,12 @@ describe("shared message row anatomy", () => {
     ]);
 
     expect(screen.getByTestId("message-10").className).toContain("ml-auto");
-    expect(screen.getByTestId("message-11").className).not.toContain("ml-auto");
+    expect(screen.getByTestId("message-10").className).toContain("w-fit");
+    expect(screen.getByTestId("message-11").className).toContain("w-full");
+    expect(screen.getByTestId("message-10")).toHaveTextContent("You");
   });
 
-  it("right-aligns an optimistic current-user row through the same renderer", () => {
+  it("right-aligns an optimistic current-user row with stable identity and status", () => {
     renderMessages([
       createMessage(-101, {
         authorName: "You",
@@ -207,13 +214,20 @@ describe("shared message row anatomy", () => {
     const row = screen.getByTestId("message--101");
     expect(row).toHaveAttribute("data-current-user", "true");
     expect(row.className).toContain("ml-auto");
+    expect(row.className).toContain("w-fit");
+    expect(row.className).toContain("max-w-[85%]");
     expect(row.className).toContain("text-left");
+    expect(
+      row.querySelector('[data-message-part="identity"]')
+    ).toHaveTextContent("Y");
     expect(anatomy(row)).toEqual([
       "identity",
       "name",
       "timestamp",
       "body",
+      "status",
     ]);
+    expect(within(row).getByRole("status")).toHaveTextContent("Sending…");
   });
 
   it("renders deterministic human initials when no avatar exists", () => {
@@ -294,7 +308,11 @@ describe("shared message row anatomy", () => {
     expect(row.querySelector("img")?.getAttribute("src")).toContain(
       "openai.svg"
     );
-    expect(row.querySelector("img")).toHaveAttribute("alt", "");
+    const providerIcon = row.querySelector("img");
+    expect(providerIcon).toHaveAttribute("alt", "");
+    expect(providerIcon).toHaveClass("dark:invert");
+    expect(providerIcon).not.toHaveClass("invert");
+    expect(row.querySelector('[data-provider-accent="openai"]')).toBeInTheDocument();
     expect(within(row).getAllByText("ChatGPT")).toHaveLength(1);
     expect(
       within(row).getByRole("button", {
@@ -324,10 +342,87 @@ describe("shared message row anatomy", () => {
     expect(
       row.querySelector('[data-message-part="identity"]')
     ).toHaveTextContent("AI");
+    expect(row.querySelector("[data-provider-accent]")).not.toBeInTheDocument();
     expect(
       within(row).getByRole("button", {
         name: "Reply to future-provider",
       })
     ).toBeInTheDocument();
+  });
+
+  it("uses a neutral fallback when an AI message has no provider", () => {
+    renderMessages([
+      createMessage(6, {
+        authorType: "ai",
+        authorName: "Legacy AI name",
+      }),
+    ]);
+
+    const row = screen.getByTestId("message-6");
+    expect(
+      row.querySelector('[data-message-part="name"]')
+    ).toHaveTextContent("Unknown AI");
+    expect(
+      row.querySelector('[data-message-part="identity"]')
+    ).toHaveTextContent("AI");
+    expect(row.querySelector("[data-provider-accent]")).not.toBeInTheDocument();
+  });
+
+  it("keeps current-user identity stable when an optimistic row reconciles", () => {
+    const timelineKey = "temporary:-7";
+    const rendered = renderMessages([
+      createMessage(-7, {
+        authorName: "You",
+        isOwnMessage: true,
+        timelineKey,
+      }),
+    ]);
+
+    const optimisticRow = screen.getByTestId("message--7");
+    const optimisticRowNode = optimisticRow;
+    expect(optimisticRow.className).toContain("ml-auto");
+    expect(optimisticRow.className).toContain("w-fit");
+    expect(optimisticRow.className).toContain("max-w-[85%]");
+    expect(
+      optimisticRow.querySelector('[data-message-part="identity"]')
+    ).toHaveTextContent("Y");
+    expect(
+      optimisticRow.querySelector('[data-message-part="name"]')
+    ).toHaveTextContent("You");
+
+    const participant = createHumanParticipantIdentity({
+      id: "user-1",
+      displayName: "Ada Lovelace",
+      avatarUrl: "https://images.example.test/ada.png",
+      currentUserId: "user-1",
+    });
+
+    rendered.rerender(
+      <MessageList
+        messages={[
+          createMessage(7, {
+            authorName: participant.displayName,
+            participant,
+            isOwnMessage: true,
+            timelineKey,
+          }),
+        ]}
+        onReply={noop}
+        onRetry={noop}
+      />
+    );
+
+    const persistedRow = screen.getByTestId("message-7");
+    expect(persistedRow).toBe(optimisticRowNode);
+    expect(persistedRow.className).toContain("ml-auto");
+    expect(persistedRow.className).toContain("w-fit");
+    expect(persistedRow.className).toContain("max-w-[85%]");
+    expect(
+      persistedRow.querySelector('[data-message-part="identity"]')
+    ).toHaveTextContent("Y");
+    expect(persistedRow.querySelector("img")).not.toBeInTheDocument();
+    expect(
+      persistedRow.querySelector('[data-message-part="name"]')
+    ).toHaveTextContent("You");
   });
 });

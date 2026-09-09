@@ -122,15 +122,18 @@ describe("mobile message actions", () => {
       { ...message(2), authorName: "You", isOwnMessage: true },
     ]);
 
-    const leftRow = screen.getByTestId("message-1");
-    const rightRow = screen.getByTestId("message-2");
-    expect(leftRow.className).not.toContain("ml-auto");
-    expect(rightRow.className).toContain("ml-auto");
+    const firstRow = screen.getByTestId("message-1");
+    const ownRow = screen.getByTestId("message-2");
+    expect(firstRow.className).toContain("w-full");
+    expect(firstRow.className).not.toContain("ml-auto");
+    expect(ownRow.className).toContain("ml-auto");
+    expect(ownRow.className).toContain("w-fit");
+    expect(ownRow.className).toContain("max-w-[85%]");
 
-    longPress(leftRow);
+    longPress(firstRow);
     expect(screen.getByRole("menu")).toBeInTheDocument();
     fireEvent.keyDown(document, { key: "Escape" });
-    longPress(rightRow);
+    longPress(ownRow);
     expect(screen.getByRole("menu")).toBeInTheDocument();
   });
 

@@ -18,6 +18,7 @@ import {
   isKnownProvider,
   type ParticipantIdentity,
 } from "@/lib/chat/participant-identity";
+import { PROVIDER_META } from "@/lib/llm/providerMeta";
 
 import type { ChatReply } from "./types";
 
@@ -32,6 +33,7 @@ type Props = {
   isOwnMessage: boolean;
   isError?: boolean;
   isStreaming?: boolean;
+  isStopped?: boolean;
   replyTo?: ChatReply | null;
   actionsOpen?: boolean;
   onOpenActions?: (
@@ -90,6 +92,7 @@ export function MessageItem({
   isOwnMessage,
   isError = false,
   isStreaming = false,
+  isStopped = false,
   replyTo,
   actionsOpen = false,
   onOpenActions,
@@ -196,11 +199,19 @@ export function MessageItem({
               : "")
         )
       : null;
-  const displayName = aiIdentity
+  const participantDisplayName = aiIdentity
     ? aiIdentity.displayName
     : participant?.type === "human"
       ? participant.displayName
       : authorName;
+  const isCurrentUser =
+    authorType === "human" &&
+    (isOwnMessage ||
+      (participant?.type === "human" &&
+        participant.isCurrentUser));
+  const displayName = isCurrentUser
+    ? "You"
+    : participantDisplayName;
 
   const actionMenu = actionsOpen ? (
     <div
@@ -220,7 +231,10 @@ export function MessageItem({
           }}
           className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-sm text-foreground hover:bg-muted focus:bg-muted focus:outline-none"
         >
-          <Reply className="h-4 w-4" />
+          <Reply
+            aria-hidden="true"
+            className="h-4 w-4"
+          />
           Reply
         </button>
       )}
@@ -235,24 +249,26 @@ export function MessageItem({
       </button>
     </div>
   ) : null;
-  const initials = aiIdentity
+  const initials = isCurrentUser
+    ? "Y"
+    : aiIdentity
     ? aiIdentity.initials
     : participant?.type === "human"
       ? participant.initials
       : getParticipantInitials(displayName);
   const avatarUrl =
-    participant?.type === "human"
+    !isCurrentUser && participant?.type === "human"
       ? getSafeAvatarUrl(participant.avatarUrl)
       : null;
   const provider =
     aiIdentity && isKnownProvider(aiIdentity.providerId)
       ? aiIdentity.providerId
       : undefined;
-  const isCurrentUser =
-    authorType === "human" &&
-    (isOwnMessage ||
-      (participant?.type === "human" &&
-        participant.isCurrentUser));
+  const providerAccent = provider
+    ? PROVIDER_META[provider]
+    : null;
+  const isOptimisticHuman =
+    authorType === "human" && messageId < 0;
 
   const messageTimeIso =
     createdAt instanceof Date && !isNaN(createdAt.getTime())
@@ -309,10 +325,12 @@ export function MessageItem({
             {displayName}
           </span>
 
-          {isCurrentUser && displayName !== "You" && (
-            <span className="rounded-full border border-border px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
-              You
-            </span>
+          {providerAccent && (
+            <span
+              data-provider-accent={provider}
+              aria-hidden="true"
+              className={`h-1.5 w-1.5 shrink-0 rounded-full ${providerAccent.dotClass}`}
+            />
           )}
 
           {formattedTime && (
@@ -335,7 +353,10 @@ export function MessageItem({
               title={`Reply to ${displayName}`}
               className="sr-only rounded-md text-muted-foreground transition-all hover:bg-muted hover:text-foreground [@media(pointer:fine)]:not-sr-only [@media(pointer:fine)]:flex [@media(pointer:fine)]:h-6 [@media(pointer:fine)]:w-6 [@media(pointer:fine)]:items-center [@media(pointer:fine)]:justify-center [@media(pointer:fine)]:opacity-0 [@media(pointer:fine)]:group-hover:opacity-100 [@media(pointer:fine)]:focus:opacity-100"
             >
-              <Reply className="h-3.5 w-3.5" />
+              <Reply
+                aria-hidden="true"
+                className="h-3.5 w-3.5"
+              />
             </button>
           )}
 
@@ -348,24 +369,38 @@ export function MessageItem({
                 title={`Retry ${displayName}`}
                 className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
-                <RotateCcw className="h-3.5 w-3.5" />
+                <RotateCcw
+                  aria-hidden="true"
+                  className="h-3.5 w-3.5"
+                />
               </button>
             )}
         </div>
 
         {replyTo && (
-          <div className="mb-2 rounded-md border-l-2 border-border bg-muted/30 py-2 pl-3 pr-2 text-xs text-muted-foreground">
+          <div className="mb-2 border-l-2 border-border bg-muted/20 py-1.5 pl-3 pr-2 text-xs text-muted-foreground">
             <div className="font-medium">
               {replyTo.authorName}
             </div>
 
-            <div className="truncate">
+            <div className="line-clamp-2 whitespace-pre-wrap [overflow-wrap:anywhere]">
               {replyTo.content}
             </div>
           </div>
         )}
 
-        {isStreaming && !content ? (
+        {isError ? (
+          <div
+            data-message-part="status"
+            role="alert"
+            className="border-l-2 border-destructive/60 py-0.5 pl-3 text-sm leading-relaxed text-destructive [overflow-wrap:anywhere] whitespace-pre-wrap"
+          >
+            <span className="mb-0.5 block text-xs font-semibold">
+              Error
+            </span>
+            {content}
+          </div>
+        ) : isStreaming && !isStopped && !content ? (
           <div
             data-message-part="status"
             role="status"
@@ -387,6 +422,43 @@ export function MessageItem({
             {content}
           </div>
         )}
+
+        {!isError && !isStopped && isStreaming && content && (
+          <div
+            data-message-part="status"
+            role="status"
+            className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground"
+          >
+            <span
+              aria-hidden="true"
+              className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground"
+            />
+            Responding…
+          </div>
+        )}
+
+        {!isError && isStopped && (
+          <div
+            data-message-part="status"
+            role="status"
+            className="mt-1 text-xs text-muted-foreground"
+          >
+            Stopped
+          </div>
+        )}
+
+        {!isError &&
+          !isStopped &&
+          !isStreaming &&
+          isOptimisticHuman && (
+          <div
+            data-message-part="status"
+            role="status"
+            className="mt-1 text-xs text-muted-foreground"
+          >
+            Sending…
+          </div>
+          )}
       </div>
       {actionMenu}
     </article>

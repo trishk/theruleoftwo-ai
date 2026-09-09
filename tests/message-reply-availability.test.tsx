@@ -398,7 +398,7 @@ describe("message reply availability", () => {
       />
     );
 
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Responding…");
     expect(screen.getByText("First token received")).toBeInTheDocument();
 
     rendered.rerender(
@@ -450,5 +450,117 @@ describe("message reply availability", () => {
       expect(el).toHaveClass("text-xs", "text-muted-foreground");
       expect(el).toHaveAttribute("dateTime", timestamp.toISOString());
     });
+  });
+
+  it("shows an accessible continuing status alongside streamed text", () => {
+    renderMessages([
+      createMessage({
+        id: -40,
+        authorType: "ai",
+        authorName: "ChatGPT",
+        provider: "openai",
+        content: "Partial answer",
+        isStreaming: true,
+      }),
+    ]);
+
+    expect(screen.getByText("Partial answer")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Responding…");
+  });
+
+  it("labels a stopped partial response without hiding its content", () => {
+    renderMessages([
+      createMessage({
+        id: -41,
+        authorType: "ai",
+        authorName: "Claude",
+        provider: "anthropic",
+        content: "Partial answer",
+        isStopped: true,
+      }),
+    ]);
+
+    expect(screen.getByText("Partial answer")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Stopped");
+  });
+
+  it("renders retryable errors as alerts with an accessible Retry action", () => {
+    const onRetry = vi.fn();
+    render(
+      <MessageList
+        messages={[
+          createMessage({
+            id: -42,
+            authorType: "ai",
+            authorName: "ChatGPT",
+            provider: "openai",
+            content: "ChatGPT failed to respond.",
+            isError: true,
+          }),
+        ]}
+        onReply={noop}
+        onRetry={onRetry}
+      />
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "ErrorChatGPT failed to respond."
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Retry ChatGPT" }));
+    expect(onRetry).toHaveBeenCalledOnce();
+  });
+
+  it("renders non-retryable errors as alerts without Retry", () => {
+    render(
+      <MessageList
+        messages={[
+          createMessage({
+            id: -43,
+            authorType: "ai",
+            authorName: "ChatGPT",
+            provider: "openai",
+            content: "ChatGPT is not connected.",
+            isError: true,
+            isRetryable: false,
+          }),
+        ]}
+        onReply={noop}
+        onRetry={noop}
+      />
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "ErrorChatGPT is not connected."
+    );
+    expect(
+      screen.queryByRole("button", { name: "Retry ChatGPT" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("wraps long reply and message content without changing multiline text", () => {
+    const longToken = "https://example.test/" + "segment".repeat(40);
+    renderMessages([
+      createMessage({
+        id: 44,
+        content: `Line one\n${longToken}`,
+        replyTo: {
+          id: 10,
+          authorName: "Grace",
+          content: `First reply line\n${longToken}`,
+        },
+      }),
+    ]);
+
+    const body = screen.getByText(/Line one/);
+    expect(body).toHaveClass(
+      "whitespace-pre-wrap",
+      "[overflow-wrap:anywhere]"
+    );
+    const replyContent = screen.getByText(/First reply line/);
+    expect(replyContent).toHaveClass(
+      "line-clamp-2",
+      "whitespace-pre-wrap",
+      "[overflow-wrap:anywhere]"
+    );
   });
 });
