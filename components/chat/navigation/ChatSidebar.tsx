@@ -27,7 +27,7 @@ export function ChatSidebar({
   isGuest = false,
 }: Props) {
   return (
-    <div className="flex h-full flex-col">
+    <nav aria-label="Conversation navigation" className="flex h-full flex-col">
       <div className="flex-1">
         <div className="mb-6 flex justify-center pt-1">
           <RuleOfTwoLogo
@@ -88,6 +88,6 @@ export function ChatSidebar({
           </div>
         </div>
       )}
-    </div>
+    </nav>
   );
 }

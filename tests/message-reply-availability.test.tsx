@@ -381,6 +381,9 @@ describe("message reply availability", () => {
     const thinkingState = screen.getByRole("status");
     expect(thinkingState).toBeInTheDocument();
     expect(thinkingState).toHaveTextContent("Thinking...");
+    expect(thinkingState.querySelector(".animate-pulse")).toHaveClass(
+      "motion-reduce:animate-none"
+    );
 
     rendered.rerender(
       <MessageList

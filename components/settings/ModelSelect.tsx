@@ -47,7 +47,7 @@ export function ModelSelect({
           event.target.value
         )
       }
-      className="mt-2 h-9 rounded-md border border-border bg-background px-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+      className="mt-2 h-11 w-full max-w-full rounded-md border border-border bg-background px-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 sm:h-9 sm:w-auto"
     >
       {models.map((model) => (
         <option

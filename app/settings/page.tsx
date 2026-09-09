@@ -143,7 +143,7 @@ export default async function SettingsPage() {
                 Display name
               </label>
 
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row">
                 <input
                   id="displayName"
                   name="displayName"
@@ -152,12 +152,12 @@ export default async function SettingsPage() {
                   }
                   placeholder="Your name"
                   maxLength={50}
-                  className="h-10 flex-1 rounded-md border border-border bg-background px-3 text-sm outline-none transition-colors focus:ring-2 focus:ring-ring"
+                  className="h-11 min-w-0 w-full flex-1 rounded-md border border-border bg-background px-3 text-sm outline-none transition-colors focus:ring-2 focus:ring-ring sm:h-10"
                 />
 
                 <button
                   type="submit"
-                  className="rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                  className="min-h-11 w-full rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 sm:min-h-10 sm:w-auto"
                 >
                   Save
                 </button>
@@ -206,7 +206,7 @@ export default async function SettingsPage() {
                       key={
                         typedProviderId
                       }
-                      className="flex items-center justify-between gap-5 rounded-xl border border-border bg-card p-5"
+                      className="flex flex-col items-stretch gap-4 rounded-xl border border-border bg-card p-5 sm:flex-row sm:items-center sm:justify-between sm:gap-5"
                     >
                       <div className="flex min-w-0 items-start gap-3">
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-background">
@@ -241,7 +241,7 @@ export default async function SettingsPage() {
                         </div>
                       </div>
 
-                      <div className="flex shrink-0 items-center gap-4">
+                      <div className="flex min-w-0 items-center justify-between gap-4 sm:shrink-0 sm:justify-start">
                         <div className="flex items-center gap-2">
                           <div
                             className={[

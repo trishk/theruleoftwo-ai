@@ -336,6 +336,10 @@ export function MessageList({
       requestAnimationFrame(() => {
         scrollFrameRef.current = null;
 
+        const prefersReducedMotion =
+          window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ??
+          false;
+
         container.scrollTo({
           top: container.scrollHeight,
           behavior: messages.some(
@@ -343,7 +347,9 @@ export function MessageList({
               message.isStreaming
           )
             ? "auto"
-            : "smooth",
+            : prefersReducedMotion
+              ? "auto"
+              : "smooth",
         });
 
         lastScrollTopRef.current =

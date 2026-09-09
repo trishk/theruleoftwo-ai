@@ -94,6 +94,16 @@ describe("settings data access", () => {
     );
   });
 
+  it("stacks profile and provider controls on mobile while preserving sm rows", async () => {
+    const markup = renderToStaticMarkup(await SettingsPage());
+
+    expect(markup).toContain("flex flex-col gap-2 sm:flex-row");
+    expect(markup).toContain("min-w-0 w-full flex-1");
+    expect(markup).toContain("sm:min-h-10 sm:w-auto");
+    expect(markup).toContain("flex flex-col items-stretch gap-4");
+    expect(markup).toContain("sm:flex-row sm:items-center sm:justify-between");
+  });
+
   it("redirects guests before reading settings integrations", async () => {
     requireUserMock.mockResolvedValue({
       id: "guest-1",

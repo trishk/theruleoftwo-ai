@@ -408,9 +408,9 @@ export function MessageItem({
             className="flex items-center gap-2 py-1 text-xs text-muted-foreground"
           >
             <span className="inline-flex items-center gap-1" aria-hidden="true">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground" />
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground [animation-delay:150ms]" />
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground [animation-delay:300ms]" />
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground motion-reduce:animate-none" />
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground [animation-delay:150ms] motion-reduce:animate-none" />
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground [animation-delay:300ms] motion-reduce:animate-none" />
             </span>
             <span>Thinking...</span>
           </div>
@@ -431,7 +431,7 @@ export function MessageItem({
           >
             <span
               aria-hidden="true"
-              className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground"
+              className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground motion-reduce:animate-none"
             />
             Responding…
           </div>

@@ -42,7 +42,7 @@ export function RemoveIntegrationButton({
 
   if (confirming) {
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
         <span className="text-xs text-muted-foreground">
           Remove?
         </span>
@@ -53,7 +53,7 @@ export function RemoveIntegrationButton({
             setConfirming(false)
           }
           disabled={isPending}
-          className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+          className="min-h-11 px-2 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50 sm:min-h-0 sm:px-0"
         >
           Cancel
         </button>
@@ -62,7 +62,7 @@ export function RemoveIntegrationButton({
           type="button"
           onClick={handleRemove}
           disabled={isPending}
-          className="text-xs font-medium text-destructive hover:underline disabled:opacity-50"
+          className="min-h-11 px-2 text-xs font-medium text-destructive hover:underline disabled:opacity-50 sm:min-h-0 sm:px-0"
         >
           {isPending
             ? "Removing..."
@@ -80,7 +80,7 @@ export function RemoveIntegrationButton({
       }
       aria-label={`Remove ${providerName}`}
       title={`Remove ${providerName}`}
-      className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
+      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-destructive sm:h-8 sm:w-8"
     >
       <Trash2 className="h-4 w-4" />
     </button>

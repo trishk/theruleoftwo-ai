@@ -1,6 +1,9 @@
 "use client";
 
 import {
+  useId,
+  useEffect,
+  useRef,
   useState,
   useTransition,
 } from "react";
@@ -42,6 +45,12 @@ export function AddIntegration({
 
   const [error, setError] =
     useState<string | null>(null);
+  const errorId = useId();
+  const providerRef = useRef<HTMLSelectElement | null>(null);
+
+  useEffect(() => {
+    providerRef.current?.focus();
+  }, []);
 
   const isReplacing =
     configuredProviders.includes(
@@ -116,7 +125,7 @@ export function AddIntegration({
           onClick={handleClose}
           aria-label="Close"
           title="Close"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:h-8 sm:w-8"
         >
           <X className="h-4 w-4" />
         </button>
@@ -132,6 +141,7 @@ export function AddIntegration({
           </label>
 
           <select
+            ref={providerRef}
             id="provider"
             value={provider}
             onChange={(event) =>
@@ -140,7 +150,7 @@ export function AddIntegration({
               )
             }
             disabled={isPending}
-            className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+            className="h-11 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 sm:h-10"
           >
             {Object.entries(
               PROVIDERS
@@ -199,8 +209,9 @@ export function AddIntegration({
                 : "Paste API key"
             }
             autoComplete="off"
+            aria-describedby={error ? errorId : undefined}
             disabled={isPending}
-            className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+            className="h-11 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 sm:h-10"
           />
 
           <p className="mt-1.5 text-xs text-muted-foreground">
@@ -211,17 +222,17 @@ export function AddIntegration({
       </div>
 
       {error && (
-        <div className="mt-3 text-sm text-red-500">
+        <div id={errorId} role="alert" className="mt-3 text-sm text-red-500">
           {error}
         </div>
       )}
 
-      <div className="mt-5 flex justify-end gap-2">
+      <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
         <button
           type="button"
           onClick={handleClose}
           disabled={isPending}
-          className="h-9 rounded-md px-3 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+          className="min-h-11 w-full rounded-md px-3 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50 sm:h-9 sm:min-h-0 sm:w-auto"
         >
           Cancel
         </button>
@@ -233,7 +244,7 @@ export function AddIntegration({
             isPending ||
             !apiKey.trim()
           }
-          className="h-9 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+          className="min-h-11 w-full rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 sm:h-9 sm:min-h-0 sm:w-auto"
         >
           {isPending
             ? "Saving..."

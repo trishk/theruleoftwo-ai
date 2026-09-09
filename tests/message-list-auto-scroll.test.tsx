@@ -130,6 +130,10 @@ describe("MessageList bottom following", () => {
       })
     );
     vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: false }))
+    );
   });
 
   it("keeps a just-sent human message visible after an intermediate smooth-scroll event", () => {
@@ -181,6 +185,51 @@ describe("MessageList bottom following", () => {
     expect(container.scrollTo).toHaveBeenLastCalledWith({
       top: 1000,
       behavior: "auto",
+    });
+  });
+
+  it("uses automatic scrolling when reduced motion is preferred", () => {
+    vi.mocked(window.matchMedia).mockReturnValue({
+      matches: true,
+    } as MediaQueryList);
+    const rendered = renderList([humanMessage(1)]);
+    const container = rendered.container.firstElementChild as HTMLElement;
+    setGeometry(container, {
+      scrollHeight: 1000,
+      clientHeight: 500,
+      scrollTop: 500,
+    });
+    flushAnimationFrames();
+
+    renderList([humanMessage(1), humanMessage(-1)], rendered);
+    flushAnimationFrames();
+
+    expect(window.matchMedia).toHaveBeenCalledWith(
+      "(prefers-reduced-motion: reduce)"
+    );
+    expect(container.scrollTo).toHaveBeenLastCalledWith({
+      top: 1000,
+      behavior: "auto",
+    });
+  });
+
+  it("keeps scrolling when matchMedia is unavailable", () => {
+    vi.stubGlobal("matchMedia", undefined);
+    const rendered = renderList([humanMessage(1)]);
+    const container = rendered.container.firstElementChild as HTMLElement;
+    setGeometry(container, {
+      scrollHeight: 1000,
+      clientHeight: 500,
+      scrollTop: 500,
+    });
+    flushAnimationFrames();
+
+    renderList([humanMessage(1), humanMessage(-1)], rendered);
+    flushAnimationFrames();
+
+    expect(container.scrollTo).toHaveBeenLastCalledWith({
+      top: 1000,
+      behavior: "smooth",
     });
   });
 
