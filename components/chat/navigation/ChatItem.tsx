@@ -10,7 +10,6 @@ import {
   useTransition,
 } from "react";
 import {
-  MessageCircle,
   MoreHorizontal,
   Pencil,
   Trash2,
@@ -21,7 +20,9 @@ import {
   renameConversation,
 } from "@/app/actions";
 import type { ConversationSummary } from "@/lib/chat/conversation-summary";
+import { getConversationPresentation } from "@/lib/chat/conversation-presentation";
 
+import { ConversationTypeIcon } from "./ConversationTypeIcon";
 import { useOptionalConversationRealtime } from "../realtime/RealtimeConversationSync";
 import { useOptionalSidebarRealtime } from "../realtime/RealtimeSidebarSync";
 
@@ -43,6 +44,7 @@ export function ChatItem({
     hasUnread,
   } = chat;
   const isOwner = ownerId === currentUserId;
+  const presentation = getConversationPresentation(chat);
   const pathname = usePathname();
   const router = useRouter();
 
@@ -56,6 +58,7 @@ export function ChatItem({
 
   const isActive =
     pathname === href;
+  const showUnread = hasUnread && !isActive;
 
   const [menuOpen, setMenuOpen] =
     useState(false);
@@ -172,7 +175,7 @@ export function ChatItem({
       <Link
         href={href}
         className={[
-          "flex items-center gap-2.5 rounded-md px-3 py-2 pr-12 text-sm transition-colors md:pr-9",
+          "flex min-h-16 items-start gap-2.5 rounded-md px-3 py-2.5 pr-12 text-sm transition-colors md:pr-10",
           isActive
             ? "bg-muted text-foreground"
             : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
@@ -183,21 +186,45 @@ export function ChatItem({
               : "",
         ].join(" ")}
         title={title}
+        aria-label={showUnread ? `${title}, unread messages` : title}
       >
-        <MessageCircle className="h-4 w-4 shrink-0" />
+        <ConversationTypeIcon
+          kind={presentation.iconKind}
+          label={presentation.typeLabel}
+          className="mt-0.5 h-7 w-7"
+          decorative
+        />
 
-        <span className="min-w-0 flex-1 truncate">
-          {title}
+        <span className="min-w-0 flex-1">
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="min-w-0 flex-1 truncate">
+              {title}
+            </span>
+
+            {showUnread && (
+              <span
+                aria-hidden="true"
+                title="Unread messages"
+                className="h-2 w-2 shrink-0 rounded-full bg-foreground"
+              />
+            )}
+          </span>
+
+          <span className="block truncate text-[11px] leading-4 font-normal text-muted-foreground">
+            {presentation.metadataLabel}
+          </span>
+
+          <span
+            className={[
+              "block truncate text-xs text-muted-foreground",
+              showUnread
+                ? "font-medium text-foreground/80"
+                : "font-normal",
+            ].join(" ")}
+          >
+            {presentation.preview}
+          </span>
         </span>
-
-        {hasUnread &&
-          !isActive && (
-            <span
-              aria-label="Unread messages"
-              title="Unread messages"
-              className="h-2 w-2 shrink-0 rounded-full bg-foreground"
-            />
-          )}
       </Link>
 
       <button
@@ -209,7 +236,7 @@ export function ChatItem({
             (open) => !open
           )
         }
-        className="absolute right-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground opacity-100 transition-all hover:bg-background hover:text-foreground md:right-1 md:h-7 md:w-7 md:opacity-0 md:group-hover:opacity-100"
+        className="absolute right-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground opacity-100 transition-all hover:bg-background hover:text-foreground md:right-1 md:h-8 md:w-8 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
       >
         <MoreHorizontal className="h-4 w-4" />
       </button>

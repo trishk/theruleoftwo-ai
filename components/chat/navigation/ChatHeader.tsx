@@ -5,11 +5,8 @@ import {
   useTransition,
 } from "react";
 import {
-  Bot,
   Check,
   Link2,
-  UserRound,
-  UsersRound,
 } from "lucide-react";
 
 import {
@@ -17,8 +14,10 @@ import {
   renameConversation,
 } from "@/app/actions";
 import type { ConversationSummary } from "@/lib/chat/conversation-summary";
+import { getConversationPresentation } from "@/lib/chat/conversation-presentation";
 
 import { LeaveConversationButton } from "./LeaveConversationButton";
+import { ConversationTypeIcon } from "./ConversationTypeIcon";
 import { useOptionalConversationRealtime } from "../realtime/RealtimeConversationSync";
 
 type Props = {
@@ -53,12 +52,9 @@ export function ChatHeader({
   const [copied, setCopied] =
     useState(false);
 
-  const hasMultipleHumans =
-    (summary?.humanCount ?? 0) > 1;
-  const humanParticipantNames =
-    summary?.participants
-      .filter((participant) => participant.type === "human")
-      .map((participant) => participant.displayName) ?? [];
+  const presentation = summary
+    ? getConversationPresentation(summary)
+    : null;
 
   function startEditing() {
     setValue(title);
@@ -145,78 +141,69 @@ export function ChatHeader({
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border pl-16 pr-4 md:px-6">
-      <div className="min-w-0 flex-1">
-        {isEditing ? (
-          <input
-            autoFocus
-            value={value}
-            disabled={isPending}
-            maxLength={100}
-            onChange={(event) =>
-              setValue(
-                event.target.value
-              )
-            }
-            onBlur={save}
-            onKeyDown={(event) => {
-              if (
-                event.key === "Enter"
-              ) {
-                save();
-              }
-
-              if (
-                event.key === "Escape"
-              ) {
-                cancelEditing();
-              }
-            }}
-            className="w-full max-w-md rounded-md border border-border bg-background px-2 py-1 text-sm font-medium text-foreground outline-none focus:ring-2 focus:ring-ring"
+      <div className="flex min-w-0 flex-1 items-center gap-2.5">
+        {conversationId && presentation && (
+          <ConversationTypeIcon
+            kind={presentation.iconKind}
+            label={presentation.typeLabel}
           />
-        ) : (
-          <div className="min-w-0">
-            {conversationId ? (
-              <button
-                type="button"
-                onClick={startEditing}
-                className="max-w-full truncate text-left text-sm font-medium text-foreground hover:underline"
-              >
-                {title}
-              </button>
-            ) : (
-              <span className="truncate text-sm font-medium text-foreground">
-                {title}
-              </span>
-            )}
-
-            {humanParticipantNames.length > 1 && (
-              <div className="truncate text-xs text-muted-foreground">
-                {humanParticipantNames.join(
-                  " · "
-                )}
-              </div>
-            )}
-          </div>
         )}
+
+        <div className="min-w-0 flex-1">
+          {isEditing ? (
+            <input
+              autoFocus
+              value={value}
+              disabled={isPending}
+              maxLength={100}
+              onChange={(event) =>
+                setValue(
+                  event.target.value
+                )
+              }
+              onBlur={save}
+              onKeyDown={(event) => {
+                if (
+                  event.key === "Enter"
+                ) {
+                  save();
+                }
+
+                if (
+                  event.key === "Escape"
+                ) {
+                  cancelEditing();
+                }
+              }}
+              className="w-full max-w-md rounded-md border border-border bg-background px-2 py-1 text-sm font-medium text-foreground outline-none focus:ring-2 focus:ring-ring"
+            />
+          ) : (
+            <div className="min-w-0">
+              {conversationId ? (
+                <button
+                  type="button"
+                  onClick={startEditing}
+                  className="max-w-full truncate text-left text-sm font-medium text-foreground hover:underline"
+                >
+                  {title}
+                </button>
+              ) : (
+                <span className="truncate text-sm font-medium text-foreground">
+                  {title}
+                </span>
+              )}
+
+              {presentation && (
+                <div className="truncate text-xs text-muted-foreground">
+                  {presentation.metadataLabel}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        {conversationId && (
-          <div className="flex items-center gap-1 text-muted-foreground">
-            <span className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background">
-              {hasMultipleHumans ? (
-                <UsersRound className="h-4 w-4" />
-              ) : (
-                <UserRound className="h-4 w-4" />
-              )}
-            </span>
-
-            <span className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background">
-              <Bot className="h-4 w-4" />
-            </span>
-          </div>
-        )}
-
         {conversationId &&
           isGuest && (
             <LeaveConversationButton
