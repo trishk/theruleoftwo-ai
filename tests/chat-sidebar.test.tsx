@@ -51,6 +51,12 @@ describe("ChatSidebar", () => {
     ).toBeInTheDocument();
 
     expect(
+      screen.getByRole("button", {
+        name: "Theme",
+      })
+    ).toBeInTheDocument();
+
+    expect(
       screen.getByText("Recent")
     ).toBeInTheDocument();
   });
@@ -79,6 +85,12 @@ describe("ChatSidebar", () => {
     expect(
       screen.queryByRole("button", {
         name: "Sign out",
+      })
+    ).not.toBeInTheDocument();
+
+    expect(
+      screen.queryByRole("button", {
+        name: "Theme",
       })
     ).not.toBeInTheDocument();
 

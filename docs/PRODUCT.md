@@ -16,7 +16,7 @@ Real decisions are collaborative.
 
 People discuss important decisions with partners, friends, colleagues and advisors.
 
-TheRuleOfTwo extends that idea by allowing AI experts to participate naturally in those conversations.
+TheRuleOfTwo.ai extends that idea by allowing AI experts to participate naturally in those conversations.
 
 ---
 

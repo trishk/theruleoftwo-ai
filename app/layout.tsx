@@ -18,13 +18,13 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "The Rule of Two",
-    template: "%s | The Rule of Two",
+    default: "TheRuleOfTwo.ai",
+    template: "%s | TheRuleOfTwo.ai",
   },
   description:
     "Better decisions need more than one perspective.",
   applicationName:
-    "The Rule of Two",
+    "TheRuleOfTwo.ai",
 };
 
 export default function RootLayout({

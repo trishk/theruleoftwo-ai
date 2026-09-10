@@ -12,7 +12,7 @@ export function RuleOfTwoLogo({
   return (
     <div
       className={`inline-flex items-center gap-3 ${className}`}
-      aria-label="The Rule of Two"
+      aria-label="TheRuleOfTwo.ai"
     >
       <span className="whitespace-nowrap text-[13px] font-bold uppercase tracking-[0.24em] text-foreground">
         The Rule Of

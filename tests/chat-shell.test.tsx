@@ -38,6 +38,7 @@ function renderShell() {
         <>
           <a href="/first">First destination</a>
           <button type="button">Last action</button>
+          <button type="button" className="h-11 w-11 md:h-9 md:w-9">Theme control</button>
         </>
       }
     >
@@ -90,7 +91,7 @@ describe("ChatShell mobile drawer", () => {
     const close = within(dialog).getByRole("button", {
       name: "Close navigation",
     });
-    const last = within(dialog).getByRole("button", { name: "Last action" });
+    const last = within(dialog).getByRole("button", { name: "Theme control" });
     last.focus();
     fireEvent.keyDown(document, { key: "Tab" });
     expect(close).toHaveFocus();
@@ -98,6 +99,22 @@ describe("ChatShell mobile drawer", () => {
     close.focus();
     fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
     expect(last).toHaveFocus();
+  });
+
+  it("includes the shared theme control in the mobile focus trap with a mobile touch target", () => {
+    renderShell();
+    fireEvent.click(screen.getByRole("button", { name: "Open navigation" }));
+
+    const themeControl = within(screen.getByRole("dialog")).getByRole("button", {
+      name: "Theme control",
+    });
+    expect(themeControl).toHaveClass("h-11", "w-11", "md:h-9", "md:w-9");
+
+    themeControl.focus();
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(within(screen.getByRole("dialog")).getByRole("button", {
+      name: "Close navigation",
+    })).toHaveFocus();
   });
 
   it("keeps the desktop sidebar markup available", () => {

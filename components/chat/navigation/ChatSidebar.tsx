@@ -14,6 +14,7 @@ import { RuleOfTwoLogo } from "@/components/brand/RuleOfTwoLogo";
 import type { ConversationSummary } from "@/lib/chat/conversation-summary";
 
 import { ChatList } from "./ChatList";
+import { ThemeToggle } from "./ThemeToggle";
 
 type Props = {
   chats: ConversationSummary[];
@@ -74,6 +75,8 @@ export function ChatSidebar({
             >
               <Settings className="h-4 w-4" />
             </Link>
+
+            <ThemeToggle />
 
             <form action={signOut}>
               <button

@@ -6,6 +6,7 @@ import { joinConversationByInvite } from "@/app/actions";
 
 import { GuestJoinForm } from "@/components/chat/navigation/GuestJoinForm";
 import { RealtimeConversationSync } from "@/components/chat/realtime/RealtimeConversationSync";
+import { RuleOfTwoLogo } from "@/components/brand/RuleOfTwoLogo";
 
 type Props = {
   params: Promise<{
@@ -43,16 +44,19 @@ export default async function InvitePage({
 
   if (invalid) {
     return (
-      <main className="flex min-h-dvh items-center justify-center bg-background px-6">
-        <div className="w-full max-w-md rounded-lg border border-border bg-card p-6">
-          <h1 className="text-xl font-semibold">
-            Invalid invite
-          </h1>
+      <main className="flex min-h-dvh items-center justify-center bg-background px-4 py-6 sm:px-6">
+        <div className="flex w-full max-w-md flex-col items-center gap-5">
+          <RuleOfTwoLogo />
+          <div className="w-full rounded-lg border border-border bg-card p-6">
+            <h1 className="text-xl font-semibold">
+              Invalid invite
+            </h1>
 
-          <p className="mt-2 text-sm text-muted-foreground">
-            This invitation is invalid,
-            expired, or has been revoked.
-          </p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              This invitation is invalid,
+              expired, or has been revoked.
+            </p>
+          </div>
         </div>
       </main>
     );
@@ -99,53 +103,56 @@ export default async function InvitePage({
   }
 
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-background px-6">
-      <div className="w-full max-w-md rounded-lg border border-border bg-card p-6">
-        <h1 className="text-xl font-semibold">
-          Join conversation
-        </h1>
+    <main className="flex min-h-dvh items-center justify-center bg-background px-4 py-6 sm:px-6">
+      <div className="flex w-full max-w-md flex-col items-center gap-5">
+        <RuleOfTwoLogo />
+        <div className="w-full rounded-lg border border-border bg-card p-6">
+          <h1 className="text-xl font-semibold">
+            Join conversation
+          </h1>
 
-        <p className="mt-2 text-sm text-muted-foreground">
-          You&apos;ve been invited to
-          join:
-        </p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            You&apos;ve been invited to
+            join:
+          </p>
 
-        <div className="mt-4 rounded-md bg-muted px-4 py-3 font-medium">
-          {invite.conversation.title}
-        </div>
+          <div className="mt-4 rounded-md bg-muted px-4 py-3 font-medium">
+            {invite.conversation.title}
+          </div>
 
-        <RealtimeConversationSync
-          conversationPublicId={
-            invite.conversation.publicId
-          }
-        >
-          {currentUser ? (
-            <form
-              action={joinExistingUser}
-              className="mt-6"
-            >
-              <p className="mb-4 text-sm text-muted-foreground">
-                Join as{" "}
-                <span className="font-medium text-foreground">
-                  {currentUser.name ??
-                    currentUser.email ??
-                    "current user"}
-                </span>
-              </p>
-
-              <button
-                type="submit"
-                className="w-full rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          <RealtimeConversationSync
+            conversationPublicId={
+              invite.conversation.publicId
+            }
+          >
+            {currentUser ? (
+              <form
+                action={joinExistingUser}
+                className="mt-6"
               >
-                Join conversation
-              </button>
-            </form>
-          ) : (
-            <GuestJoinForm
-              token={token}
-            />
-          )}
-        </RealtimeConversationSync>
+                <p className="mb-4 text-sm text-muted-foreground">
+                  Join as{" "}
+                  <span className="font-medium text-foreground">
+                    {currentUser.name ??
+                      currentUser.email ??
+                      "current user"}
+                  </span>
+                </p>
+
+                <button
+                  type="submit"
+                  className="w-full rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                >
+                  Join conversation
+                </button>
+              </form>
+            ) : (
+              <GuestJoinForm
+                token={token}
+              />
+            )}
+          </RealtimeConversationSync>
+        </div>
       </div>
     </main>
   );

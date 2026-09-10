@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Moon,
   Sun,
@@ -10,27 +10,77 @@ type Theme =
   | "dark"
   | "light";
 
+const themeChangeEvent = "theruleoftwo:theme-change";
+
+function isTheme(value: unknown): value is Theme {
+  return value === "dark" || value === "light";
+}
+
+function applyTheme(theme: Theme) {
+  document.documentElement.classList.toggle("dark", theme === "dark");
+}
+
+function announceThemeChange(theme: Theme) {
+  window.dispatchEvent(new CustomEvent(themeChangeEvent, { detail: theme }));
+}
+
 export function ThemeToggle() {
   const [theme, setTheme] =
     useState<Theme>("dark");
 
+  useEffect(() => {
+    let savedTheme: Theme = "dark";
+
+    function handleThemeChange(event: Event) {
+      const nextTheme = (event as CustomEvent<unknown>).detail;
+      if (isTheme(nextTheme)) setTheme(nextTheme);
+    }
+
+    function handleStorage(event: StorageEvent) {
+      if (event.key !== "theme" || !isTheme(event.newValue)) return;
+
+      applyTheme(event.newValue);
+      announceThemeChange(event.newValue);
+    }
+
+    window.addEventListener(themeChangeEvent, handleThemeChange);
+    window.addEventListener("storage", handleStorage);
+
+    try {
+      const storedTheme = localStorage.getItem("theme");
+      if (isTheme(storedTheme)) {
+        savedTheme = storedTheme;
+      }
+    } catch {
+      // Storage can be unavailable in privacy-restricted browsing contexts.
+    }
+
+    applyTheme(savedTheme);
+    announceThemeChange(savedTheme);
+
+    return () => {
+      window.removeEventListener(themeChangeEvent, handleThemeChange);
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, []);
+
   function toggleTheme() {
     const nextTheme: Theme =
-      theme === "dark"
+      document.documentElement.classList.contains("dark")
         ? "light"
         : "dark";
 
-    setTheme(nextTheme);
+    try {
+      localStorage.setItem(
+        "theme",
+        nextTheme
+      );
+    } catch {
+      // Keep the in-memory choice usable even when storage is unavailable.
+    }
 
-    localStorage.setItem(
-      "theme",
-      nextTheme
-    );
-
-    document.documentElement.classList.toggle(
-      "dark",
-      nextTheme === "dark"
-    );
+    applyTheme(nextTheme);
+    announceThemeChange(nextTheme);
   }
 
   const isDark =
@@ -47,15 +97,15 @@ export function ThemeToggle() {
       }
       title={
         isDark
-          ? "Light mode"
-          : "Dark mode"
+          ? "Switch to light mode"
+          : "Switch to dark mode"
       }
-      className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 md:h-9 md:w-9"
     >
       {isDark ? (
-        <Moon className="h-4 w-4" />
+        <Moon aria-hidden="true" className="h-4 w-4" />
       ) : (
-        <Sun className="h-4 w-4" />
+        <Sun aria-hidden="true" className="h-4 w-4" />
       )}
     </button>
   );
