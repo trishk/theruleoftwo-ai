@@ -412,6 +412,26 @@ describe(
       expect(streamLLMMock).not.toHaveBeenCalled();
     });
 
+    it("returns 403 before rate limits, quota, leases, decrypt, or provider access", async () => {
+      validateStreamRequestMock.mockRejectedValue(
+        new Error("MEMBER_AI_USAGE_NOT_ALLOWED")
+      );
+      streamValidationErrorResponseMock.mockReturnValue(
+        new Response("The conversation owner has not enabled shared AI usage.", {
+          status: 403,
+        })
+      );
+
+      const response = await POST(createRequest() as never);
+
+      expect(response.status).toBe(403);
+      expect(checkRateLimitMock).not.toHaveBeenCalled();
+      expect(acquireGenerationLeaseMock).not.toHaveBeenCalled();
+      expect(prepareLLMRequestMock).not.toHaveBeenCalled();
+      expect(checkDailyQuotaMock).not.toHaveBeenCalled();
+      expect(streamLLMMock).not.toHaveBeenCalled();
+    });
+
     it("does not consume owner quota when authentication fails", async () => {
       requireUserMock.mockRejectedValue(
         new Error("Unauthorized")

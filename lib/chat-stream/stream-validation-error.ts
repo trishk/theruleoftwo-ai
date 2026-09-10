@@ -49,6 +49,18 @@ export function streamValidationErrorResponse(
         { status: 400 }
       );
 
+    case "MEMBER_AI_USAGE_NOT_ALLOWED":
+      return new Response(
+        "The conversation owner has not enabled shared AI usage.",
+        {
+          status: 403,
+          headers: {
+            "X-Chat-Error-Code":
+              "member_ai_usage_not_allowed",
+          },
+        }
+      );
+
     default:
       console.error(
         "Stream request validation failed:",

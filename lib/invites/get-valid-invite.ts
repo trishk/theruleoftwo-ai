@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/db/prisma";
 
+export const MAX_INVITE_USES = 10;
+
 export async function getValidInvite(
   token: string
 ) {
@@ -9,9 +11,11 @@ export async function getValidInvite(
         token,
       },
       select: {
+        id: true,
         conversationId: true,
         expiresAt: true,
         revokedAt: true,
+        usageCount: true,
       },
     });
 
@@ -31,6 +35,15 @@ export async function getValidInvite(
   ) {
     throw new Error(
       "Invite has expired."
+    );
+  }
+
+  if (
+    invite.usageCount >=
+    MAX_INVITE_USES
+  ) {
+    throw new Error(
+      "Invite usage limit reached."
     );
   }
 

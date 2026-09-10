@@ -8,6 +8,8 @@ import "@testing-library/jest-dom/vitest";
 vi.mock("@/app/actions", () => ({
   createConversationInvite: vi.fn(),
   renameConversation: vi.fn(),
+  revokeConversationInvite: vi.fn(),
+  updateMemberAiUsage: vi.fn(),
 }));
 
 vi.mock("@/components/chat/realtime/RealtimeConversationSync", () => ({
@@ -150,19 +152,136 @@ describe("ChatHeader", () => {
     expect(screen.getByRole("textbox")).toHaveValue("Editable title");
   });
 
-  it("preserves the guest leave action", () => {
+  it.each(["member", "guest"])(
+    "shows the leave action for a non-owner %s",
+    (role) => {
+      render(
+        <ChatHeader
+          conversationId={1}
+          title={`${role} chat`}
+          summary={summary()}
+        />
+      );
+
+      expect(
+        screen.getByRole("button", { name: "Leave conversation" })
+      ).toBeInTheDocument();
+    }
+  );
+
+  it("does not show the leave action to the owner", () => {
     render(
       <ChatHeader
         conversationId={1}
-        title="Guest chat"
-        isGuest
+        title="Owner chat"
+        isOwner
         summary={summary()}
       />
     );
 
     expect(
-      screen.getByRole("button", { name: "Leave conversation" })
-    ).toBeInTheDocument();
+      screen.queryByRole("button", { name: "Leave conversation" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("resynchronizes shared AI state when server props change", () => {
+    const { rerender } = render(
+      <ChatHeader
+        conversationId={1}
+        isOwner
+        allowMemberAiUsage={false}
+      />
+    );
+
+    expect(screen.getByText("AI sharing: Off")).toBeInTheDocument();
+
+    rerender(
+      <ChatHeader
+        conversationId={1}
+        isOwner
+        allowMemberAiUsage
+      />
+    );
+    expect(screen.getByText("AI sharing: On")).toBeInTheDocument();
+
+    rerender(
+      <ChatHeader
+        conversationId={1}
+        isOwner
+        allowMemberAiUsage={false}
+      />
+    );
+    expect(screen.getByText("AI sharing: Off")).toBeInTheDocument();
+  });
+
+  it("resynchronizes invite state after revocation and conversation changes", () => {
+    const invite = {
+      id: 5,
+      token: "invite-token",
+      usageCount: 3,
+    };
+    const { rerender } = render(
+      <ChatHeader
+        conversationId={1}
+        isOwner
+        activeInvite={invite}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: /revoke invite/i }))
+      .toBeInTheDocument();
+
+    rerender(
+      <ChatHeader
+        conversationId={1}
+        isOwner
+        activeInvite={null}
+      />
+    );
+    expect(screen.queryByRole("button", { name: /revoke invite/i }))
+      .not.toBeInTheDocument();
+
+    rerender(
+      <ChatHeader
+        conversationId={2}
+        isOwner
+        allowMemberAiUsage
+        activeInvite={{ id: 8, token: "next-token", usageCount: 1 }}
+      />
+    );
+    expect(screen.getByText("AI sharing: On")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /9 uses remaining/i }))
+      .toBeInTheDocument();
+  });
+
+  it("shows owner-only conversation controls and explains shared AI cost", () => {
+    const { rerender } = render(
+      <ChatHeader
+        conversationId={1}
+        title="Owner chat"
+        isOwner
+        summary={summary()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: /enable shared AI usage/i }))
+      .toBeInTheDocument();
+    expect(screen.getByLabelText(/may cost you money/i)).toBeInTheDocument();
+
+    rerender(
+      <ChatHeader
+        conversationId={1}
+        title="Member chat"
+        summary={summary()}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: /shared AI usage/i }))
+      .not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Invite" }))
+      .not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Member chat" }))
+      .not.toBeInTheDocument();
   });
 
   it("uses a generic Bot safely for an AI one-to-one conversation", () => {

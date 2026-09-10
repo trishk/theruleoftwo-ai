@@ -6,7 +6,7 @@ const {
   getValidInviteMock,
   joinConversationMock,
   createInviteMock,
-  userUpsertMock,
+  updateInviteManyMock,
   deleteManyMock,
   findFirstMock,
   findUniqueMock,
@@ -21,7 +21,7 @@ const {
   getValidInviteMock: vi.fn(),
   joinConversationMock: vi.fn(),
   createInviteMock: vi.fn(),
-  userUpsertMock: vi.fn(),
+  updateInviteManyMock: vi.fn(),
   deleteManyMock: vi.fn(),
   findFirstMock: vi.fn(),
   findUniqueMock: vi.fn(),
@@ -52,9 +52,7 @@ vi.mock("@/lib/db/prisma", () => ({
   prisma: {
     conversationInvite: {
       create: createInviteMock,
-    },
-    user: {
-      upsert: userUpsertMock,
+      updateMany: updateInviteManyMock,
     },
     conversationMember: {
       deleteMany: deleteManyMock,
@@ -82,6 +80,7 @@ import {
   createConversationInvite,
   joinConversationAsGuest,
   leaveConversation,
+  revokeConversationInvite,
 } from "@/app/actions/invites";
 
 describe("invite actions", () => {
@@ -93,6 +92,14 @@ describe("invite actions", () => {
         signInAnonymously: signInAnonymouslyMock,
         signOut: signOutMock,
       },
+    });
+    createInviteMock.mockResolvedValue({ id: 5 });
+    joinConversationMock.mockResolvedValue({
+      conversationId: 42,
+      joined: true,
+    });
+    signOutMock.mockResolvedValue({
+      error: null,
     });
   });
 
@@ -149,10 +156,6 @@ describe("invite actions", () => {
       error: null,
     });
 
-    userUpsertMock.mockResolvedValue({
-      id: "guest-1",
-    });
-
     findUniqueMock.mockResolvedValue({
       publicId: "conversation-public-id",
     });
@@ -170,22 +173,10 @@ describe("invite actions", () => {
       },
     });
 
-    expect(userUpsertMock).toHaveBeenCalledWith({
-      where: {
-        id: "guest-1",
-      },
-      update: {
-        name: "Guest User",
-      },
-      create: {
-        id: "guest-1",
-        name: "Guest User",
-      },
-    });
-
     expect(joinConversationMock).toHaveBeenCalledWith({
-      conversationId: 42,
+      token: "token-1",
       userId: "guest-1",
+      guestName: "Guest User",
     });
 
     expect(findUniqueMock).toHaveBeenCalledWith({
@@ -202,6 +193,7 @@ describe("invite actions", () => {
       conversationPublicId:
         "conversation-public-id",
     });
+    expect(signOutMock).not.toHaveBeenCalled();
   });
 
   it("does not allow the owner to leave the conversation", async () => {
@@ -222,6 +214,41 @@ describe("invite actions", () => {
     );
 
     expect(deleteManyMock).not.toHaveBeenCalled();
+  });
+
+  it("does not create a guest identity when an invite is unavailable", async () => {
+    getValidInviteMock.mockRejectedValue(
+      new Error("Invite usage limit reached.")
+    );
+
+    await expect(
+      joinConversationAsGuest("full-token", "Guest")
+    ).rejects.toThrow("Invite usage limit reached.");
+
+    expect(signInAnonymouslyMock).not.toHaveBeenCalled();
+    expect(joinConversationMock).not.toHaveBeenCalled();
+  });
+
+  it("allows only the owner to revoke an invite", async () => {
+    requireUserMock.mockResolvedValue({ id: "member-1" });
+    updateInviteManyMock.mockResolvedValue({ count: 0 });
+
+    await expect(revokeConversationInvite(5)).rejects.toThrow(
+      "Invite not found."
+    );
+
+    requireUserMock.mockResolvedValue({ id: "owner-1" });
+    updateInviteManyMock.mockResolvedValue({ count: 1 });
+    await revokeConversationInvite(5);
+
+    expect(updateInviteManyMock).toHaveBeenLastCalledWith({
+      where: {
+        id: 5,
+        revokedAt: null,
+        conversation: { ownerId: "owner-1" },
+      },
+      data: { revokedAt: expect.any(Date) },
+    });
   });
 
   it("allows a member to leave the conversation", async () => {
@@ -252,7 +279,6 @@ describe("invite actions", () => {
       nextConversationPublicId: "next-conversation",
       signedOut: false,
     });
-    expect(signOutMock).not.toHaveBeenCalled();
   });
 
   it("signs out a guest after leaving their last conversation", async () => {
@@ -292,5 +318,54 @@ describe("invite actions", () => {
       nextConversationPublicId: null,
       signedOut: true,
     });
+  });
+
+  it("signs out best-effort when joining fails after guest creation", async () => {
+    const joinError = new Error("Invite filled concurrently.");
+    getValidInviteMock.mockResolvedValue({ conversationId: 42 });
+    signInAnonymouslyMock.mockResolvedValue({
+      data: { user: { id: "guest-failed" } },
+      error: null,
+    });
+    joinConversationMock.mockRejectedValue(joinError);
+
+    await expect(
+      joinConversationAsGuest("token-1", "Guest")
+    ).rejects.toBe(joinError);
+
+    expect(signOutMock).toHaveBeenCalledOnce();
+  });
+
+  it("does not sign out when guest creation fails before a session exists", async () => {
+    getValidInviteMock.mockResolvedValue({ conversationId: 42 });
+    signInAnonymouslyMock.mockResolvedValue({
+      data: { user: null },
+      error: new Error("Guest creation failed."),
+    });
+
+    await expect(
+      joinConversationAsGuest("token-1", "Guest")
+    ).rejects.toThrow("Guest creation failed.");
+
+    expect(joinConversationMock).not.toHaveBeenCalled();
+    expect(signOutMock).not.toHaveBeenCalled();
+  });
+
+  it("preserves the join error when guest sign-out also fails", async () => {
+    const joinError = new Error("Original join failure.");
+    getValidInviteMock.mockResolvedValue({ conversationId: 42 });
+    signInAnonymouslyMock.mockResolvedValue({
+      data: { user: { id: "guest-failed" } },
+      error: null,
+    });
+    joinConversationMock.mockRejectedValue(joinError);
+    signOutMock.mockRejectedValue(new Error("Cleanup failure."));
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    await expect(
+      joinConversationAsGuest("token-1", "Guest")
+    ).rejects.toBe(joinError);
+
+    expect(signOutMock).toHaveBeenCalledOnce();
   });
 });

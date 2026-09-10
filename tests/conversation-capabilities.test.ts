@@ -37,6 +37,7 @@ vi.mock("next/navigation", () => ({ redirect: redirectMock }));
 import {
   deleteConversation,
   renameConversation,
+  updateMemberAiUsage,
 } from "@/app/actions/conversations";
 
 describe("conversation capability boundaries", () => {
@@ -57,20 +58,58 @@ describe("conversation capability boundaries", () => {
     expect(conversationDeleteMock).not.toHaveBeenCalled();
   });
 
-  it("allows a member to rename a conversation", async () => {
-    const updatedAt = new Date("2026-08-27T10:00:00.000Z");
-    conversationFindUniqueMock.mockResolvedValue({ updatedAt });
+  it.each([
+    ["member", { id: "member-1", isGuest: false }],
+    ["guest", { id: "guest-1", isGuest: true }],
+  ])("prevents a %s from renaming a conversation", async (_role, actor) => {
+    requireUserMock.mockResolvedValue(actor);
+    conversationFindUniqueMock.mockResolvedValue({
+      updatedAt: new Date("2026-08-27T10:00:00.000Z"),
+    });
     conversationUpdateMock.mockResolvedValue({ id: 42 });
 
-    await renameConversation(42, "  Shared title  ");
+    await expect(
+      renameConversation(42, "Shared title")
+    ).rejects.toThrow("Only the conversation owner can rename it.");
 
-    expect(requireConversationAccessMock).toHaveBeenCalledWith(42, "member-1");
+    expect(conversationUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("allows the owner to rename a conversation", async () => {
+    requireUserMock.mockResolvedValue({ id: "owner-1", isGuest: false });
+    const updatedAt = new Date("2026-08-27T10:00:00.000Z");
+    conversationFindUniqueMock.mockResolvedValue({ updatedAt });
+
+    await renameConversation(42, "  Owner title  ");
+
     expect(conversationUpdateMock).toHaveBeenCalledWith({
       where: { id: 42 },
-      data: {
-        title: "Shared title",
-        updatedAt,
-      },
+      data: { title: "Owner title", updatedAt },
     });
+  });
+
+  it("allows only the owner to change shared AI usage", async () => {
+    await expect(updateMemberAiUsage(42, true)).rejects.toThrow(
+      "Only the conversation owner can change AI sharing."
+    );
+    expect(conversationUpdateMock).not.toHaveBeenCalled();
+
+    requireUserMock.mockResolvedValue({ id: "owner-1", isGuest: false });
+    await updateMemberAiUsage(42, true);
+
+    expect(conversationUpdateMock).toHaveBeenCalledWith({
+      where: { id: 42, ownerId: "owner-1" },
+      data: { allowMemberAiUsage: true },
+    });
+  });
+
+  it("validates shared AI usage input server-side", async () => {
+    requireUserMock.mockResolvedValue({ id: "owner-1", isGuest: false });
+
+    await expect(
+      updateMemberAiUsage(42, "yes" as never)
+    ).rejects.toThrow("Invalid conversation capability input.");
+
+    expect(requireConversationAccessMock).not.toHaveBeenCalled();
   });
 });

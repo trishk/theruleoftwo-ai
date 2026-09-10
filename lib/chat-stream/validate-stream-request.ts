@@ -94,6 +94,15 @@ export async function validateStreamRequest({
     );
   }
 
+  if (
+    conversation.ownerId !== userId &&
+    !conversation.allowMemberAiUsage
+  ) {
+    throw new Error(
+      "MEMBER_AI_USAGE_NOT_ALLOWED"
+    );
+  }
+
   const sourceMessage =
     await prisma.message.findFirst({
       where: {

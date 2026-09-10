@@ -94,6 +94,24 @@ export default async function InvitePage({
     }
   }
 
+  if (invite.usageCount >= 10) {
+    return (
+      <main className="flex min-h-dvh items-center justify-center bg-background px-4 py-6 sm:px-6">
+        <div className="flex w-full max-w-md flex-col items-center gap-5">
+          <RuleOfTwoLogo />
+          <div className="w-full rounded-lg border border-border bg-card p-6">
+            <h1 className="text-xl font-semibold">
+              Invalid invite
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              This invitation has reached its usage limit.
+            </p>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   async function joinExistingUser() {
     "use server";
 

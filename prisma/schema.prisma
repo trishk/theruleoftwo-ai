@@ -12,12 +12,12 @@ datasource db {
 }
 
 model User {
-  id            String                  @id
-  email         String?
-  name          String?
-  avatarUrl     String?
-  createdAt     DateTime                @default(now())
-  updatedAt     DateTime                @updatedAt
+  id        String   @id
+  email     String?
+  name      String?
+  avatarUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   conversations Conversation[]
   memberships   ConversationMember[]
@@ -43,12 +43,13 @@ model UserIntegration {
 }
 
 model Conversation {
-  id        Int      @id @default(autoincrement())
-  publicId String @unique @default(cuid())
-  title     String
-  ownerId   String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                 Int      @id @default(autoincrement())
+  publicId           String   @unique @default(cuid())
+  title              String
+  ownerId            String
+  allowMemberAiUsage Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   owner      User                    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   members    ConversationMember[]
@@ -92,6 +93,7 @@ model ConversationInvite {
   createdAt      DateTime  @default(now())
   expiresAt      DateTime?
   revokedAt      DateTime?
+  usageCount     Int       @default(0)
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 

@@ -346,6 +346,22 @@ export function useProviderGeneration({
       }
 
       if (
+        providerError instanceof StreamRequestError &&
+        providerError.code ===
+          "member_ai_usage_not_allowed"
+      ) {
+        discardPendingContent(temporaryMessageId);
+        updateStreamingMessage(temporaryMessageId, {
+          content:
+            "The conversation owner has not enabled shared AI usage.",
+          isStreaming: false,
+          isError: true,
+          isRetryable: false,
+        });
+        return;
+      }
+
+      if (
         providerError instanceof
           StreamRequestError &&
         providerError.status === 429

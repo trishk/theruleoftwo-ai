@@ -107,6 +107,7 @@ export default async function ChatPage({
       select: {
         id: true,
         title: true,
+        allowMemberAiUsage: true,
         messages: {
           orderBy: [
             { createdAt: "asc" },
@@ -134,6 +135,35 @@ export default async function ChatPage({
   if (!conversation) {
     notFound();
   }
+
+  const activeInvite =
+    ownerId === user.id
+      ? await prisma.conversationInvite.findFirst({
+          where: {
+            conversationId,
+            revokedAt: null,
+            usageCount: {
+              lt: 10,
+            },
+            OR: [
+              { expiresAt: null },
+              {
+                expiresAt: {
+                  gt: new Date(),
+                },
+              },
+            ],
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          select: {
+            id: true,
+            token: true,
+            usageCount: true,
+          },
+        })
+      : null;
 
   const chats =
     await getConversationSummaries({
@@ -290,8 +320,11 @@ export default async function ChatPage({
           ownerId ===
           user.id
         }
-        isGuest={
-          user.isGuest
+        allowMemberAiUsage={
+          conversation.allowMemberAiUsage
+        }
+        activeInvite={
+          activeInvite
         }
         summary={chats.find(
           (chat) => chat.id === conversation.id

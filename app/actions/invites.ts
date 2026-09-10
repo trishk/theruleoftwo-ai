@@ -16,6 +16,7 @@ import {
   validateGuestDisplayName,
 } from "@/lib/invites/create-guest-user";
 import { leaveConversationMembership } from "@/lib/invites/leave-conversation";
+import { withInviteLock } from "@/lib/invites/with-invite-lock";
 
 const INVITE_EXPIRATION_MS =
   7 * 24 * 60 * 60 * 1000;
@@ -51,16 +52,59 @@ export async function createConversationInvite(
       INVITE_EXPIRATION_MS
     );
 
-  await prisma.conversationInvite.create({
-    data: {
-      conversationId,
-      token,
-      createdById: user.id,
-      expiresAt,
-    },
-  });
+  const invite =
+    await prisma.conversationInvite.create({
+      data: {
+        conversationId,
+        token,
+        createdById: user.id,
+        expiresAt,
+      },
+      select: {
+        id: true,
+      },
+    });
 
-  return token;
+  return {
+    id: invite.id,
+    token,
+    usageCount: 0,
+  };
+}
+
+export async function revokeConversationInvite(
+  inviteId: number
+) {
+  const user = await requireUser();
+
+  if (
+    !Number.isInteger(inviteId) ||
+    inviteId <= 0
+  ) {
+    throw new Error("Invalid invite id.");
+  }
+
+  const revoked =
+    await prisma.conversationInvite.updateMany({
+      where: {
+        id: inviteId,
+        revokedAt: null,
+        conversation: {
+          ownerId: user.id,
+        },
+      },
+      data: {
+        revokedAt: new Date(),
+      },
+    });
+
+  if (revoked.count !== 1) {
+    throw new Error(
+      "Invite not found."
+    );
+  }
+
+  revalidatePath("/chat/[id]", "page");
 }
 
 export async function joinConversationByInvite(
@@ -69,21 +113,19 @@ export async function joinConversationByInvite(
   const user =
     await requireUser();
 
-  const invite =
-    await getValidInvite(
-      token
-    );
-
-  await joinConversation({
-    conversationId:
-      invite.conversationId,
-    userId: user.id,
-  });
+  const joined = await withInviteLock(
+    token,
+    () =>
+      joinConversation({
+        token,
+        userId: user.id,
+      })
+  );
 
   const conversation =
     await prisma.conversation.findUnique({
       where: {
-        id: invite.conversationId,
+        id: joined.conversationId,
       },
       select: {
         publicId: true,
@@ -110,28 +152,49 @@ export async function joinConversationAsGuest(
       displayName
     );
 
-  const invite =
-    await getValidInvite(
-      token
-    );
+  const joined = await withInviteLock(
+    token,
+    async () => {
+      await getValidInvite(token);
 
-  const {
-    userId,
-  } =
-    await createGuestUser(
-      name
-    );
+      const { userId } =
+        await createGuestUser(name);
 
-  await joinConversation({
-    conversationId:
-      invite.conversationId,
-    userId,
-  });
+      try {
+        return await joinConversation({
+          token,
+          userId,
+          guestName: name,
+        });
+      } catch (error) {
+        try {
+          const supabase =
+            await createClient();
+          const { error: signOutError } =
+            await supabase.auth.signOut();
+
+          if (signOutError) {
+            console.error(
+              "Failed to sign out guest after invite join failure:",
+              signOutError
+            );
+          }
+        } catch (cleanupError) {
+          console.error(
+            "Failed to sign out guest after invite join failure:",
+            cleanupError
+          );
+        }
+
+        throw error;
+      }
+    }
+  );
 
   const conversation =
     await prisma.conversation.findUnique({
       where: {
-        id: invite.conversationId,
+        id: joined.conversationId,
       },
       select: {
         publicId: true,
@@ -151,7 +214,7 @@ export async function joinConversationAsGuest(
 
   return {
     conversationId:
-      invite.conversationId,
+      joined.conversationId,
     conversationPublicId:
       conversation.publicId,
   };

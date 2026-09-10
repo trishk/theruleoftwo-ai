@@ -23,6 +23,7 @@ export async function requireConversationAccess(
         select: {
             id: true,
             ownerId: true,
+            allowMemberAiUsage: true,
             owner: {
                 select: {
                     name: true,

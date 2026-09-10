@@ -227,21 +227,23 @@ export function ChatItem({
         </span>
       </Link>
 
-      <button
-        type="button"
-        aria-label="Chat options"
-        title="Chat options"
-        onClick={() =>
-          setMenuOpen(
-            (open) => !open
-          )
-        }
-        className="absolute right-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground opacity-100 transition-all hover:bg-background hover:text-foreground md:right-1 md:h-8 md:w-8 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
-      >
-        <MoreHorizontal className="h-4 w-4" />
-      </button>
+      {isOwner && (
+        <button
+          type="button"
+          aria-label="Chat options"
+          title="Chat options"
+          onClick={() =>
+            setMenuOpen(
+              (open) => !open
+            )
+          }
+          className="absolute right-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground opacity-100 transition-all hover:bg-background hover:text-foreground md:right-1 md:h-8 md:w-8 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
+        >
+          <MoreHorizontal className="h-4 w-4" />
+        </button>
+      )}
 
-      {menuOpen && (
+      {isOwner && menuOpen && (
         <div className="absolute right-1 top-9 z-50 min-w-32 rounded-md border border-border bg-background p-1 shadow-md">
           <button
             type="button"

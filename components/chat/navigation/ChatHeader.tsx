@@ -7,11 +7,14 @@ import {
 import {
   Check,
   Link2,
+  Link2Off,
 } from "lucide-react";
 
 import {
   createConversationInvite,
   renameConversation,
+  revokeConversationInvite,
+  updateMemberAiUsage,
 } from "@/app/actions";
 import type { ConversationSummary } from "@/lib/chat/conversation-summary";
 import { getConversationPresentation } from "@/lib/chat/conversation-presentation";
@@ -24,7 +27,12 @@ type Props = {
   conversationId?: number;
   title?: string;
   isOwner?: boolean;
-  isGuest?: boolean;
+  allowMemberAiUsage?: boolean;
+  activeInvite?: {
+    id: number;
+    token: string;
+    usageCount: number;
+  } | null;
   summary?: ConversationSummary;
 };
 
@@ -32,7 +40,8 @@ export function ChatHeader({
   conversationId,
   title = "Conversation",
   isOwner = false,
-  isGuest = false,
+  allowMemberAiUsage = false,
+  activeInvite = null,
   summary,
 }: Props) {
   const conversationRealtime =
@@ -49,8 +58,48 @@ export function ChatHeader({
     startTransition,
   ] = useTransition();
 
-  const [copied, setCopied] =
-    useState(false);
+  const activeInviteKey = activeInvite
+    ? `${activeInvite.id}:${activeInvite.token}:${activeInvite.usageCount}`
+    : null;
+
+  const [sharingOverride, setSharingOverride] =
+    useState<{
+      conversationId?: number;
+      baseValue: boolean;
+      value: boolean;
+    } | null>(null);
+
+  const sharingEnabled =
+    sharingOverride !== null &&
+    sharingOverride.conversationId === conversationId &&
+    sharingOverride.baseValue === allowMemberAiUsage
+      ? sharingOverride.value
+      : allowMemberAiUsage;
+
+  const [inviteOverride, setInviteOverride] =
+    useState<{
+      conversationId?: number;
+      baseKey: string | null;
+      value: Props["activeInvite"];
+    } | null>(null);
+
+  const invite =
+    inviteOverride !== null &&
+    inviteOverride.conversationId === conversationId &&
+    inviteOverride.baseKey === activeInviteKey
+      ? inviteOverride.value
+      : activeInvite;
+
+  const inviteCopyKey = invite
+    ? `${conversationId}:${invite.id}:${invite.token}`
+    : null;
+
+  const [copiedInviteKey, setCopiedInviteKey] =
+    useState<string | null>(null);
+
+  const copied =
+    inviteCopyKey !== null &&
+    copiedInviteKey === inviteCopyKey;
 
   const presentation = summary
     ? getConversationPresentation(summary)
@@ -113,26 +162,86 @@ export function ChatHeader({
 
     startTransition(async () => {
       try {
-        const token =
+        const currentInvite = invite ??
           await createConversationInvite(
             conversationId
           );
 
+        setInviteOverride({
+          conversationId,
+          baseKey: activeInviteKey,
+          value: currentInvite,
+        });
+
         const inviteUrl =
-          `${window.location.origin}/invite/${token}`;
+          `${window.location.origin}/invite/${currentInvite.token}`;
 
         await navigator.clipboard.writeText(
           inviteUrl
         );
 
-        setCopied(true);
+        setCopiedInviteKey(
+          `${conversationId}:${currentInvite.id}:${currentInvite.token}`
+        );
 
         window.setTimeout(() => {
-          setCopied(false);
+          setCopiedInviteKey(null);
         }, 2000);
       } catch (error) {
         console.error(
           "Failed to create invite:",
+          error
+        );
+      }
+    });
+  }
+
+  function toggleAiSharing() {
+    if (!conversationId) {
+      return;
+    }
+
+    const nextValue = !sharingEnabled;
+
+    startTransition(async () => {
+      try {
+        await updateMemberAiUsage(
+          conversationId,
+          nextValue
+        );
+        setSharingOverride({
+          conversationId,
+          baseValue: allowMemberAiUsage,
+          value: nextValue,
+        });
+      } catch (error) {
+        console.error(
+          "Failed to update AI sharing:",
+          error
+        );
+      }
+    });
+  }
+
+  function revokeInvite() {
+    if (!invite) {
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        await revokeConversationInvite(
+          invite.id
+        );
+        setInviteOverride({
+          conversationId,
+          baseKey: activeInviteKey,
+          value: null,
+        });
+        setCopiedInviteKey(null);
+      } catch (error) {
+        console.error(
+          "Failed to revoke invite:",
           error
         );
       }
@@ -180,13 +289,19 @@ export function ChatHeader({
           ) : (
             <div className="min-w-0">
               {conversationId ? (
-                <button
-                  type="button"
-                  onClick={startEditing}
-                  className="max-w-full truncate text-left text-sm font-medium text-foreground hover:underline"
-                >
-                  {title}
-                </button>
+                isOwner ? (
+                  <button
+                    type="button"
+                    onClick={startEditing}
+                    className="max-w-full truncate text-left text-sm font-medium text-foreground hover:underline"
+                  >
+                    {title}
+                  </button>
+                ) : (
+                  <span className="block truncate text-sm font-medium text-foreground">
+                    {title}
+                  </span>
+                )
               ) : (
                 <span className="truncate text-sm font-medium text-foreground">
                   {title}
@@ -205,7 +320,7 @@ export function ChatHeader({
 
       <div className="flex shrink-0 items-center gap-2">
         {conversationId &&
-          isGuest && (
+          !isOwner && (
             <LeaveConversationButton
               conversationId={
                 conversationId
@@ -215,26 +330,48 @@ export function ChatHeader({
 
         {conversationId &&
           isOwner && (
-            <button
-              type="button"
-              onClick={
-                copyInviteLink
-              }
-              disabled={
-                isPending
-              }
-              className="flex shrink-0 items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
-            >
-              {copied ? (
-                <Check className="h-4 w-4" />
-              ) : (
-                <Link2 className="h-4 w-4" />
-              )}
+            <>
+              <button
+                type="button"
+                onClick={toggleAiSharing}
+                disabled={isPending}
+                aria-pressed={sharingEnabled}
+                aria-label={`${sharingEnabled ? "Disable" : "Enable"} shared AI usage. When enabled, members and guests can use your connected AI services, which may cost you money.`}
+                title="When enabled, members and guests can use your connected AI services, which may cost you money."
+                className="shrink-0 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+              >
+                AI sharing: {sharingEnabled ? "On" : "Off"}
+              </button>
 
-              {copied
-                ? "Copied"
-                : "Invite"}
-            </button>
+              <button
+                type="button"
+                onClick={copyInviteLink}
+                disabled={isPending}
+                className="flex shrink-0 items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+              >
+                {copied ? (
+                  <Check className="h-4 w-4" />
+                ) : (
+                  <Link2 className="h-4 w-4" />
+                )}
+
+                {copied ? "Copied" : "Invite"}
+              </button>
+
+              {invite && (
+                <button
+                  type="button"
+                  onClick={revokeInvite}
+                  disabled={isPending}
+                  aria-label={`Revoke invite with ${10 - invite.usageCount} uses remaining`}
+                  title={`${10 - invite.usageCount} invite uses remaining`}
+                  className="flex shrink-0 items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+                >
+                  <Link2Off className="h-4 w-4" />
+                  Revoke
+                </button>
+              )}
+            </>
           )}
       </div>
     </header>

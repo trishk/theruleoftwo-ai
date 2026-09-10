@@ -6,6 +6,7 @@ const {
   requireConversationAccessMock,
   markConversationReadMock,
   conversationFindUniqueMock,
+  conversationInviteFindFirstMock,
   integrationFindManyMock,
   userFindManyMock,
   conversationMemberFindFirstMock,
@@ -20,6 +21,7 @@ const {
   requireConversationAccessMock: vi.fn(),
   markConversationReadMock: vi.fn(),
   conversationFindUniqueMock: vi.fn(),
+  conversationInviteFindFirstMock: vi.fn(),
   integrationFindManyMock: vi.fn(),
   userFindManyMock: vi.fn(),
   conversationMemberFindFirstMock: vi.fn(),
@@ -50,6 +52,9 @@ vi.mock("@/lib/db/prisma", () => ({
   prisma: {
     conversation: {
       findUnique: conversationFindUniqueMock,
+    },
+    conversationInvite: {
+      findFirst: conversationInviteFindFirstMock,
     },
     conversationMember: { findFirst: conversationMemberFindFirstMock },
     userIntegration: { findMany: integrationFindManyMock },
@@ -88,7 +93,7 @@ describe("chat page data shape", () => {
       .mockResolvedValueOnce({
         id: 42,
         title: "Measured chat",
-        members: [{ user: { name: "Guest" } }],
+        allowMemberAiUsage: false,
         messages: [{
           id: 7,
           authorType: "human",
@@ -101,6 +106,7 @@ describe("chat page data shape", () => {
     getConversationSummariesMock.mockResolvedValue([]);
     conversationMemberFindFirstMock.mockResolvedValue(null);
     integrationFindManyMock.mockResolvedValue([]);
+    conversationInviteFindFirstMock.mockResolvedValue(null);
     userFindManyMock.mockResolvedValue([{ id: "user-1", name: "User" }]);
   });
 
@@ -112,6 +118,7 @@ describe("chat page data shape", () => {
       select: {
         id: true,
         title: true,
+        allowMemberAiUsage: true,
         messages: {
           orderBy: [
             { createdAt: "asc" },
@@ -182,7 +189,7 @@ describe("chat page data shape", () => {
       .mockResolvedValueOnce({
         id: 42,
         title: "Measured chat",
-        members: [],
+        allowMemberAiUsage: false,
         messages: [{
           id: 8,
           authorType: "ai",
@@ -227,9 +234,13 @@ describe("chat page data shape", () => {
     renderToStaticMarkup(page);
 
     expect(chatHeaderMock).toHaveBeenCalledWith(
-      expect.objectContaining({ isOwner: false }),
+      expect.objectContaining({
+        isOwner: false,
+        activeInvite: null,
+      }),
       undefined,
     );
+    expect(conversationInviteFindFirstMock).not.toHaveBeenCalled();
   });
 
   it("redirects a guest without access to their latest conversation", async () => {

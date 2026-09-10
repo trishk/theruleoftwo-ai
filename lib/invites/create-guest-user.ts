@@ -1,4 +1,3 @@
-import { prisma } from "@/lib/db/prisma";
 import { createClient } from "@/lib/supabase/server";
 
 export function validateGuestDisplayName(
@@ -59,19 +58,6 @@ export async function createGuestUser(
 
   const userId =
     data.user.id;
-
-  await prisma.user.upsert({
-    where: {
-      id: userId,
-    },
-    update: {
-      name,
-    },
-    create: {
-      id: userId,
-      name,
-    },
-  });
 
   return {
     userId,

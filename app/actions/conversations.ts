@@ -55,10 +55,16 @@ export async function renameConversation(
     );
   }
 
-  await requireConversationAccess(
+  const access = await requireConversationAccess(
     conversationId,
     user.id
   );
+
+  if (access.ownerId !== user.id) {
+    throw new Error(
+      "Only the conversation owner can rename it."
+    );
+  }
 
   const conversation =
     await prisma.conversation.findUnique({
@@ -127,4 +133,43 @@ export async function deleteConversation(
   revalidatePath("/");
 
   redirect("/");
+}
+
+export async function updateMemberAiUsage(
+  conversationId: number,
+  allowMemberAiUsage: boolean
+) {
+  const user = await requireUser();
+
+  if (
+    !Number.isInteger(conversationId) ||
+    conversationId <= 0 ||
+    typeof allowMemberAiUsage !== "boolean"
+  ) {
+    throw new Error("Invalid conversation capability input.");
+  }
+
+  const conversation =
+    await requireConversationAccess(
+      conversationId,
+      user.id
+    );
+
+  if (conversation.ownerId !== user.id) {
+    throw new Error(
+      "Only the conversation owner can change AI sharing."
+    );
+  }
+
+  await prisma.conversation.update({
+    where: {
+      id: conversationId,
+      ownerId: user.id,
+    },
+    data: {
+      allowMemberAiUsage,
+    },
+  });
+
+  revalidatePath("/chat/[id]", "page");
 }
