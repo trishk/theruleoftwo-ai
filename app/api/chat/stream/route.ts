@@ -2,13 +2,14 @@ import { NextRequest } from "next/server";
 import { requireUser } from "@/lib/auth/require-user";
 import { validateStreamRequest } from "@/lib/chat-stream/validate-stream-request";
 import { streamValidationErrorResponse } from "@/lib/chat-stream/stream-validation-error";
-import { completeAttempt, failAttempt, flushAttempt, getAttemptStatus, heartbeatAttempt, markProviderInvoked, recoverStaleGenerations, reserveGeneration, startAttempt } from "@/lib/chat-stream/generation-lifecycle";
+import { completeAttempt, failAttempt, flushAttempt, getAttemptStatus, heartbeatAttempt, markProviderInvoked, persistAttemptTelemetry, recoverStaleGenerations, reserveGeneration, startAttempt } from "@/lib/chat-stream/generation-lifecycle";
 import { getStreamErrorCode } from "@/lib/chat-stream/stream-errors";
 import { prepareLLMRequest } from "@/lib/llm/prepare-request";
 import { streamLLM } from "@/lib/llm/registry";
 import { checkDailyQuota, checkRateLimit } from "@/lib/security/rate-limit";
 import { acquireGenerationLease, releaseGenerationLease, renewGenerationLease } from "@/lib/security/generation-concurrency";
 import type { LLMStreamEvent } from "@/lib/llm/types";
+import { observeTelemetry } from "@/lib/llm/usage/capture";
 
 const FLUSH_INTERVAL_MS = 1_000;
 const FLUSH_SIZE_BYTES = 2 * 1024;
@@ -82,10 +83,16 @@ export async function POST(request: NextRequest) {
   const providerController = new AbortController();
   const abortFromClient = () => providerController.abort();
   request.signal.addEventListener("abort", abortFromClient, { once: true });
-  await markProviderInvoked(reservation.attemptId);
+  await markProviderInvoked(reservation.attemptId, { provider, requestedModel: llmRequest.model });
   let result;
   try { result = streamLLM(llmRequest, providerController.signal); }
-  catch { await fail("provider_failed"); await releaseLease(); return json({ code: "provider_failed" }, 500); }
+  catch { await fail("provider_failed"); try { await persistAttemptTelemetry({ attemptId: reservation.attemptId, provider, requestedModel: llmRequest.model, capture: { unavailableReason: "provider_start_failed" } }); } catch { console.error("Failed to persist generation telemetry."); } await releaseLease(); return json({ code: "provider_failed" }, 500); }
+
+  const settleTelemetry = observeTelemetry(result);
+  const persistTelemetry = async () => {
+    try { await persistAttemptTelemetry({ attemptId: reservation.attemptId, provider, requestedModel: llmRequest.model, capture: await settleTelemetry() }); }
+    catch { console.error("Failed to persist generation telemetry."); }
+  };
 
   const encoder = new TextEncoder();
   const encode = (event: LLMStreamEvent) => encoder.encode(`${JSON.stringify(event)}\n`);
@@ -129,12 +136,14 @@ export async function POST(request: NextRequest) {
         await queueFlush(true);
         await flushChain;
         if (!(await completeAttempt(reservation.attemptId))) throw new Error("ATTEMPT_TERMINALIZED");
+        await persistTelemetry();
         controller.enqueue(encode({ type: "done" }));
         controller.close();
       } catch (error) {
         try { await queueFlush(true); await flushChain; } catch { /* preserve last committed snapshot */ }
         const current = await getAttemptStatus(reservation.attemptId);
         if (current?.status === "streaming") await fail(persistenceFailed ? "persistence_failed" : error instanceof Error && error.message === "ATTEMPT_TERMINALIZED" ? "generation_interrupted" : "provider_failed");
+        await persistTelemetry();
         try { controller.enqueue(encode({ type: "error", code: getStreamErrorCode(error) })); controller.close(); } catch { /* disconnected */ }
       } finally {
         clearInterval(stopTimer);

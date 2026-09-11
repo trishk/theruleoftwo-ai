@@ -145,6 +145,8 @@ model AiGeneration {
   @@index([conversationId])
 }
 
+/// This table has hand-authored SQLite CHECK constraints in its migrations.
+/// Any future migration that rebuilds the table must preserve them explicitly.
 model AiGenerationAttempt {
   id                String    @id
   generationId      String
@@ -161,6 +163,30 @@ model AiGenerationAttempt {
   completedAt       DateTime?
   failedAt          DateTime?
   stoppedAt         DateTime?
+  usageState        String?
+  costState         String?
+  providerSnapshot  String?
+  requestedModel    String?
+  effectiveModel    String?
+  effectiveModelSource String?
+  inputTokens       BigInt?
+  inputTokensNoCache BigInt?
+  inputTokensCacheRead BigInt?
+  inputTokensCacheWrite BigInt?
+  outputTokens      BigInt?
+  outputTextTokens  BigInt?
+  outputReasoningTokens BigInt?
+  totalTokens       BigInt?
+  usageCapturedAt   DateTime?
+  usageUnavailableReason String?
+  pricingVersion    String?
+  pricingCurrency   String?
+  inputRateNanoUsdPerToken BigInt?
+  cacheReadRateNanoUsdPerToken BigInt?
+  cacheWriteRateNanoUsdPerToken BigInt?
+  outputRateNanoUsdPerToken BigInt?
+  estimatedCostNanoUsd BigInt?
+  costUnavailableReason String?
 
   generation   AiGeneration        @relation(fields: [generationId], references: [id], onDelete: Cascade)
   requester    User                @relation("AttemptRequester", fields: [requesterId], references: [id], onDelete: Cascade)

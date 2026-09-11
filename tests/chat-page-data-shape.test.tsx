@@ -17,6 +17,7 @@ const {
   getConversationSummariesMock,
   chatSidebarMock,
   recoverStaleMock,
+  getConversationUsageMock,
 } = vi.hoisted(() => ({
   requireUserMock: vi.fn(),
   requireConversationAccessMock: vi.fn(),
@@ -33,11 +34,13 @@ const {
   getConversationSummariesMock: vi.fn(),
   chatSidebarMock: vi.fn(() => null),
   recoverStaleMock: vi.fn(),
+  getConversationUsageMock: vi.fn(),
 }));
 
 vi.mock("@/lib/chat-stream/generation-lifecycle", () => ({
   recoverStaleGenerationsForConversation: recoverStaleMock,
 }));
+vi.mock("@/lib/llm/usage/conversation-usage", () => ({ getConversationUsageSummary: getConversationUsageMock }));
 
 vi.mock("@/lib/auth/require-user", () => ({
   requireUser: requireUserMock,
@@ -95,6 +98,7 @@ describe("chat page data shape", () => {
     });
     markConversationReadMock.mockResolvedValue(undefined);
     recoverStaleMock.mockResolvedValue(0);
+    getConversationUsageMock.mockResolvedValue({ knownEstimatedCost: null, knownAttemptCount: 0, unknownAttemptCount: 0, pendingAttemptCount: 0, legacyAttemptCount: 0, providerInvokedAttemptCount: 0 });
     conversationFindUniqueMock
       .mockResolvedValueOnce({ id: 42 })
       .mockResolvedValueOnce({

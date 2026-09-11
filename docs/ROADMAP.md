@@ -77,3 +77,6 @@
 - [ ] Memory
 - [ ] Voice
 - [ ] Mobile
+# Watch items
+
+- Usage/cost realtime freshness is guaranteed on the happy path while the initiating client remains connected. If it disconnects before fan-out settles, other tabs may update only on the next refresh or relevant event.

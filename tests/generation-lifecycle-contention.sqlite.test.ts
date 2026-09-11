@@ -16,7 +16,7 @@ vi.mock("@/lib/db/prisma", () => ({
   },
 }));
 
-import { reserveGeneration } from "@/lib/chat-stream/generation-lifecycle";
+import { markProviderInvoked, persistAttemptTelemetry, reserveGeneration } from "@/lib/chat-stream/generation-lifecycle";
 
 let directory: string;
 let first: PrismaClient;
@@ -106,5 +106,42 @@ describe("generation lifecycle SQLite constraints", () => {
       `UPDATE "AiGenerationAttempt" SET "status" = 'completed', "completedAt" = CURRENT_TIMESTAMP, "failedAt" = CURRENT_TIMESTAMP WHERE "id" = ?`,
       retry.id
     )).rejects.toThrow();
+  });
+
+  it("keeps telemetry capture idempotent under distinct-connection contention", async () => {
+    lifecycleDatabase.client = first;
+    const reserved = await reserveGeneration({ conversationId, sourceMessageId, provider: "anthropic", requesterId: "owner" });
+    await first.aiGenerationAttempt.update({ where: { id: reserved.attemptId }, data: { status: "streaming", startedAt: new Date() } });
+    await markProviderInvoked(reserved.attemptId, { provider: "anthropic", requestedModel: "claude-sonnet-4-5" });
+    const capture = { usage: { inputTokens: 2n, inputTokensNoCache: 2n, inputTokensCacheRead: 0n, inputTokensCacheWrite: 0n, outputTokens: 1n, outputTextTokens: 1n, outputReasoningTokens: null, totalTokens: 3n }, effectiveModel: null };
+    lifecycleDatabase.client = first;
+    const captured = persistAttemptTelemetry({ attemptId: reserved.attemptId, provider: "anthropic", requestedModel: "claude-sonnet-4-5", capture });
+    lifecycleDatabase.client = second;
+    const unavailable = persistAttemptTelemetry({ attemptId: reserved.attemptId, provider: "anthropic", requestedModel: "claude-sonnet-4-5", capture: { unavailableReason: "usage_rejected" } });
+    const results = await Promise.all([captured, unavailable]);
+    expect(results.filter(Boolean)).toHaveLength(1);
+    const attempt = await first.aiGenerationAttempt.findUniqueOrThrow({ where: { id: reserved.attemptId } });
+    expect(["captured", "unavailable"]).toContain(attempt.usageState);
+    expect(attempt.status).toBe("streaming");
+    expect(attempt.completedAt).toBeNull();
+    expect(attempt.failedAt).toBeNull();
+    expect(attempt.stoppedAt).toBeNull();
+    lifecycleDatabase.client = first;
+  }, 15_000);
+
+  it("persists the captured usage, model, pricing rates, and nano-USD snapshot", async () => {
+    lifecycleDatabase.client = first;
+    const source = await first.message.create({ data: { conversationId, authorType: "human", authorId: "owner", content: "priced" } });
+    const reserved = await reserveGeneration({ conversationId, sourceMessageId: source.id, provider: "openai", requesterId: "owner" });
+    await first.aiGenerationAttempt.update({ where: { id: reserved.attemptId }, data: { status: "streaming", startedAt: new Date() } });
+    await markProviderInvoked(reserved.attemptId, { provider: "openai", requestedModel: "gpt-5" });
+    await expect(persistAttemptTelemetry({ attemptId: reserved.attemptId, provider: "openai", requestedModel: "gpt-5", capture: { usage: { inputTokens: 3n, inputTokensNoCache: 2n, inputTokensCacheRead: 1n, inputTokensCacheWrite: 0n, outputTokens: 2n, outputTextTokens: 1n, outputReasoningTokens: 1n, totalTokens: 5n }, effectiveModel: "gpt-5" } })).resolves.toBe(true);
+    await expect(first.aiGenerationAttempt.findUniqueOrThrow({ where: { id: reserved.attemptId } })).resolves.toMatchObject({
+      providerSnapshot: "openai", requestedModel: "gpt-5", effectiveModel: "gpt-5", effectiveModelSource: "provider",
+      inputTokens: 3n, inputTokensNoCache: 2n, inputTokensCacheRead: 1n, outputTokens: 2n, outputTextTokens: 1n, outputReasoningTokens: 1n, totalTokens: 5n,
+      usageState: "captured", costState: "estimated", pricingVersion: "openai-standard-2026-09-11", pricingCurrency: "USD",
+      inputRateNanoUsdPerToken: 1_250n, cacheReadRateNanoUsdPerToken: 125n, cacheWriteRateNanoUsdPerToken: null, outputRateNanoUsdPerToken: 10_000n,
+      estimatedCostNanoUsd: 22_625n,
+    });
   });
 });

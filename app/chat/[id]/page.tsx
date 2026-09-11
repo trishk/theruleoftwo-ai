@@ -20,6 +20,7 @@ import { ChatShell } from "@/components/chat/navigation/ChatShell";
 import { ChatSidebar } from "@/components/chat/navigation/ChatSidebar";
 import { RealtimeConversationSync } from "@/components/chat/realtime/RealtimeConversationSync";
 import { RealtimeSidebarSync } from "@/components/chat/realtime/RealtimeSidebarSync";
+import { getConversationUsageSummary } from "@/lib/llm/usage/conversation-usage";
 
 type Props = {
   params: Promise<{
@@ -173,6 +174,9 @@ export default async function ChatPage({
           },
         })
       : null;
+  const usageSummary = ownerId === user.id
+    ? await getConversationUsageSummary(conversationId)
+    : null;
 
   const chats =
     await getConversationSummaries({
@@ -342,6 +346,7 @@ export default async function ChatPage({
         activeInvite={
           activeInvite
         }
+        usageSummary={usageSummary}
         summary={chats.find(
           (chat) => chat.id === conversation.id
         )}

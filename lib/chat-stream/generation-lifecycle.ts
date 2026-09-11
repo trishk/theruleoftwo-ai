@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 
 import { prisma } from "@/lib/db/prisma";
 import type { Provider } from "@/lib/llm/types";
+import { calculateCost, type NormalizedUsage } from "@/lib/llm/usage/pricing";
 
 export const PENDING_STALE_MS = 2 * 60 * 1000;
 export const STREAMING_STALE_MS = 10 * 60 * 1000;
@@ -70,7 +71,7 @@ export async function recoverStaleGenerations(
 ) {
   const generation = await prisma.aiGeneration.findUnique({
     where: { sourceMessageId_provider: { sourceMessageId, provider } },
-    select: { attempts: { orderBy: { attemptNumber: "desc" }, take: 1, select: { id: true, status: true, progressAt: true } } },
+    select: { attempts: { orderBy: { attemptNumber: "desc" }, take: 1, select: { id: true, status: true, progressAt: true, providerInvokedAt: true } } },
   });
   const attempt = generation?.attempts[0];
   if (!attempt) return false;
@@ -79,21 +80,29 @@ export async function recoverStaleGenerations(
   if (threshold === null || attempt.progressAt.getTime() > now.getTime() - threshold) return false;
   const result = await prisma.aiGenerationAttempt.updateMany({
     where: { id: attempt.id, status: attempt.status, progressAt: { lte: new Date(now.getTime() - threshold) } },
-    data: { status: "failed", errorCode: "generation_interrupted", failedAt: now },
+    data: { status: "failed", errorCode: "generation_interrupted", failedAt: now, ...(attempt.providerInvokedAt ? { usageState: "unavailable", costState: "unknown", usageUnavailableReason: "stale_after_provider_invocation", costUnavailableReason: "usage_unavailable" } : {}) },
   });
   return result.count === 1;
 }
 
 export async function recoverStaleGenerationsForConversation(conversationId: number, now = new Date()) {
   const pending = await prisma.aiGenerationAttempt.updateMany({
-    where: { generation: { conversationId }, status: "pending", progressAt: { lte: new Date(now.getTime() - PENDING_STALE_MS) } },
+    where: { generation: { conversationId }, status: "pending", providerInvokedAt: null, progressAt: { lte: new Date(now.getTime() - PENDING_STALE_MS) } },
     data: { status: "failed", errorCode: "generation_interrupted", failedAt: now },
+  });
+  const pendingInvoked = await prisma.aiGenerationAttempt.updateMany({
+    where: { generation: { conversationId }, status: "pending", providerInvokedAt: { not: null }, progressAt: { lte: new Date(now.getTime() - PENDING_STALE_MS) } },
+    data: { status: "failed", errorCode: "generation_interrupted", failedAt: now, usageState: "unavailable", costState: "unknown", usageUnavailableReason: "stale_after_provider_invocation", costUnavailableReason: "usage_unavailable" },
   });
   const streaming = await prisma.aiGenerationAttempt.updateMany({
-    where: { generation: { conversationId }, status: "streaming", progressAt: { lte: new Date(now.getTime() - STREAMING_STALE_MS) } },
+    where: { generation: { conversationId }, status: "streaming", providerInvokedAt: null, progressAt: { lte: new Date(now.getTime() - STREAMING_STALE_MS) } },
     data: { status: "failed", errorCode: "generation_interrupted", failedAt: now },
   });
-  return pending.count + streaming.count;
+  const streamingInvoked = await prisma.aiGenerationAttempt.updateMany({
+    where: { generation: { conversationId }, status: "streaming", providerInvokedAt: { not: null }, progressAt: { lte: new Date(now.getTime() - STREAMING_STALE_MS) } },
+    data: { status: "failed", errorCode: "generation_interrupted", failedAt: now, usageState: "unavailable", costState: "unknown", usageUnavailableReason: "stale_after_provider_invocation", costUnavailableReason: "usage_unavailable" },
+  });
+  return pending.count + pendingInvoked.count + streaming.count + streamingInvoked.count;
 }
 
 export async function reserveGeneration(args: {
@@ -120,7 +129,7 @@ export async function reserveGeneration(args: {
             sourceMessageId,
             provider,
             initialRequesterId: requesterId,
-            attempts: { create: { id: attemptId, attemptNumber: 1, requesterId, status: "pending", outputMessageId: output.id } },
+            attempts: { create: { id: attemptId, attemptNumber: 1, requesterId, status: "pending", outputMessageId: output.id, usageState: "not_applicable", costState: "not_applicable" } },
           },
         });
         return output.id;
@@ -166,6 +175,8 @@ export async function reserveGeneration(args: {
           requesterId,
           status: "pending",
           outputMessageId: output.id,
+          usageState: "not_applicable",
+          costState: "not_applicable",
         },
       });
       return output.id;
@@ -207,11 +218,34 @@ export async function startAttempt(args: { attemptId: string; conversationId: nu
   });
 }
 
-export async function markProviderInvoked(attemptId: string) {
+export async function markProviderInvoked(attemptId: string, snapshot: { provider: Provider; requestedModel: string }) {
   return prisma.aiGenerationAttempt.updateMany({
     where: { id: attemptId, status: "streaming", providerInvokedAt: null },
-    data: { providerInvokedAt: new Date() },
+    data: { providerInvokedAt: new Date(), usageState: "pending", costState: "pending", providerSnapshot: snapshot.provider, requestedModel: snapshot.requestedModel },
   });
+}
+
+export async function persistAttemptTelemetry(args: { attemptId: string; provider: Provider; requestedModel: string; capture: { usage: NormalizedUsage; effectiveModel: string | null } | { unavailableReason: string } }) {
+  const attempt = await prisma.aiGenerationAttempt.findUnique({ where: { id: args.attemptId }, select: { usageState: true, providerInvokedAt: true } });
+  if (!attempt?.providerInvokedAt || attempt.usageState !== "pending") return false;
+  if ("unavailableReason" in args.capture) {
+    const result = await prisma.aiGenerationAttempt.updateMany({ where: { id: args.attemptId, usageState: "pending" }, data: { usageState: "unavailable", costState: "unknown", usageUnavailableReason: args.capture.unavailableReason, costUnavailableReason: "usage_unavailable" } });
+    return result.count === 1;
+  }
+  const model = args.capture.effectiveModel ?? args.requestedModel;
+  const effectiveModelSource = args.capture.effectiveModel ? "provider" : "requested_fallback";
+  const cost = calculateCost(args.provider, model, attempt.providerInvokedAt, args.capture.usage);
+  const pricing = cost.state === "estimated" ? cost.pricing : null;
+  const usage = args.capture.usage;
+  const result = await prisma.aiGenerationAttempt.updateMany({ where: { id: args.attemptId, usageState: "pending" }, data: {
+      usageState: "captured", costState: cost.state, effectiveModel: model, effectiveModelSource,
+      inputTokens: usage.inputTokens, inputTokensNoCache: usage.inputTokensNoCache, inputTokensCacheRead: usage.inputTokensCacheRead, inputTokensCacheWrite: usage.inputTokensCacheWrite,
+      outputTokens: usage.outputTokens, outputTextTokens: usage.outputTextTokens, outputReasoningTokens: usage.outputReasoningTokens, totalTokens: usage.totalTokens, usageCapturedAt: new Date(),
+      pricingVersion: pricing?.version, pricingCurrency: pricing?.currency, inputRateNanoUsdPerToken: pricing?.rates.input,
+      cacheReadRateNanoUsdPerToken: pricing?.rates.cacheRead, cacheWriteRateNanoUsdPerToken: pricing?.rates.cacheWrite, outputRateNanoUsdPerToken: pricing?.rates.output,
+      estimatedCostNanoUsd: cost.state === "estimated" ? cost.costNanoUsd : null, costUnavailableReason: cost.state === "unknown" ? cost.reason : null,
+  } });
+  return result.count === 1;
 }
 
 export async function flushAttempt(attemptId: string, content: string) {

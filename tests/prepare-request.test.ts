@@ -216,7 +216,7 @@ describe("prepareLLMRequest", () => {
       keyIv: "iv",
       keyAuthTag: "auth-tag",
       selectedModel:
-        "configured-model",
+        "gpt-5",
     });
 
     decryptSecretMock.mockReturnValue(
@@ -234,7 +234,7 @@ describe("prepareLLMRequest", () => {
       });
 
     expect(result.model).toBe(
-      "configured-model"
+      "gpt-5"
     );
 
     expect(result.apiKey).toBe(
@@ -428,5 +428,11 @@ describe("prepareLLMRequest", () => {
           "@gemini give your view"
         ),
     });
+  });
+
+  it("falls back to the valid Google default for a stale removed model", async () => {
+    integrationFindUniqueMock.mockResolvedValue({ encryptedApiKey: "encrypted-key", keyIv: "iv", keyAuthTag: "auth-tag", selectedModel: "gemini-3.6-pro" });
+    const result = await prepareLLMRequest({ conversationId: 1, sourceMessageId: 11, provider: "google", currentUserId: "user-1", currentUserName: "Tudor", ownerId: "owner-1" });
+    expect(result.model).toBe("gemini-3.6-flash");
   });
 });

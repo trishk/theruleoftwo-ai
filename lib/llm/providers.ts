@@ -20,7 +20,6 @@ export const PROVIDERS = {
     defaultModel: "gemini-3.6-flash",
     models: [
       "gemini-3.6-flash",
-      "gemini-3.6-pro",
     ],
   },
 } as const;

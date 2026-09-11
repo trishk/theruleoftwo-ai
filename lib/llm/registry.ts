@@ -30,6 +30,7 @@ export async function askLLM(
     ),
     instructions: request.instructions,
     messages: request.messages,
+    maxRetries: 0,
   });
 
   return {
@@ -63,6 +64,7 @@ export function streamLLM(
     instructions: request.instructions,
     messages: request.messages,
     abortSignal,
+    maxRetries: 0,
   });
 }
 

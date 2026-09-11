@@ -22,6 +22,8 @@ import { getConversationPresentation } from "@/lib/chat/conversation-presentatio
 import { LeaveConversationButton } from "./LeaveConversationButton";
 import { ConversationTypeIcon } from "./ConversationTypeIcon";
 import { useOptionalConversationRealtime } from "../realtime/RealtimeConversationSync";
+import { UsageCostDialog } from "./UsageCostDialog";
+import type { ConversationUsageSummary } from "@/lib/llm/usage/conversation-usage";
 
 type Props = {
   conversationId?: number;
@@ -34,6 +36,7 @@ type Props = {
     usageCount: number;
   } | null;
   summary?: ConversationSummary;
+  usageSummary?: ConversationUsageSummary | null;
 };
 
 export function ChatHeader({
@@ -43,6 +46,7 @@ export function ChatHeader({
   allowMemberAiUsage = false,
   activeInvite = null,
   summary,
+  usageSummary = null,
 }: Props) {
   const conversationRealtime =
     useOptionalConversationRealtime();
@@ -319,6 +323,9 @@ export function ChatHeader({
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
+        {conversationId && isOwner && usageSummary && (usageSummary.providerInvokedAttemptCount > 0 || usageSummary.legacyAttemptCount > 0) && (
+          <UsageCostDialog conversationId={conversationId} summary={usageSummary} />
+        )}
         {conversationId &&
           !isOwner && (
             <LeaveConversationButton

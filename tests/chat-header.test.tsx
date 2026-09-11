@@ -45,6 +45,15 @@ function summary(
 }
 
 describe("ChatHeader", () => {
+  it("shows usage only to owners with attempts", () => {
+    const usage = { knownEstimatedCost: "$0.01", knownAttemptCount: 1, unknownAttemptCount: 0, pendingAttemptCount: 0, legacyAttemptCount: 0, providerInvokedAttemptCount: 1 };
+    const { rerender } = render(<ChatHeader conversationId={1} isOwner usageSummary={usage} />);
+    expect(screen.getByRole("button", { name: /estimated \$0\.01/i })).toBeInTheDocument();
+    rerender(<ChatHeader conversationId={1} usageSummary={usage} />);
+    expect(screen.queryByRole("button", { name: /estimated \$0\.01/i })).not.toBeInTheDocument();
+    rerender(<ChatHeader conversationId={1} isOwner usageSummary={{ ...usage, knownAttemptCount: 0, providerInvokedAttemptCount: 0 }} />);
+    expect(screen.queryByRole("button", { name: /estimated \$0\.01/i })).not.toBeInTheDocument();
+  });
   it("renders safely without conversation props", () => {
     render(<ChatHeader />);
 

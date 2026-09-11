@@ -27,6 +27,8 @@ const {
   completeAttemptMock,
   getAttemptStatusMock,
   heartbeatAttemptMock,
+  persistAttemptTelemetryMock,
+  observeTelemetryMock,
 } = vi.hoisted(() => ({
   requireUserMock: vi.fn(),
   validateStreamRequestMock: vi.fn(),
@@ -53,6 +55,8 @@ const {
   completeAttemptMock: vi.fn(),
   getAttemptStatusMock: vi.fn(),
   heartbeatAttemptMock: vi.fn(),
+  persistAttemptTelemetryMock: vi.fn(),
+  observeTelemetryMock: vi.fn(),
 }));
 
 vi.mock("@/lib/chat-stream/generation-lifecycle", () => ({
@@ -65,7 +69,10 @@ vi.mock("@/lib/chat-stream/generation-lifecycle", () => ({
   completeAttempt: completeAttemptMock,
   getAttemptStatus: getAttemptStatusMock,
   heartbeatAttempt: heartbeatAttemptMock,
+  persistAttemptTelemetry: persistAttemptTelemetryMock,
 }));
+
+vi.mock("@/lib/llm/usage/capture", () => ({ observeTelemetry: observeTelemetryMock }));
 
 vi.mock(
   "@/lib/auth/require-user",
@@ -175,6 +182,13 @@ function createTextStream(
   };
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => { resolve = resolvePromise; reject = rejectPromise; });
+  return { promise, resolve, reject };
+}
+
 describe(
   "chat stream route",
   () => {
@@ -242,6 +256,8 @@ describe(
       completeAttemptMock.mockResolvedValue(true);
       getAttemptStatusMock.mockResolvedValue({ status: "streaming" });
       heartbeatAttemptMock.mockResolvedValue(true);
+      persistAttemptTelemetryMock.mockResolvedValue(true);
+      observeTelemetryMock.mockReturnValue(vi.fn().mockResolvedValue({ usage: { inputTokens: 3n, inputTokensNoCache: 2n, inputTokensCacheRead: 1n, inputTokensCacheWrite: 0n, outputTokens: 2n, outputTextTokens: 1n, outputReasoningTokens: 1n, totalTokens: 5n }, effectiveModel: "effective-model" }));
     });
 
     it(
@@ -333,8 +349,27 @@ describe(
         ).toHaveBeenCalledWith(
           "lease-1"
         );
+        expect(markProviderInvokedMock).toHaveBeenCalledWith("attempt-1", { provider: "openai", requestedModel: "test-model" });
+        expect(persistAttemptTelemetryMock).toHaveBeenCalledWith({
+          attemptId: "attempt-1", provider: "openai", requestedModel: "test-model",
+          capture: { usage: { inputTokens: 3n, inputTokensNoCache: 2n, inputTokensCacheRead: 1n, inputTokensCacheWrite: 0n, outputTokens: 2n, outputTextTokens: 1n, outputReasoningTokens: 1n, totalTokens: 5n }, effectiveModel: "effective-model" },
+        });
       }
     );
+
+    it("keeps a completed response successful when telemetry persistence fails", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => undefined);
+      persistAttemptTelemetryMock.mockRejectedValue(new Error("temporary sqlite failure"));
+      streamLLMMock.mockReturnValue({ textStream: createTextStream(["ok"]) });
+      const response = await POST(createRequest() as never);
+      const body = await response.text();
+      expect(body).toContain('"type":"done"');
+      expect(body).not.toContain('"type":"error"');
+      expect(completeAttemptMock).toHaveBeenCalledTimes(1);
+      expect(failAttemptMock).not.toHaveBeenCalled();
+      expect(streamLLMMock).toHaveBeenCalledTimes(1);
+      expect(persistAttemptTelemetryMock).toHaveBeenCalledWith(expect.objectContaining({ attemptId: "attempt-1", provider: "openai", requestedModel: "test-model" }));
+    });
 
     it("charges an owner request to the owner's shared budget", async () => {
       requireUserMock.mockResolvedValue({
@@ -567,6 +602,52 @@ describe(
         );
       }
     );
+
+    it("completes output when usage is rejected after provider success", async () => {
+      observeTelemetryMock.mockReturnValue(vi.fn().mockResolvedValue({ unavailableReason: "usage_rejected" }));
+      streamLLMMock.mockReturnValue({ textStream: createTextStream(["complete output"]) });
+      const response = await POST(createRequest() as never);
+      const body = await response.text();
+      expect(flushAttemptMock).toHaveBeenLastCalledWith("attempt-1", "complete output");
+      expect(completeAttemptMock).toHaveBeenCalledTimes(1);
+      expect(persistAttemptTelemetryMock).toHaveBeenCalledWith(expect.objectContaining({ capture: { unavailableReason: "usage_rejected" } }));
+      expect(failAttemptMock).not.toHaveBeenCalled();
+      expect(body).toContain('"type":"done"');
+      expect(body).not.toContain('"type":"error"');
+      expect(streamLLMMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("completes output when telemetry reaches its controlled deadline", async () => {
+      vi.useFakeTimers();
+      const usage = createDeferred<never>();
+      const finalStep = createDeferred<never>();
+      try {
+        observeTelemetryMock.mockImplementation((result: { usage: Promise<never>; finalStep: Promise<never> }) => {
+          void result.usage.catch(() => undefined);
+          void result.finalStep.catch(() => undefined);
+          return () => new Promise<{ unavailableReason: string }>((resolve) => {
+            const timer = setTimeout(() => { clearTimeout(timer); resolve({ unavailableReason: "usage_timeout" }); }, 25);
+          });
+        });
+        streamLLMMock.mockReturnValue({ textStream: createTextStream(["complete output"]), usage: usage.promise, finalStep: finalStep.promise });
+        const response = await POST(createRequest() as never);
+        const bodyPromise = response.text();
+        await vi.advanceTimersByTimeAsync(25);
+        const body = await bodyPromise;
+        expect(vi.getTimerCount()).toBe(0);
+        expect(completeAttemptMock).toHaveBeenCalledTimes(1);
+        expect(persistAttemptTelemetryMock).toHaveBeenCalledWith(expect.objectContaining({ capture: { unavailableReason: "usage_timeout" } }));
+        expect(failAttemptMock).not.toHaveBeenCalled();
+        expect(body).toContain('"type":"done"');
+        expect(body).not.toContain('"type":"error"');
+        expect(streamLLMMock).toHaveBeenCalledTimes(1);
+        usage.reject(new Error("late usage rejection"));
+        finalStep.reject(new Error("late step rejection"));
+        await Promise.resolve();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
 
     it(
       "returns 429 without releasing when no lease was acquired",

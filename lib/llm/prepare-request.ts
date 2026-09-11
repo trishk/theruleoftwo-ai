@@ -158,9 +158,11 @@ export async function prepareLLMRequest({
     );
   }
 
-  const selectedModel =
-    integration.selectedModel ??
-    PROVIDERS[provider].defaultModel;
+  const configuredModel = integration.selectedModel;
+  const allowedModels = PROVIDERS[provider].models as readonly string[];
+  const selectedModel = allowedModels.includes(configuredModel)
+    ? configuredModel
+    : PROVIDERS[provider].defaultModel;
 
   const apiKey = decryptSecret(
     integration.encryptedApiKey,
