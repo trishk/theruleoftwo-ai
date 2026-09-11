@@ -15,6 +15,7 @@ const {
   messageCountMock,
   messageCreateMock,
   messageFindFirstMock,
+  messageFindUniqueMock,
 } = vi.hoisted(() => ({
   requireUserMock: vi.fn(),
   requireConversationAccessMock:
@@ -27,6 +28,7 @@ const {
   messageCountMock: vi.fn(),
   messageCreateMock: vi.fn(),
   messageFindFirstMock: vi.fn(),
+  messageFindUniqueMock: vi.fn(),
 }));
 
 vi.mock(
@@ -69,12 +71,16 @@ vi.mock(
           messageCreateMock,
         findFirst:
           messageFindFirstMock,
+        findUnique:
+          messageFindUniqueMock,
       },
     },
   })
 );
 
 import { sendHumanMessage } from "@/app/actions/messages";
+
+const CLIENT_MESSAGE_ID = "123e4567-e89b-42d3-a456-426614174000";
 
 describe(
   "sendHumanMessage",
@@ -124,7 +130,9 @@ describe(
         const result =
           await sendHumanMessage(
             42,
-            "@chatgpt hello"
+            "@chatgpt hello",
+            null,
+            CLIENT_MESSAGE_ID
           );
 
         expect(
@@ -139,11 +147,15 @@ describe(
             content:
               "@chatgpt hello",
             replyToId: null,
+            clientMessageId: CLIENT_MESSAGE_ID,
+            clientPayloadHash: expect.any(String),
           },
         });
 
         expect(result).toEqual({
+          outcome: "created",
           messageId: 123,
+          clientMessageId: CLIENT_MESSAGE_ID,
           providers: [
             "openai",
           ],
@@ -177,7 +189,9 @@ describe(
 
         await sendHumanMessage(
           42,
-          "@chatgpt First decision"
+          "@chatgpt First decision",
+          null,
+          CLIENT_MESSAGE_ID
         );
 
         expect(
@@ -216,7 +230,7 @@ describe(
       conversationFindUniqueMock.mockResolvedValue({ title: "New Chat" });
       messageCountMock.mockResolvedValue(0);
 
-      await sendHumanMessage(42, content);
+      await sendHumanMessage(42, content, null, CLIENT_MESSAGE_ID);
 
       expect(conversationUpdateMock).toHaveBeenNthCalledWith(1, {
         where: { id: 42 },
@@ -229,7 +243,7 @@ describe(
       conversationFindUniqueMock.mockResolvedValue({ title: "New Chat" });
       messageCountMock.mockResolvedValue(0);
 
-      await sendHumanMessage(42, `@gemini ${"meaningful ".repeat(10)}`);
+      await sendHumanMessage(42, `@gemini ${"meaningful ".repeat(10)}`, null, CLIENT_MESSAGE_ID);
 
       const title = conversationUpdateMock.mock.calls[0][0].data.title;
       expect(title).toHaveLength(50);
@@ -250,8 +264,10 @@ describe(
         );
 
         await sendHumanMessage(
-          42,
-          "Another message"
+            42,
+            "Another message",
+            null,
+            CLIENT_MESSAGE_ID
         );
 
         expect(
@@ -275,5 +291,35 @@ describe(
         });
       }
     );
+
+    it("returns the existing message for the same client id and canonical payload", async () => {
+      const first = await sendHumanMessage(42, " hello ", null, CLIENT_MESSAGE_ID);
+      const persisted = messageCreateMock.mock.calls[0][0].data;
+      messageCreateMock.mockRejectedValueOnce({ code: "P2002" });
+      messageFindUniqueMock.mockResolvedValueOnce({ id: 123, ...persisted });
+
+      const duplicate = await sendHumanMessage(42, "hello", null, CLIENT_MESSAGE_ID);
+
+      expect(first.outcome).toBe("created");
+      expect(duplicate).toMatchObject({ outcome: "duplicate", messageId: 123, clientMessageId: CLIENT_MESSAGE_ID });
+      expect(messageFindUniqueMock).toHaveBeenCalledWith({
+        where: { conversationId_authorId_clientMessageId: { conversationId: 42, authorId: "user-1", clientMessageId: CLIENT_MESSAGE_ID } },
+      });
+    });
+
+    it("rejects reuse of a client id with another payload", async () => {
+      messageCreateMock.mockRejectedValueOnce({ code: "P2002" });
+      messageFindUniqueMock.mockResolvedValueOnce({
+        id: 123,
+        conversationId: 42,
+        authorType: "human",
+        authorId: "user-1",
+        content: "different",
+        replyToId: null,
+        clientMessageId: CLIENT_MESSAGE_ID,
+        clientPayloadHash: "different-hash",
+      });
+      await expect(sendHumanMessage(42, "hello", null, CLIENT_MESSAGE_ID)).rejects.toThrow("CLIENT_MESSAGE_ID_CONFLICT");
+    });
   }
 );

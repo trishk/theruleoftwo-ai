@@ -32,15 +32,14 @@ type RunProviderGenerationArgs = {
   provider: Provider;
   sourceMessageId: number;
   temporaryMessageId: number;
+  retryOfAttemptId?: string;
 };
 
 export function useProviderGeneration({
   conversationId,
   onStreamingMessagesChange,
 }: Props) {
-  const abortControllersRef = useRef<
-    AbortController[]
-  >([]);
+  const abortControllersRef = useRef<Array<{ controller: AbortController; attemptId?: string }>>([]);
 
   const pendingContentRef = useRef<
     Map<number, string>
@@ -152,10 +151,10 @@ export function useProviderGeneration({
 
     return () => {
       for (
-        const controller of
-        abortControllersRef.current
+        const active of
+          abortControllersRef.current
       ) {
-        controller.abort();
+        active.controller.abort();
       }
 
       abortControllersRef.current = [];
@@ -204,11 +203,11 @@ export function useProviderGeneration({
   }
 
   function stopGeneration() {
-    for (
-      const controller of
-      abortControllersRef.current
-    ) {
-      controller.abort();
+    for (const active of abortControllersRef.current) {
+      if (active.attemptId) {
+        void fetch("/api/chat/stop", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ attemptId: active.attemptId }) })
+          .finally(() => active.controller.abort());
+      } else active.controller.abort();
     }
 
     abortControllersRef.current = [];
@@ -218,22 +217,31 @@ export function useProviderGeneration({
     provider,
     sourceMessageId,
     temporaryMessageId,
+    retryOfAttemptId,
   }: RunProviderGenerationArgs) {
     const controller =
       new AbortController();
 
-    abortControllersRef.current.push(
-      controller
-    );
+    const activeRequest = { controller, attemptId: undefined as string | undefined };
+    abortControllersRef.current.push(activeRequest);
 
     let providerFailed = false;
 
     try {
-      await streamProviderResponse({
+      const responseResult = await streamProviderResponse({
         conversationId,
         messageId: sourceMessageId,
         provider,
         signal: controller.signal,
+        retryOfAttemptId,
+        onGeneration: (metadata) => {
+          activeRequest.attemptId = metadata.attemptId;
+          updateStreamingMessage(temporaryMessageId, {
+            attemptId: metadata.attemptId,
+            outputMessageId: metadata.outputMessageId ?? undefined,
+            generationStatus: metadata.status as ChatMessage["generationStatus"],
+          });
+        },
 
         onDelta: (streamedText) => {
           generatedContentRef.current.set(
@@ -254,11 +262,13 @@ export function useProviderGeneration({
             temporaryMessageId
           );
 
+          const partialContent = generatedContentRef.current.get(temporaryMessageId);
           updateStreamingMessage(
             temporaryMessageId,
             {
-              content:
-                getProviderErrorMessage(
+              content: partialContent?.trim()
+                ? partialContent
+                : getProviderErrorMessage(
                   provider,
                   event.code
                 ),
@@ -270,6 +280,14 @@ export function useProviderGeneration({
       });
 
       if (providerFailed) {
+        return;
+      }
+
+      if (responseResult?.status === "pending" || responseResult?.status === "streaming") {
+        updateStreamingMessage(temporaryMessageId, {
+          isStreaming: true,
+          generationStatus: responseResult.status,
+        });
         return;
       }
 
@@ -421,7 +439,7 @@ export function useProviderGeneration({
       abortControllersRef.current =
         abortControllersRef.current.filter(
           (item) =>
-            item !== controller
+            item !== activeRequest
         );
     }
   }
@@ -490,25 +508,17 @@ export function useProviderGeneration({
   async function retryProvider(
     provider: Provider,
     sourceMessageId: number,
-    temporaryMessageId: number
+    _previousMessageId: number,
+    retryOfAttemptId?: string
   ) {
-    discardPendingContent(
-      temporaryMessageId
-    );
-
-    updateStreamingMessage(
-      temporaryMessageId,
-      {
-        content: "",
-        isStreaming: true,
-        isError: false,
-      }
-    );
+    if (!retryOfAttemptId) return;
+    const temporaryMessageId = createStreamingMessage(provider, sourceMessageId);
 
     await runProviderGeneration({
       provider,
       sourceMessageId,
       temporaryMessageId,
+      retryOfAttemptId,
     });
   }
 

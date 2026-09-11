@@ -142,7 +142,8 @@ function ChatConversationSession({
       void retryProviderRef.current(
         selectedMessage.provider,
         selectedMessage.sourceMessageId,
-        selectedMessage.id
+        selectedMessage.id,
+        selectedMessage.attemptId
       );
     },
     []

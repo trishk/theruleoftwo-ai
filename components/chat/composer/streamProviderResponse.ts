@@ -10,6 +10,13 @@ type StreamProviderResponseArgs = {
   messageId: number;
   provider: Provider;
   signal: AbortSignal;
+  retryOfAttemptId?: string;
+  onGeneration?: (metadata: {
+    generationId: string;
+    attemptId: string;
+    outputMessageId: number | null;
+    status: string;
+  }) => void;
   onDelta: (streamedText: string) => void;
   onError: (
     event: Extract<
@@ -74,6 +81,8 @@ export async function streamProviderResponse({
   signal,
   onDelta,
   onError,
+  retryOfAttemptId,
+  onGeneration,
 }: StreamProviderResponseArgs) {
   const response = await fetch(
     "/api/chat/stream",
@@ -87,10 +96,37 @@ export async function streamProviderResponse({
         conversationId,
         messageId,
         provider,
+        ...(retryOfAttemptId ? { retryOfAttemptId } : {}),
       }),
       signal,
     }
   );
+
+  const contentType = response.headers?.get?.("Content-Type") ?? "";
+  if (contentType.includes("application/json")) {
+    const payload = await response.json() as {
+      code?: string;
+      status?: string;
+      generationId?: string;
+      attemptId?: string;
+      outputMessageId?: number | null;
+      output?: string | null;
+      retryAfterSeconds?: number;
+    };
+    if (payload.generationId && payload.attemptId) {
+      onGeneration?.({ generationId: payload.generationId, attemptId: payload.attemptId, outputMessageId: payload.outputMessageId ?? null, status: payload.status ?? (response.ok ? "completed" : "failed") });
+    }
+    if (response.ok && payload.generationId && payload.attemptId) {
+      if (payload.output) onDelta(payload.output);
+      return { status: payload.status ?? "completed" };
+    }
+    throw new StreamRequestError(
+      payload.code ?? `Streaming failed for ${provider}.`,
+      response.status,
+      payload.retryAfterSeconds,
+      payload.code === "provider_not_configured" ? "provider_not_configured" : payload.code === "member_ai_usage_not_allowed" ? "member_ai_usage_not_allowed" : undefined
+    );
+  }
 
   if (!response.ok) {
     const retryAfterSeconds =
@@ -127,6 +163,7 @@ export async function streamProviderResponse({
 
   let streamedText = "";
   let buffer = "";
+  let finalStatus = "completed";
 
   while (true) {
     const { done, value } =
@@ -160,6 +197,13 @@ export async function streamProviderResponse({
         ) as LLMStreamEvent;
 
       if (
+        event.type === "generation"
+      ) {
+        finalStatus = "streaming";
+        onGeneration?.({ generationId: event.generationId, attemptId: event.attemptId, outputMessageId: event.messageId, status: "streaming" });
+      }
+
+      if (
         event.type === "delta"
       ) {
         streamedText +=
@@ -173,8 +217,11 @@ export async function streamProviderResponse({
       if (
         event.type === "error"
       ) {
+        finalStatus = "failed";
         onError(event);
       }
+      if (event.type === "done") finalStatus = "completed";
     }
   }
+  return { status: finalStatus };
 }

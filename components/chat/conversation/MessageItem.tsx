@@ -360,7 +360,7 @@ export function MessageItem({
             </button>
           )}
 
-          {isError &&
+          {(isError || isStopped) &&
             onRetry && (
               <button
                 type="button"
@@ -398,7 +398,7 @@ export function MessageItem({
             <span className="mb-0.5 block text-xs font-semibold">
               Error
             </span>
-            {content}
+            {content || "Generation interrupted."}
           </div>
         ) : isStreaming && !isStopped && !content ? (
           <div

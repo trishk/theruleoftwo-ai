@@ -82,3 +82,11 @@ export async function releaseGenerationLease(
     },
   });
 }
+
+export async function renewGenerationLease(token: string) {
+  const result = await prisma.lLMGenerationLease.updateMany({
+    where: { token, expiresAt: { gt: new Date() } },
+    data: { expiresAt: new Date(Date.now() + LEASE_DURATION_MS) },
+  });
+  return result.count === 1;
+}

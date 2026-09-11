@@ -173,6 +173,12 @@ function reconcileTemporaryMessages(
     availablePersistedIndexes.delete(matchIndex);
     timelineByPersistedIndex[matchIndex] = {
       ...persistedMessages[matchIndex]!,
+      ...(temporaryMessage.authorType === "ai" && temporaryMessage.content.length > persistedMessages[matchIndex]!.content.length
+        ? { content: temporaryMessage.content }
+        : {}),
+      ...(temporaryMessage.authorType === "ai" && temporaryMessage.isStreaming
+        ? { isStreaming: true }
+        : {}),
       timelineKey,
       timelineCreatedAt:
         temporaryMessage.timelineCreatedAt ??

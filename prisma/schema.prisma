@@ -23,6 +23,8 @@ model User {
   memberships   ConversationMember[]
   integrations  UserIntegration[]
   readStates    ConversationReadState[]
+  requestedGenerations AiGeneration[]        @relation("GenerationRequester")
+  generationAttempts  AiGenerationAttempt[] @relation("AttemptRequester")
 }
 
 model UserIntegration {
@@ -56,6 +58,7 @@ model Conversation {
   invites    ConversationInvite[]
   messages   Message[]
   readStates ConversationReadState[]
+  aiGenerations AiGeneration[]
 }
 
 model ConversationMember {
@@ -107,16 +110,66 @@ model Message {
   authorId       String
   content        String
   replyToId      Int?
+  clientMessageId   String?
+  clientPayloadHash String?
   createdAt      DateTime @default(now())
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   replyTo Message?  @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
   replies Message[] @relation("MessageReplies")
+  sourceGenerations AiGeneration[]
+  generationAttempt AiGenerationAttempt? @relation("AttemptOutput")
 
+  @@unique([conversationId, authorId, clientMessageId])
   @@index([conversationId])
   @@index([conversationId, createdAt])
   @@index([replyToId])
+}
+
+model AiGeneration {
+  id                 String   @id
+  conversationId     Int
+  sourceMessageId    Int
+  provider           String
+  initialRequesterId String
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  conversation     Conversation          @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sourceMessage    Message               @relation(fields: [sourceMessageId], references: [id], onDelete: Cascade)
+  initialRequester User                  @relation("GenerationRequester", fields: [initialRequesterId], references: [id], onDelete: Cascade)
+  attempts         AiGenerationAttempt[]
+
+  @@unique([sourceMessageId, provider])
+  @@index([conversationId])
+}
+
+model AiGenerationAttempt {
+  id                String    @id
+  generationId      String
+  attemptNumber     Int
+  retryOfId         String?   @unique
+  requesterId       String
+  status            String
+  outputMessageId   Int?      @unique
+  errorCode         String?
+  reservedAt        DateTime  @default(now())
+  startedAt         DateTime?
+  providerInvokedAt DateTime?
+  progressAt        DateTime  @default(now())
+  completedAt       DateTime?
+  failedAt          DateTime?
+  stoppedAt         DateTime?
+
+  generation   AiGeneration        @relation(fields: [generationId], references: [id], onDelete: Cascade)
+  requester    User                @relation("AttemptRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  outputMessage Message?           @relation("AttemptOutput", fields: [outputMessageId], references: [id], onDelete: SetNull)
+  retryOf      AiGenerationAttempt? @relation("AttemptRetry", fields: [retryOfId], references: [id], onDelete: NoAction)
+  retriedBy    AiGenerationAttempt? @relation("AttemptRetry")
+
+  @@unique([generationId, attemptNumber])
+  @@index([status, progressAt])
 }
 
 model RateLimitBucket {

@@ -23,6 +23,9 @@ export type ChatMessage = {
   provider?: string;
   participant?: ParticipantIdentity;
   sourceMessageId?: number;
+  attemptId?: string;
+  outputMessageId?: number;
+  generationStatus?: "pending" | "streaming" | "completed" | "failed" | "stopped";
   /** Server acknowledgement used to reconcile an optimistic human row. */
   persistedMessageId?: number;
   replyTo?: ChatReply | null;

@@ -55,6 +55,12 @@ export function useMessageComposer({
     useState<string | null>(null);
 
   const isActiveRef = useRef(true);
+  const pendingSubmissionRef = useRef<{
+    clientMessageId: string;
+    content: string;
+    replyToId: number | null;
+  } | null>(null);
+  const submissionInFlightRef = useRef(false);
 
   useEffect(() => {
     isActiveRef.current = true;
@@ -95,12 +101,14 @@ export function useMessageComposer({
       typeof retryProviderGeneration
     >[0],
     sourceMessageId: number,
-    temporaryMessageId: number
+    temporaryMessageId: number,
+    retryOfAttemptId?: string
   ) {
     await retryProviderGeneration(
       provider,
       sourceMessageId,
-      temporaryMessageId
+      temporaryMessageId,
+      retryOfAttemptId
     );
 
     if (!isActiveRef.current) {
@@ -118,15 +126,30 @@ export function useMessageComposer({
 
     if (
       !submittedMessage ||
-      sending
+      sending ||
+      submissionInFlightRef.current
     ) {
       return;
     }
+
+    submissionInFlightRef.current = true;
 
     onSubmitAccepted();
 
     const temporaryMessageId =
       createTemporaryMessageId();
+    const submittedReplyToId = replyTo?.id ?? null;
+    const priorSubmission = pendingSubmissionRef.current;
+    const clientMessageId =
+      priorSubmission?.content === submittedMessage &&
+      priorSubmission.replyToId === submittedReplyToId
+        ? priorSubmission.clientMessageId
+        : crypto.randomUUID();
+    pendingSubmissionRef.current = {
+      clientMessageId,
+      content: submittedMessage,
+      replyToId: submittedReplyToId,
+    };
 
     const optimisticMessage: ChatMessage =
       {
@@ -158,10 +181,12 @@ export function useMessageComposer({
       const {
         messageId,
         providers,
+        outcome,
       } = await sendHumanMessage(
         conversationId,
         submittedMessage,
-        replyTo?.id ?? null
+        submittedReplyToId,
+        clientMessageId
       );
 
       if (isActiveRef.current) {
@@ -179,10 +204,11 @@ export function useMessageComposer({
         syncConversation();
       }
 
-      await generateProviders(
-        providers,
-        messageId
-      );
+      pendingSubmissionRef.current = null;
+
+      if (outcome !== "duplicate") {
+        await generateProviders(providers, messageId);
+      }
 
       if (!isActiveRef.current) {
         return;
@@ -217,6 +243,7 @@ export function useMessageComposer({
         "Something went wrong. Please try again."
       );
     } finally {
+      submissionInFlightRef.current = false;
       if (isActiveRef.current) {
         setSending(false);
       }

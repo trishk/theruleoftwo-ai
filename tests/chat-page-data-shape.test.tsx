@@ -16,6 +16,7 @@ const {
   chatConversationMock,
   getConversationSummariesMock,
   chatSidebarMock,
+  recoverStaleMock,
 } = vi.hoisted(() => ({
   requireUserMock: vi.fn(),
   requireConversationAccessMock: vi.fn(),
@@ -31,6 +32,11 @@ const {
   chatConversationMock: vi.fn(() => null),
   getConversationSummariesMock: vi.fn(),
   chatSidebarMock: vi.fn(() => null),
+  recoverStaleMock: vi.fn(),
+}));
+
+vi.mock("@/lib/chat-stream/generation-lifecycle", () => ({
+  recoverStaleGenerationsForConversation: recoverStaleMock,
 }));
 
 vi.mock("@/lib/auth/require-user", () => ({
@@ -88,6 +94,7 @@ describe("chat page data shape", () => {
       owner: { name: "Conversation Owner" },
     });
     markConversationReadMock.mockResolvedValue(undefined);
+    recoverStaleMock.mockResolvedValue(0);
     conversationFindUniqueMock
       .mockResolvedValueOnce({ id: 42 })
       .mockResolvedValueOnce({
@@ -136,6 +143,13 @@ describe("chat page data shape", () => {
                 authorType: true,
                 authorId: true,
                 content: true,
+              },
+            },
+            generationAttempt: {
+              select: {
+                id: true,
+                status: true,
+                generation: { select: { sourceMessageId: true } },
               },
             },
           },
@@ -241,6 +255,45 @@ describe("chat page data shape", () => {
       undefined,
     );
     expect(conversationInviteFindFirstMock).not.toHaveBeenCalled();
+  });
+
+  it("loads a failed empty output with durable retry identity after refresh", async () => {
+    conversationFindUniqueMock.mockReset();
+    conversationFindUniqueMock
+      .mockResolvedValueOnce({ id: 42 })
+      .mockResolvedValueOnce({
+        id: 42,
+        title: "Measured chat",
+        allowMemberAiUsage: false,
+        messages: [{
+          id: 9,
+          authorType: "ai",
+          authorId: "openai",
+          content: "",
+          createdAt: new Date("2026-08-27T00:00:00Z"),
+          replyTo: null,
+          generationAttempt: {
+            id: "attempt-failed",
+            status: "failed",
+            generation: { sourceMessageId: 7 },
+          },
+        }],
+      });
+
+    renderToStaticMarkup(await ChatPage({ params: Promise.resolve({ id: "public-id" }) }));
+    expect(chatConversationMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: [expect.objectContaining({
+          id: 9,
+          content: "",
+          attemptId: "attempt-failed",
+          sourceMessageId: 7,
+          generationStatus: "failed",
+          isError: true,
+        })],
+      }),
+      undefined,
+    );
   });
 
   it("redirects a guest without access to their latest conversation", async () => {

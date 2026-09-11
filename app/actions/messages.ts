@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { createHash } from "node:crypto";
 
 import { prisma } from "@/lib/db/prisma";
 import {
@@ -14,7 +15,8 @@ async function saveHumanMessage(
   conversationId: number,
   userId: string,
   content: string,
-  replyToId?: number | null
+  replyToId: number | null,
+  clientMessageId: string
 ) {
   const trimmedContent = content.trim();
 
@@ -71,18 +73,60 @@ async function saveHumanMessage(
         })
       : null;
 
-  const createdMessage =
-    await prisma.message.create({
+  const canonicalReplyToId = replyToId ?? null;
+  const clientPayloadHash = createHash("sha256")
+    .update(JSON.stringify({ content: trimmedContent, replyToId: canonicalReplyToId }))
+    .digest("hex");
+  let createdMessage;
+  let outcome: "created" | "duplicate" = "created";
+
+  try {
+    createdMessage = await prisma.message.create({
       data: {
         conversationId,
         authorType: "human",
         authorId: userId,
         content: trimmedContent,
-        replyToId: replyToId ?? null,
+        replyToId: canonicalReplyToId,
+        clientMessageId,
+        clientPayloadHash,
+      },
+    });
+  } catch (error) {
+    const code = typeof error === "object" && error !== null && "code" in error
+      ? String((error as { code?: unknown }).code)
+      : null;
+
+    if (code !== "P2002") {
+      throw error;
+    }
+
+    const existing = await prisma.message.findUnique({
+      where: {
+        conversationId_authorId_clientMessageId: {
+          conversationId,
+          authorId: userId,
+          clientMessageId,
+        },
       },
     });
 
+    if (
+      !existing ||
+      existing.authorType !== "human" ||
+      existing.clientPayloadHash !== clientPayloadHash ||
+      existing.content !== trimmedContent ||
+      existing.replyToId !== canonicalReplyToId
+    ) {
+      throw new Error("CLIENT_MESSAGE_ID_CONFLICT");
+    }
+
+    createdMessage = existing;
+    outcome = "duplicate";
+  }
+
   if (
+    outcome === "created" &&
     existingMessageCount === 0 &&
     conversationRecord.title === "New Chat"
   ) {
@@ -110,6 +154,8 @@ async function saveHumanMessage(
 
   return {
     messageId: createdMessage.id,
+    outcome,
+    clientMessageId,
     content: trimmedContent,
     providers:
       extractMentions(trimmedContent),
@@ -119,8 +165,12 @@ async function saveHumanMessage(
 export async function sendHumanMessage(
   conversationId: number,
   content: string,
-  replyToId?: number | null
+  replyToId: number | null,
+  clientMessageId: string
 ) {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(clientMessageId)) {
+    throw new Error("INVALID_CLIENT_MESSAGE_ID");
+  }
   const user = await requireUser();
 
   await requireConversationAccess(
@@ -130,15 +180,18 @@ export async function sendHumanMessage(
 
   const {
     messageId,
+    outcome,
+    clientMessageId: persistedClientMessageId,
     providers,
   } = await saveHumanMessage(
     conversationId,
     user.id,
     content,
-    replyToId
+    replyToId,
+    clientMessageId
   );
 
-  await prisma.conversation.update({
+  if (outcome === "created") await prisma.conversation.update({
     where: {
       id: conversationId,
     },
@@ -150,7 +203,9 @@ export async function sendHumanMessage(
   revalidatePath("/");
 
   return {
+    outcome,
     messageId,
+    clientMessageId: persistedClientMessageId,
     providers,
   };
 }

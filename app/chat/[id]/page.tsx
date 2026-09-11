@@ -12,6 +12,7 @@ import {
   createHumanParticipantIdentity,
 } from "@/lib/chat/participant-identity";
 import { getConversationSummaries } from "@/lib/chat/get-conversation-summaries";
+import { recoverStaleGenerationsForConversation } from "@/lib/chat-stream/generation-lifecycle";
 
 import { ChatHeader } from "@/components/chat/navigation/ChatHeader";
 import { ChatConversation } from "@/components/chat/conversation/ChatConversation";
@@ -95,6 +96,7 @@ export default async function ChatPage({
     conversationId,
     userId: user.id,
   });
+  await recoverStaleGenerationsForConversation(conversationId);
 
   const ownerId =
     conversationAccess.ownerId;
@@ -125,6 +127,13 @@ export default async function ChatPage({
                 authorType: true,
                 authorId: true,
                 content: true,
+              },
+            },
+            generationAttempt: {
+              select: {
+                id: true,
+                status: true,
+                generation: { select: { sourceMessageId: true } },
               },
             },
           },
@@ -291,6 +300,13 @@ export default async function ChatPage({
               : undefined,
           content: message.content,
           createdAt: message.createdAt,
+          attemptId: message.generationAttempt?.id,
+          outputMessageId: message.generationAttempt ? message.id : undefined,
+          sourceMessageId: message.generationAttempt?.generation.sourceMessageId,
+          generationStatus: message.generationAttempt?.status as "pending" | "streaming" | "completed" | "failed" | "stopped" | undefined,
+          isStreaming: message.generationAttempt?.status === "pending" || message.generationAttempt?.status === "streaming",
+          isStopped: message.generationAttempt?.status === "stopped",
+          isError: message.generationAttempt?.status === "failed",
           isOwnMessage:
             message.authorId === user.id,
           replyTo: message.replyTo

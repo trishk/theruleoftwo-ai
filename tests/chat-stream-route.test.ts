@@ -18,6 +18,15 @@ const {
   streamLLMMock,
   persistStreamResponseMock,
   getStreamErrorCodeMock,
+  recoverStaleGenerationsMock,
+  reserveGenerationMock,
+  failAttemptMock,
+  startAttemptMock,
+  markProviderInvokedMock,
+  flushAttemptMock,
+  completeAttemptMock,
+  getAttemptStatusMock,
+  heartbeatAttemptMock,
 } = vi.hoisted(() => ({
   requireUserMock: vi.fn(),
   validateStreamRequestMock: vi.fn(),
@@ -35,6 +44,27 @@ const {
     vi.fn(),
   getStreamErrorCodeMock:
     vi.fn(),
+  recoverStaleGenerationsMock: vi.fn(),
+  reserveGenerationMock: vi.fn(),
+  failAttemptMock: vi.fn(),
+  startAttemptMock: vi.fn(),
+  markProviderInvokedMock: vi.fn(),
+  flushAttemptMock: vi.fn(),
+  completeAttemptMock: vi.fn(),
+  getAttemptStatusMock: vi.fn(),
+  heartbeatAttemptMock: vi.fn(),
+}));
+
+vi.mock("@/lib/chat-stream/generation-lifecycle", () => ({
+  recoverStaleGenerations: recoverStaleGenerationsMock,
+  reserveGeneration: reserveGenerationMock,
+  failAttempt: failAttemptMock,
+  startAttempt: startAttemptMock,
+  markProviderInvoked: markProviderInvokedMock,
+  flushAttempt: flushAttemptMock,
+  completeAttempt: completeAttemptMock,
+  getAttemptStatus: getAttemptStatusMock,
+  heartbeatAttempt: heartbeatAttemptMock,
 }));
 
 vi.mock(
@@ -77,6 +107,7 @@ vi.mock(
       acquireGenerationLeaseMock,
     releaseGenerationLease:
       releaseGenerationLeaseMock,
+    renewGenerationLease: vi.fn().mockResolvedValue(true),
   })
 );
 
@@ -202,6 +233,15 @@ describe(
       getStreamErrorCodeMock.mockReturnValue(
         "provider_error"
       );
+      recoverStaleGenerationsMock.mockResolvedValue(false);
+      reserveGenerationMock.mockResolvedValue({ created: true, generationId: "generation-1", attemptId: "attempt-1", status: "pending", outputMessageId: null, output: null });
+      failAttemptMock.mockResolvedValue({ count: 1 });
+      startAttemptMock.mockResolvedValue(999);
+      markProviderInvokedMock.mockResolvedValue({ count: 1 });
+      flushAttemptMock.mockResolvedValue(true);
+      completeAttemptMock.mockResolvedValue(true);
+      getAttemptStatusMock.mockResolvedValue({ status: "streaming" });
+      heartbeatAttemptMock.mockResolvedValue(true);
     });
 
     it(
@@ -236,12 +276,11 @@ describe(
         );
 
         expect(
-          persistStreamResponseMock
-        ).toHaveBeenCalledWith({
-          conversationId: 1,
-          provider: "openai",
-          content: "Hello world",
-        });
+          flushAttemptMock
+        ).toHaveBeenCalledWith(
+          "attempt-1",
+          "Hello world"
+        );
 
         expect(checkRateLimitMock).toHaveBeenCalledWith(
           "llm:user-1"
@@ -673,11 +712,10 @@ describe(
           )
         ).toBe("3600");
 
-        expect(
-          await response.text()
-        ).toBe(
-          "Daily generation quota exceeded."
-        );
+        expect(await response.json()).toMatchObject({
+          code: "quota_exceeded",
+          retryAfterSeconds: 3600,
+        });
 
         expect(
           prepareLLMRequestMock
@@ -816,7 +854,66 @@ describe(
       expect(response.headers.get("X-Chat-Error-Code")).toBe(
         "provider_not_configured"
       );
-      expect(await response.text()).toBe("Provider is not configured.");
+      expect(await response.json()).toMatchObject({
+        code: "provider_not_configured",
+      });
+    });
+
+    it.each(["pending", "streaming"])("returns a 202 duplicate for %s before side effects", async (status) => {
+      reserveGenerationMock.mockResolvedValue({ created: false, generationId: "generation-1", attemptId: "attempt-1", status, outputMessageId: status === "streaming" ? 999 : null, output: null });
+      const response = await POST(createRequest() as never);
+      expect(response.status).toBe(202);
+      expect(await response.json()).toMatchObject({ outcome: "duplicate", status, attemptId: "attempt-1" });
+      expect(checkRateLimitMock).not.toHaveBeenCalled();
+      expect(acquireGenerationLeaseMock).not.toHaveBeenCalled();
+      expect(prepareLLMRequestMock).not.toHaveBeenCalled();
+      expect(checkDailyQuotaMock).not.toHaveBeenCalled();
+      expect(streamLLMMock).not.toHaveBeenCalled();
+    });
+
+    it("replays a completed attempt without side effects", async () => {
+      reserveGenerationMock.mockResolvedValue({ created: false, generationId: "generation-1", attemptId: "attempt-1", status: "completed", outputMessageId: 999, output: "saved" });
+      const response = await POST(createRequest() as never);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({ outcome: "replayed", output: "saved" });
+      expect(checkRateLimitMock).not.toHaveBeenCalled();
+      expect(streamLLMMock).not.toHaveBeenCalled();
+    });
+
+    it("polls and aborts a stopped provider that emits no chunks", async () => {
+      vi.useFakeTimers();
+      try {
+        getAttemptStatusMock
+          .mockResolvedValueOnce({ status: "streaming" })
+          .mockResolvedValueOnce({ status: "stopped" })
+          .mockResolvedValue({ status: "stopped" });
+        streamLLMMock.mockImplementation((_request, signal: AbortSignal) => ({
+          textStream: {
+            [Symbol.asyncIterator]() {
+              return {
+                next: () => new Promise<IteratorResult<string>>((_resolve, reject) => {
+                  signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+                }),
+              };
+            },
+          },
+        }));
+
+        const response = await POST(createRequest() as never);
+        const bodyPromise = response.text();
+        await vi.advanceTimersByTimeAsync(3_000);
+        expect(getAttemptStatusMock).toHaveBeenCalledTimes(1);
+        await vi.advanceTimersByTimeAsync(3_000);
+        const body = await bodyPromise;
+
+        expect(body).not.toContain('"type":"delta"');
+        expect(body).not.toContain('"type":"done"');
+        expect(body).toContain('"type":"error"');
+        expect(completeAttemptMock).not.toHaveBeenCalled();
+        expect(vi.getTimerCount()).toBe(0);
+      } finally {
+        vi.useRealTimers();
+      }
     });
   }
 );

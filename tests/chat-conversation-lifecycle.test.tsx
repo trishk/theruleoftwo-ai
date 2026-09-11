@@ -345,7 +345,8 @@ describe(
             expect(sendHumanMessageMock).toHaveBeenCalledWith(
                 1,
                 "optimistic from A",
-                null
+                null,
+                expect.any(String)
             );
             for (const provider of ["openai", "anthropic", "google"]) {
                 expect(streamProviderResponseMock).toHaveBeenCalledWith(

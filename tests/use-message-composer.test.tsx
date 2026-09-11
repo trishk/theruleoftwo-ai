@@ -627,7 +627,8 @@ describe(
         ).toHaveBeenCalledWith(
           42,
           "@chatgpt @claude @gemini hello",
-          null
+          null,
+          expect.any(String)
         );
 
         expect(
@@ -692,5 +693,38 @@ describe(
         );
       }
     );
+
+    it("collapses two submissions in the same tick into one optimistic operation and fan-out", async () => {
+      const pendingSend = createDeferred<{
+        outcome: "created";
+        messageId: number;
+        clientMessageId: string;
+        providers: ["openai"];
+      }>();
+      sendHumanMessageMock.mockReturnValue(pendingSend.promise);
+      const { result } = renderHook(() => useTestHarness());
+
+      act(() => result.current.setMessage("@chatgpt same"));
+      let firstSubmit!: Promise<void>;
+      let secondSubmit!: Promise<void>;
+      act(() => {
+        firstSubmit = result.current.submitMessage();
+        secondSubmit = result.current.submitMessage();
+      });
+
+      expect(result.current.optimisticMessages).toHaveLength(1);
+      expect(sendHumanMessageMock).toHaveBeenCalledTimes(1);
+      const clientMessageId = sendHumanMessageMock.mock.calls[0][3];
+
+      await act(async () => {
+        pendingSend.resolve({ outcome: "created", messageId: 701, clientMessageId, providers: ["openai"] });
+        await Promise.all([firstSubmit, secondSubmit]);
+      });
+
+      expect(result.current.optimisticMessages).toHaveLength(1);
+      expect(result.current.optimisticMessages[0]).toMatchObject({ persistedMessageId: 701 });
+      expect(generateProvidersMock).toHaveBeenCalledTimes(1);
+      expect(generateProvidersMock).toHaveBeenCalledWith(["openai"], 701);
+    });
   }
 );

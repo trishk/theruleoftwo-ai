@@ -28,6 +28,13 @@ export type LLMStreamErrorCode =
 
 export type LLMStreamEvent =
   | {
+      type: "generation";
+      outcome: "started";
+      generationId: string;
+      attemptId: string;
+      messageId: number;
+    }
+  | {
       type: "delta";
       text: string;
     }

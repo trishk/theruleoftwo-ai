@@ -513,6 +513,30 @@ describe("message reply availability", () => {
     expect(onRetry).toHaveBeenCalledOnce();
   });
 
+  it("renders an empty failed output as a compact retryable status", () => {
+    const onRetry = vi.fn();
+    render(
+      <MessageList
+        messages={[createMessage({
+          id: 44,
+          authorType: "ai",
+          authorName: "ChatGPT",
+          provider: "openai",
+          content: "",
+          isError: true,
+          attemptId: "attempt-failed",
+          sourceMessageId: 10,
+        })]}
+        onReply={noop}
+        onRetry={onRetry}
+      />
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("ErrorGeneration interrupted.");
+    expect(document.querySelector('[data-message-part="body"]')).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Retry ChatGPT" }));
+    expect(onRetry).toHaveBeenCalledOnce();
+  });
+
   it("renders non-retryable errors as alerts without Retry", () => {
     render(
       <MessageList
