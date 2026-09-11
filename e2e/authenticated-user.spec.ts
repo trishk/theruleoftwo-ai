@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
 
 import {
+    createE2ELoginLink,
     createE2EUser,
     deleteE2EUser,
 } from "./auth";
@@ -24,15 +25,18 @@ function extractPublicId(url: string): string {
 
 async function loginAsE2EUser(
     page: Page,
-    user: { email: string; password: string }
+    user: { email: string }
 ) {
-    await page.goto(
-        `/e2e-login?email=${encodeURIComponent(
-            user.email
-        )}&password=${encodeURIComponent(
-            user.password
-        )}`
-    );
+    const loginLink =
+        await createE2ELoginLink(user.email);
+
+    await page.goto(loginLink);
+
+    await expect(page).toHaveURL(/\/$/, {
+        timeout: 10_000,
+    });
+
+    await page.goto("/settings");
 
     await expect(page).toHaveURL(
         /\/settings$/,
@@ -181,20 +185,7 @@ test(
 
         try {
             // Authenticate through the development-only E2E login route.
-            await page.goto(
-                `/e2e-login?email=${encodeURIComponent(
-                    user.email
-                )}&password=${encodeURIComponent(
-                    user.password
-                )}`
-            );
-
-            await expect(page).toHaveURL(
-                /\/settings$/,
-                {
-                    timeout: 10_000,
-                }
-            );
+            await loginAsE2EUser(page, user);
 
             await expect(
                 page.getByRole("heading", {

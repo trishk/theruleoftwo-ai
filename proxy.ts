@@ -4,29 +4,9 @@ import {
   type NextRequest,
 } from "next/server";
 
-import { isE2ELoginEnabled } from "@/lib/security/e2e-login";
-
 export async function proxy(
   request: NextRequest
 ) {
-  const isE2ELoginPath =
-    request.nextUrl.pathname ===
-    "/e2e-login";
-
-  if (
-    isE2ELoginPath &&
-    !isE2ELoginEnabled()
-  ) {
-    const url =
-      request.nextUrl.clone();
-
-    url.pathname = "/login";
-
-    return NextResponse.redirect(
-      url
-    );
-  }
-
   let response = NextResponse.next({
     request,
   });
@@ -94,16 +74,11 @@ export async function proxy(
       "/invite/"
     );
 
-  const isE2ELoginPage =
-    isE2ELoginPath &&
-    isE2ELoginEnabled();
-
   if (
     !user &&
     !isLoginPage &&
     !isAuthCallback &&
-    !isInvitePage &&
-    !isE2ELoginPage
+    !isInvitePage
   ) {
     const url =
       request.nextUrl.clone();

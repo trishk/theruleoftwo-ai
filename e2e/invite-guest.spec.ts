@@ -4,7 +4,8 @@ import {
 } from "@playwright/test";
 import Database from "better-sqlite3";
 import crypto from "crypto";
-import path from "path";
+
+import { getE2EDatabasePath } from "./database.mjs";
 
 let db: Database.Database;
 
@@ -18,10 +19,7 @@ const guestUserIds =
 
 test.beforeAll(() => {
     db = new Database(
-        path.resolve(
-            process.cwd(),
-            "dev.db"
-        )
+        getE2EDatabasePath()
     );
 
     ownerId =

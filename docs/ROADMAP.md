@@ -69,6 +69,9 @@
 
 ## Future
 
+- [ ] Document and test encryption-key rotation/versioning
+- [ ] Safely audit the historical `dev.db` before open-sourcing
+- [ ] Run a dedicated redacting secret scanner across Git history before publication
 - [ ] PostgreSQL
 - [ ] Production deployment
 - [ ] Memory

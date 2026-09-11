@@ -1,5 +1,22 @@
 import { defineConfig, devices } from "@playwright/test";
 
+import {
+  E2E_CALLBACK_URL,
+  E2E_ORIGIN,
+  assertConsistentE2EOrigins,
+  createE2EWebServerEnvironment,
+} from "./e2e/config.mjs";
+
+const webServerEnvironment =
+  createE2EWebServerEnvironment();
+
+assertConsistentE2EOrigins({
+  baseURL: E2E_ORIGIN,
+  webServerUrl: E2E_ORIGIN,
+  appUrl: webServerEnvironment.APP_URL,
+  callbackUrl: E2E_CALLBACK_URL,
+});
+
 export default defineConfig({
   testDir: "./e2e",
 
@@ -8,8 +25,9 @@ export default defineConfig({
   workers: 1,
 
   use: {
-    baseURL: "http://127.0.0.1:3000",
-    trace: "on-first-retry",
+    baseURL: E2E_ORIGIN,
+    trace: "off",
+    screenshot: "off",
   },
 
   projects: [
@@ -23,10 +41,8 @@ export default defineConfig({
 
   webServer: {
     command: "npm run dev",
-    url: "http://127.0.0.1:3000",
-    env: {
-      E2E_TESTING: "1",
-    },
+    url: E2E_ORIGIN,
+    env: webServerEnvironment,
     reuseExistingServer: false,
   },
 });

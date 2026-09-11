@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 import {
+  createE2ELoginLink,
   createE2EUser,
   deleteE2EUser,
 } from "./auth";
@@ -11,16 +12,13 @@ test(
     const user = await createE2EUser();
 
     try {
-      await page.goto(
-        `/e2e-login?email=${encodeURIComponent(
-          user.email
-        )}&password=${encodeURIComponent(
-          user.password
-        )}`
-      );
+      const loginLink =
+        await createE2ELoginLink(user.email);
+
+      await page.goto(loginLink);
 
       await expect(page).toHaveURL(
-        /\/settings$/,
+        /\/$/,
         {
           timeout: 10_000,
         }

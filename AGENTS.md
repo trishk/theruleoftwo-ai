@@ -10,9 +10,13 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## Security and repository safety
 
-- Never read, open, print, copy, summarize, modify, or delete `.env` or `.env.*` files. The only exception is `.env.example`, which must contain placeholders only.
+- Never read, open, print, copy, summarize, modify, or delete private `.env` or `.env.*` files, credential stores, real databases, or secret stores. The only exception is `.env.example`, which may be inspected structurally and must contain only empty values and comments, never real values.
 - Never enumerate or dump environment variables, including with `env`, `printenv`, `set`, or `Get-ChildItem Env:`.
-- Never expose credentials, tokens, cookies, authentication files, private keys, or secret values in prompts, logs, tests, commits, or responses.
+- Tests must use obviously false credentials and temporary or dedicated databases. E2E must never use `dev.db` or a development/production Supabase project.
+- Never put passwords, tokens, keys, cookies, authentication files, private keys, or secret values in URLs, shell arguments, prompts, logs, snapshots, temporary files, commits, or responses.
+- Do not call external providers or use real credentials in tests without explicit authorization.
+- Do not inspect suspicious Git history with commands that print blob contents. Use metadata-only commands or an approved scanner that redacts values.
+- Do not access external dashboards or secret stores, and do not validate, rotate, or revoke credentials, unless the user explicitly authorizes the specific administrative operation.
 - Derive required configuration names from source code, schemas, and documentation—not from private environment files.
 - Do not install or upgrade dependencies, change network/egress configuration, or access external services without explicit approval.
 - Preserve existing user changes and do not modify unrelated files.

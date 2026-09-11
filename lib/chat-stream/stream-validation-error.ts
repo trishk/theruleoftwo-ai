@@ -63,8 +63,7 @@ export function streamValidationErrorResponse(
 
     default:
       console.error(
-        "Stream request validation failed:",
-        error
+        "Stream request validation failed with an unknown code."
       );
 
       return new Response(

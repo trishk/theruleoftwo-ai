@@ -16,6 +16,18 @@ dev.db
 
 test-results
 playwright-report
+coverage
+blob-report
+
+*.sqlite*
+*.log
+*.key
+*.crt
+*.p12
+*.pfx
+*.dump
+*.bak
+*.tmp
 
 Dockerfile*
 docker-compose*.yml

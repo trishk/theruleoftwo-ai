@@ -1,3 +1,4 @@
+import "server-only";
 import { generateText, streamText } from "ai";
 
 import { PROVIDERS } from "./providers";
