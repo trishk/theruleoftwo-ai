@@ -11,6 +11,13 @@ export async function proxy(
     request,
   });
 
+  if (
+    request.nextUrl.pathname ===
+    "/api/health"
+  ) {
+    return response;
+  }
+
   const supabase =
     createServerClient(
       process.env
