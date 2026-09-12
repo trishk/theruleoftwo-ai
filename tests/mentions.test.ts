@@ -7,6 +7,7 @@ describe("AI mention lexical matching", () => {
     ["@chatgpt hello", ["openai"]],
     ["Ask @CLAUDE, please", ["anthropic"]],
     ["(@gemini)", ["google"]],
+    ["@chatgpt and @gemini", ["openai", "google"]],
     ["@chatgpt @claude @gemini", ["openai", "anthropic", "google"]],
   ])("recognizes valid mentions in %s", (content, providers) => {
     expect(extractMentions(content)).toEqual(providers);

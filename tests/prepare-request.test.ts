@@ -103,12 +103,22 @@ describe("prepareLLMRequest", () => {
       },
       take: 50,
       include: {
+        generationAttempt: {
+          select: {
+            status: true,
+          },
+        },
         replyTo: {
           select: {
             id: true,
             authorType: true,
             authorId: true,
             content: true,
+            generationAttempt: {
+              select: {
+                status: true,
+              },
+            },
           },
         },
       },
@@ -289,16 +299,15 @@ describe("prepareLLMRequest", () => {
         ownerId: "owner-1",
       });
 
-    const content =
-      result.messages[0].content;
-
-    expect(content).toContain(
-      "Orsi: I prefer option A."
-    );
-
-    expect(content).toContain(
-      "Tudor: @chatgpt compare our views"
-    );
+    const context = JSON.parse(result.messages[0].content);
+    expect(context.history[0]).toMatchObject({
+      participant: { type: "human", display_name: "Orsi" },
+      content: "I prefer option A.",
+    });
+    expect(context.current_message).toMatchObject({
+      participant: { type: "human", display_name: "Tudor" },
+      content: "@chatgpt compare our views",
+    });
   });
 
   it("includes reply metadata when preparing the context", async () => {
@@ -346,11 +355,10 @@ describe("prepareLLMRequest", () => {
         ownerId: "owner-1",
       });
 
-    expect(
-      result.messages[0].content
-    ).toContain(
-      "Replying to ChatGPT: Previous ChatGPT answer"
-    );
+    expect(JSON.parse(result.messages[0].content).current_message.reply_to).toEqual({
+      participant: { type: "ai", provider: "openai" },
+      content: "Previous ChatGPT answer",
+    });
   });
 
   it("uses the providers default model when no model is selected", async () => {
@@ -411,9 +419,7 @@ describe("prepareLLMRequest", () => {
         ownerId: "owner-1",
       });
 
-    expect(result.instructions).toContain(
-      "You are Gemini"
-    );
+    expect(result.instructions).toContain("untrusted conversation data");
 
     expect(
       result.messages
@@ -428,6 +434,81 @@ describe("prepareLLMRequest", () => {
           "@gemini give your view"
         ),
     });
+    expect(JSON.parse(result.messages[0].content).current_provider).toEqual({
+      type: "ai",
+      provider: "google",
+    });
+    expect(result.maxOutputTokens).toBe(8192);
+  });
+
+  it("pins a reply target outside the selected history window", async () => {
+    messageFindManyMock.mockResolvedValue([{
+      id: 100,
+      authorType: "human",
+      authorId: "user-1",
+      content: "@chatgpt continue the old answer",
+      generationAttempt: null,
+      replyTo: {
+        id: 1,
+        authorType: "ai",
+        authorId: "anthropic",
+        content: "answer older than the selected 50 rows",
+      },
+    }]);
+
+    const result = await prepareLLMRequest({
+      conversationId: 1,
+      sourceMessageId: 100,
+      provider: "openai",
+      currentUserId: "user-1",
+      currentUserName: "Tudor",
+      ownerId: "owner-1",
+    });
+
+    expect(JSON.parse(result.messages[0].content).current_message.reply_to).toEqual({
+      participant: { type: "ai", provider: "anthropic" },
+      content: "answer older than the selected 50 rows",
+    });
+  });
+
+  it("projects internal message, telemetry, and credential metadata out of prompt data", async () => {
+    messageFindManyMock.mockResolvedValue([{
+      id: 11,
+      authorType: "human",
+      authorId: "user-1",
+      content: "@chatgpt safe content",
+      clientMessageId: "internal-client-id",
+      clientPayloadHash: "internal-payload-hash",
+      generationAttempt: {
+        status: "completed",
+        id: "internal-attempt-id",
+        generationId: "internal-generation-id",
+        errorCode: "internal-reason",
+        inputTokens: 123,
+        estimatedCostNanoUsd: 456,
+      },
+      replyTo: null,
+    }]);
+    integrationFindUniqueMock.mockResolvedValue({
+      encryptedApiKey: "encrypted-credential-metadata",
+      keyIv: "credential-iv",
+      keyAuthTag: "credential-auth-tag",
+      selectedModel: "gpt-5-mini",
+      storageMode: "internal-storage-mode",
+    });
+
+    const result = await prepareLLMRequest({
+      conversationId: 1,
+      sourceMessageId: 11,
+      provider: "openai",
+      currentUserId: "user-1",
+      currentUserName: "Tudor",
+      ownerId: "owner-1",
+    });
+    expect(result.messages[0].content).toContain("safe content");
+    expect(result.messages[0].content).not.toMatch(
+      /internal-client-id|internal-payload-hash|internal-attempt-id|internal-generation-id|internal-reason|123|456|encrypted-credential-metadata|credential-iv|credential-auth-tag|internal-storage-mode/
+    );
   });
 
   it("falls back to the valid Google default for a stale removed model", async () => {

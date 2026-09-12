@@ -76,4 +76,17 @@ describe("stream conversation capabilities", () => {
       ).resolves.toMatchObject({ ownerId: "owner-1" });
     }
   );
+
+  it("rejects a provider that is not mentioned by the persisted source message", async () => {
+    accessMock.mockResolvedValue({
+      id: 42,
+      ownerId: "owner-1",
+      allowMemberAiUsage: true,
+    });
+    messageFindFirstMock.mockResolvedValue({ content: "@claude help" });
+
+    await expect(
+      validateStreamRequest({ rawBody: body, userId: "owner-1" })
+    ).rejects.toThrow("PROVIDER_NOT_MENTIONED");
+  });
 });

@@ -6,6 +6,6 @@ import { askLLM, streamLLM } from "@/lib/llm/registry";
 
 describe("AI SDK retry policy", () => {
   beforeEach(() => { vi.clearAllMocks(); streamTextMock.mockReturnValue({}); generateTextMock.mockResolvedValue({ text: "ok" }); });
-  it.each(["openai", "anthropic", "google"] as const)("passes maxRetries zero to streamText for %s", (provider) => { streamLLM({ provider, model: provider === "openai" ? "gpt-5" : provider === "anthropic" ? "claude-haiku-4-5" : "gemini-3.6-flash", messages: [] }); expect(streamTextMock).toHaveBeenCalledWith(expect.objectContaining({ maxRetries: 0 })); });
-  it.each(["openai", "anthropic", "google"] as const)("passes maxRetries zero to generateText for %s", async (provider) => { await askLLM({ provider, messages: [] }); expect(generateTextMock).toHaveBeenCalledWith(expect.objectContaining({ maxRetries: 0 })); });
+  it.each(["openai", "anthropic", "google"] as const)("passes retry and output limits to streamText for %s", (provider) => { streamLLM({ provider, model: provider === "openai" ? "gpt-5" : provider === "anthropic" ? "claude-haiku-4-5" : "gemini-3.6-flash", messages: [], maxOutputTokens: 8192 }); expect(streamTextMock).toHaveBeenCalledWith(expect.objectContaining({ maxRetries: 0, maxOutputTokens: 8192 })); });
+  it.each(["openai", "anthropic", "google"] as const)("passes retry and output limits to generateText for %s", async (provider) => { await askLLM({ provider, messages: [], maxOutputTokens: 8192 }); expect(generateTextMock).toHaveBeenCalledWith(expect.objectContaining({ maxRetries: 0, maxOutputTokens: 8192 })); });
 });

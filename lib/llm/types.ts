@@ -11,6 +11,7 @@ export interface LLMRequest {
   apiKey?: string;
   instructions?: string;
   messages: LLMMessage[];
+  maxOutputTokens: number;
 }
 
 export interface LLMResponse {

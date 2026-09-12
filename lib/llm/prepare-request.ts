@@ -15,14 +15,8 @@ type PrepareLLMRequestArgs = {
   ownerId: string;
 };
 
-export async function prepareLLMRequest({
-  conversationId,
-  sourceMessageId,
-  provider,
-  currentUserId,
-  currentUserName,
-  ownerId,
-}: PrepareLLMRequestArgs) {
+export async function prepareLLMRequest(args: PrepareLLMRequestArgs) {
+  const { conversationId, sourceMessageId, provider, ownerId } = args;
   const history =
     await prisma.message.findMany({
       where: {
@@ -36,12 +30,22 @@ export async function prepareLLMRequest({
       },
       take: CONTEXT_MESSAGE_LIMIT,
       include: {
+        generationAttempt: {
+          select: {
+            status: true,
+          },
+        },
         replyTo: {
           select: {
             id: true,
             authorType: true,
             authorId: true,
             content: true,
+            generationAttempt: {
+              select: {
+                status: true,
+              },
+            },
           },
         },
       },
@@ -111,6 +115,9 @@ export async function prepareLLMRequest({
           : null,
       content:
         message.content,
+      generationStatus:
+        message.generationAttempt
+          ?.status ?? null,
       replyTo:
         message.replyTo
           ? {
@@ -134,6 +141,10 @@ export async function prepareLLMRequest({
             content:
               message.replyTo
                 .content,
+            generationStatus:
+              message.replyTo
+                .generationAttempt
+                ?.status ?? null,
           }
           : null,
     }));
@@ -173,9 +184,8 @@ export async function prepareLLMRequest({
   const context =
     buildConversationContext({
       provider,
+      model: selectedModel,
       messages: contextMessages,
-      currentUserId,
-      currentUserName,
     });
 
   return {
@@ -186,5 +196,7 @@ export async function prepareLLMRequest({
       context.instructions,
     messages:
       context.messages,
+    maxOutputTokens:
+      context.maxOutputTokens,
   };
 }
