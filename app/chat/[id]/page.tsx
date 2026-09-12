@@ -21,6 +21,7 @@ import { ChatSidebar } from "@/components/chat/navigation/ChatSidebar";
 import { RealtimeConversationSync } from "@/components/chat/realtime/RealtimeConversationSync";
 import { RealtimeSidebarSync } from "@/components/chat/realtime/RealtimeSidebarSync";
 import { getConversationUsageSummary } from "@/lib/llm/usage/conversation-usage";
+import { canAccessSettings } from "@/lib/auth/settings-access";
 
 type Props = {
   params: Promise<{
@@ -394,6 +395,11 @@ export default async function ChatPage({
               isGuest={
                 user.isGuest
               }
+              canAccessSettings={canAccessSettings({
+                userId: user.id,
+                isGuest: user.isGuest,
+                conversations: chats,
+              })}
             />
           }
         >

@@ -1,9 +1,9 @@
 import { test, expect } from "@playwright/test";
 
 import {
-  createE2ELoginLink,
   createE2EUser,
   deleteE2EUser,
+  loginE2EUser,
 } from "./auth";
 
 test(
@@ -12,10 +12,10 @@ test(
     const user = await createE2EUser();
 
     try {
-      const loginLink =
-        await createE2ELoginLink(user.email);
-
-      await page.goto(loginLink);
+      await loginE2EUser(
+        page,
+        user.email
+      );
 
       await expect(page).toHaveURL(
         /\/$/,

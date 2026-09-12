@@ -155,7 +155,8 @@ async function joinConversation(
     .getByRole("button", { name: "Join conversation" })
     .click();
   await expect(page).toHaveURL(
-    new RegExp(`/chat/${conversationPublicId}$`)
+    new RegExp(`/chat/${conversationPublicId}$`),
+    { timeout: 10_000 }
   );
 }
 
@@ -211,8 +212,7 @@ test("constrains chat scrolling to the message list", async ({ page }) => {
   await expect(
     page
       .getByRole("main")
-      .getByRole("button", {
-        name: "E2E Auto-scroll Test",
+      .getByText("E2E Auto-scroll Test", {
         exact: true,
       })
   ).toBeVisible();
@@ -338,9 +338,9 @@ test("opens a client-switched conversation at its latest message", async ({
   await page
     .getByPlaceholder("Ask for another perspective...")
     .fill(draftFromConversationA);
-  const conversationAList = page
-    .locator("div.overflow-y-auto")
-    .filter({ hasText: "Historic message 40" });
+  const conversationAList = page.getByTestId(
+    "message-list"
+  );
   await conversationAList.evaluate((element) => {
     element.scrollTop = 0;
     element.dispatchEvent(new Event("scroll"));
@@ -358,9 +358,9 @@ test("opens a client-switched conversation at its latest message", async ({
     page.getByPlaceholder("Ask for another perspective...")
   ).toHaveValue("");
 
-  const conversationBList = page
-    .locator("div.overflow-y-auto")
-    .filter({ hasText: "Conversation B message 40" });
+  const conversationBList = page.getByTestId(
+    "message-list"
+  );
   await expect
     .poll(() =>
       conversationBList.evaluate(

@@ -6,7 +6,9 @@ import {
   cleanupE2EDatabase,
   setupE2EDatabase,
 } from "./database.mjs";
-import { E2E_ORIGIN } from "./config.mjs";
+import e2eConfig from "./config.mjs";
+
+const { E2E_ORIGIN } = e2eConfig;
 
 export const spawnPlaywright = (
   workspacePath,

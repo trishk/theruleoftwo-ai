@@ -16,11 +16,22 @@ import { ChatSidebar } from "@/components/chat/navigation/ChatSidebar";
 import { AddIntegrationSection } from "@/components/settings/AddIntegrationSection";
 import { ModelSelect } from "@/components/settings/ModelSelect";
 import { RemoveIntegrationButton } from "@/components/settings/RemoveIntegrationButton";
+import { canAccessSettings } from "@/lib/auth/settings-access";
 
 export default async function SettingsPage() {
   const user = await requireUser();
 
-  if (user.isGuest) {
+  const chats =
+    await getConversationSummaries({
+      currentUserId: user.id,
+      activeConversationId: null,
+    });
+
+  if (!canAccessSettings({
+    userId: user.id,
+    isGuest: user.isGuest,
+    conversations: chats,
+  })) {
     const membership =
       await prisma.conversationMember.findFirst({
         where: {
@@ -46,12 +57,6 @@ export default async function SettingsPage() {
 
     redirect("/login");
   }
-
-  const chats =
-    await getConversationSummaries({
-      currentUserId: user.id,
-      activeConversationId: null,
-    });
 
   const integrations =
     await prisma.userIntegration.findMany({
@@ -98,6 +103,7 @@ export default async function SettingsPage() {
         <ChatSidebar
           chats={chats}
           currentUserId={user.id}
+          canAccessSettings
         />
       }
     >

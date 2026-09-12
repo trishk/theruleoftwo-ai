@@ -26,6 +26,7 @@ describe("ChatSidebar", () => {
       <ChatSidebar
         chats={[]}
         currentUserId="user-1"
+        canAccessSettings
       />
     );
 
@@ -67,6 +68,7 @@ describe("ChatSidebar", () => {
         chats={[]}
         currentUserId="guest-1"
         isGuest
+        canAccessSettings={false}
       />
     );
 
@@ -96,6 +98,28 @@ describe("ChatSidebar", () => {
 
     expect(
       screen.getByText("Conversations")
+    ).toBeInTheDocument();
+  });
+
+  it("hides Settings from a membership-only authenticated user", () => {
+    render(
+      <ChatSidebar
+        chats={[]}
+        currentUserId="member-1"
+        canAccessSettings={false}
+      />
+    );
+
+    expect(
+      screen.queryByRole("link", {
+        name: "Settings",
+      })
+    ).not.toBeInTheDocument();
+
+    expect(
+      screen.getByRole("button", {
+        name: "Sign out",
+      })
     ).toBeInTheDocument();
   });
 });

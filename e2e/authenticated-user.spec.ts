@@ -2,9 +2,9 @@ import { test, expect } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
 
 import {
-    createE2ELoginLink,
     createE2EUser,
     deleteE2EUser,
+    loginE2EUser,
 } from "./auth";
 
 // Mobile emulation used by the "Mobile UX (Phase 1B)" suite below.
@@ -27,10 +27,10 @@ async function loginAsE2EUser(
     page: Page,
     user: { email: string }
 ) {
-    const loginLink =
-        await createE2ELoginLink(user.email);
-
-    await page.goto(loginLink);
+    await loginE2EUser(
+        page,
+        user.email
+    );
 
     await expect(page).toHaveURL(/\/$/, {
         timeout: 10_000,
@@ -218,7 +218,7 @@ test(
             ).toBeVisible();
 
             //
-            // Capture the conversation URL and sidebar title.
+            // Capture the stable conversation URL.
             //
             const chatUrl = page.url();
 
@@ -231,12 +231,8 @@ test(
                 chatLink
             ).toBeVisible();
 
-            const chatTitle =
-                (
-                    await chatLink.textContent()
-                )?.trim();
-
-            expect(chatTitle).toBeTruthy();
+            const chatPath =
+                new URL(chatUrl).pathname;
 
             //
             // Navigate to Settings from the sidebar.
@@ -264,9 +260,13 @@ test(
             // The created chat must still exist in the sidebar.
             //
             const existingChatLink =
-                page.getByRole("link", {
-                    name: chatTitle!,
-                });
+                page
+                    .getByRole("navigation", {
+                        name: "Conversation navigation",
+                    })
+                    .locator(
+                        `a[href="${chatPath}"]`
+                    );
 
             await expect(
                 existingChatLink

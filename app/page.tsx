@@ -5,6 +5,7 @@ import { ChatSidebar } from "@/components/chat/navigation/ChatSidebar";
 import { requireUser } from "@/lib/auth/require-user";
 import { getConversationSummaries } from "@/lib/chat/get-conversation-summaries";
 import { redirect } from "next/navigation";
+import { canAccessSettings } from "@/lib/auth/settings-access";
 
 export default async function Home() {
   const user = await requireUser();
@@ -39,7 +40,19 @@ export default async function Home() {
   });
 
   return (
-    <ChatShell sidebar={<ChatSidebar chats={chats} currentUserId={user.id}/>}>
+    <ChatShell
+      sidebar={
+        <ChatSidebar
+          chats={chats}
+          currentUserId={user.id}
+          canAccessSettings={canAccessSettings({
+            userId: user.id,
+            isGuest: user.isGuest,
+            conversations: chats,
+          })}
+        />
+      }
+    >
       <div className="flex min-h-dvh flex-col px-4 py-6 sm:px-6 sm:py-10">
         <ChatHeader />
 

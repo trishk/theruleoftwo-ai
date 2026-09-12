@@ -117,6 +117,20 @@ describe("dedicated E2E database", () => {
     expect(migrate).toHaveBeenCalledTimes(2);
   });
 
+  it("creates the empty SQLite file before invoking Prisma", async () => {
+    const workspace = await createWorkspace();
+    const databasePath = getE2EDatabasePath(workspace);
+    const migrate = vi.fn(async () => {
+      await expect(
+        readFile(databasePath)
+      ).resolves.toHaveLength(0);
+    });
+
+    await setupE2EDatabase(workspace, migrate);
+
+    expect(migrate).toHaveBeenCalledOnce();
+  });
+
   it.each(["EBUSY", "EPERM"])(
     "retries final cleanup a bounded number of times for %s",
     async (errorCode) => {

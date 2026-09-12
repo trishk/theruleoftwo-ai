@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { realpathSync } from "node:fs";
-import { lstat, unlink } from "node:fs/promises";
+import { lstat, open, unlink } from "node:fs/promises";
 import path from "node:path";
 
 export const E2E_DATABASE_FILENAME = "e2e.db";
@@ -129,6 +129,12 @@ export async function setupE2EDatabase(
 
   await cleanup(workspacePath);
   try {
+    const databaseFile = await open(
+      databasePath,
+      "wx"
+    );
+    await databaseFile.close();
+
     await migrate(
       `file:${databasePath.replaceAll("\\", "/")}`,
       workspacePath

@@ -32,7 +32,7 @@ describe("sidebar theme synchronization", () => {
 
   it("keeps drawer and desktop toggles synchronized without losing the next desktop click", () => {
     render(
-      <ChatShell sidebar={<ChatSidebar chats={[]} currentUserId="user-1" />}>
+      <ChatShell sidebar={<ChatSidebar chats={[]} currentUserId="user-1" canAccessSettings />}>
         <div>Conversation</div>
       </ChatShell>
     );

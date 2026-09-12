@@ -1,20 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
-  requireUserMock,
+  requireSettingsAccessMock,
   upsertMock,
   updateManyMock,
   encryptSecretMock,
   revalidatePathMock,
 } = vi.hoisted(() => ({
-  requireUserMock: vi.fn(),
+  requireSettingsAccessMock: vi.fn(),
   upsertMock: vi.fn(),
   updateManyMock: vi.fn(),
   encryptSecretMock: vi.fn(),
   revalidatePathMock: vi.fn(),
 }));
 
-vi.mock("@/lib/auth/require-user", () => ({ requireUser: requireUserMock }));
+vi.mock("@/lib/auth/settings-access", () => ({
+  requireSettingsAccess: requireSettingsAccessMock,
+}));
 vi.mock("@/lib/db/prisma", () => ({
   prisma: {
     userIntegration: {
@@ -37,7 +39,7 @@ import {
 describe("integration capability boundaries", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    requireUserMock.mockResolvedValue({ id: "user-1", isGuest: false });
+    requireSettingsAccessMock.mockResolvedValue({ id: "user-1", isGuest: false });
     encryptSecretMock.mockReturnValue({
       encrypted: "ciphertext",
       iv: "iv",
@@ -75,11 +77,13 @@ describe("integration capability boundaries", () => {
     ["save API key", () => saveIntegrationApiKey("openai", "test-api-key")],
     ["select model", () => updateSelectedModel("openai", "gpt-5")],
     ["remove integration", () => removeIntegration("openai")],
-  ])("prevents a guest from attempting to %s", async (_label, action) => {
-    requireUserMock.mockResolvedValue({ id: "guest-1", isGuest: true });
+  ])("denies a membership-only user attempting to %s directly", async (_label, action) => {
+    requireSettingsAccessMock.mockRejectedValue(
+      new Error("You do not have access to Settings.")
+    );
 
     await expect(action()).rejects.toThrow(
-      "Guests cannot modify integrations."
+      "You do not have access to Settings."
     );
 
     expect(upsertMock).not.toHaveBeenCalled();

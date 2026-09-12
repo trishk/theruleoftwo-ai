@@ -20,12 +20,14 @@ type Props = {
   chats: ConversationSummary[];
   currentUserId: string;
   isGuest?: boolean;
+  canAccessSettings: boolean;
 };
 
 export function ChatSidebar({
   chats,
   currentUserId,
   isGuest = false,
+  canAccessSettings,
 }: Props) {
   return (
     <nav aria-label="Conversation navigation" className="flex h-full flex-col">
@@ -67,14 +69,16 @@ export function ChatSidebar({
       {!isGuest && (
         <div className="border-t border-border pt-3">
           <div className="flex items-center justify-between">
-            <Link
-              href="/settings"
-              aria-label="Settings"
-              title="Settings"
-              className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            >
-              <Settings className="h-4 w-4" />
-            </Link>
+            {canAccessSettings && (
+              <Link
+                href="/settings"
+                aria-label="Settings"
+                title="Settings"
+                className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <Settings className="h-4 w-4" />
+              </Link>
+            )}
 
             <ThemeToggle />
 

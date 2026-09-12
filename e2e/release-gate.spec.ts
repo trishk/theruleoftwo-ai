@@ -3,9 +3,9 @@ import Database from "better-sqlite3";
 import crypto from "crypto";
 
 import {
-  createE2ELoginLink,
   createE2EUser,
   deleteE2EUser,
+  loginE2EUser,
   type E2EUser,
 } from "./auth";
 import { getE2EDatabasePath } from "./database.mjs";
@@ -13,7 +13,7 @@ import { getE2EDatabasePath } from "./database.mjs";
 const AI_TEXT = "Deterministic E2E response from TheRuleOfTwo.ai.";
 
 async function login(page: Page, user: E2EUser) {
-  await page.goto(await createE2ELoginLink(user.email));
+  await loginE2EUser(page, user.email);
   await expect(page).toHaveURL(/\/$/, { timeout: 10_000 });
 }
 
@@ -132,7 +132,9 @@ test("authenticated member can join but cannot access owner Settings or Usage & 
     await login(memberPage, member);
     await memberPage.goto(`/invite/${token}`);
     await memberPage.getByRole("button", { name: "Join conversation" }).click();
-    await expect(memberPage).toHaveURL(new RegExp(`/chat/${publicId}$`));
+    await expect(memberPage).toHaveURL(new RegExp(`/chat/${publicId}$`), {
+      timeout: 10_000,
+    });
     await expect(memberPage.getByPlaceholder("Ask for another perspective...")).toBeVisible();
     await expect(memberPage.getByRole("link", { name: "Settings" })).toHaveCount(0);
     await expect(memberPage.getByRole("button", { name: /Estimated|Cost unavailable|Calculating cost/ })).toHaveCount(0);

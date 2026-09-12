@@ -3,20 +3,14 @@
 import { revalidatePath } from "next/cache";
 
 import { prisma } from "@/lib/db/prisma";
-import { requireUser } from "@/lib/auth/require-user";
+import { requireSettingsAccess } from "@/lib/auth/settings-access";
 
 const MAX_DISPLAY_NAME_LENGTH = 50;
 
 export async function updateDisplayName(
   formData: FormData
 ) {
-  const user = await requireUser();
-
-  if (user.isGuest) {
-    throw new Error(
-      "Guests cannot update profile settings."
-    );
-  }
+  const user = await requireSettingsAccess();
 
   const name = String(
     formData.get("displayName") ?? ""

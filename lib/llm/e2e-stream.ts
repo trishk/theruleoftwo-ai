@@ -6,6 +6,8 @@ const CHUNKS = [
   "from TheRuleOfTwo.ai.",
 ] as const;
 
+const CHUNK_DELAYS_MS = [350, 2_500, 350] as const;
+
 const wait = (milliseconds: number, signal?: AbortSignal) =>
   new Promise<void>((resolve, reject) => {
     const timer = setTimeout(resolve, milliseconds);
@@ -21,8 +23,8 @@ export function createDeterministicE2EStream(
   return {
     textStream: {
       async *[Symbol.asyncIterator]() {
-        for (const chunk of CHUNKS) {
-          await wait(350, abortSignal);
+        for (const [index, chunk] of CHUNKS.entries()) {
+          await wait(CHUNK_DELAYS_MS[index], abortSignal);
           yield chunk;
         }
       },

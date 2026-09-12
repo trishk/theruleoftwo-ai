@@ -1,11 +1,13 @@
 import { defineConfig, devices } from "@playwright/test";
 
-import {
+import e2eConfig from "./e2e/config.cjs";
+
+const {
   E2E_CALLBACK_URL,
   E2E_ORIGIN,
   assertConsistentE2EOrigins,
   createE2EWebServerEnvironment,
-} from "./e2e/config.mjs";
+} = e2eConfig;
 
 const webServerEnvironment =
   createE2EWebServerEnvironment();

@@ -79,7 +79,7 @@ describe("settings data access", () => {
   });
 
   it("uses the shared conversation summary loader", async () => {
-    const summaries = [{ id: 1, publicId: "one", title: "One" }];
+    const summaries = [{ id: 1, publicId: "one", title: "One", ownerId: "user-1" }];
     getConversationSummariesMock.mockResolvedValue(summaries);
 
     renderToStaticMarkup(await SettingsPage());
@@ -92,6 +92,35 @@ describe("settings data access", () => {
       expect.objectContaining({ chats: summaries }),
       undefined,
     );
+  });
+
+  it("redirects a membership-only user before reading settings integrations", async () => {
+    getConversationSummariesMock.mockResolvedValue([
+      { ownerId: "owner-1" },
+    ]);
+    membershipFindFirstMock.mockResolvedValue({
+      conversation: { publicId: "member-chat" },
+    });
+    redirectMock.mockImplementation(() => {
+      throw new Error("NEXT_REDIRECT");
+    });
+
+    await expect(SettingsPage()).rejects.toThrow("NEXT_REDIRECT");
+
+    expect(redirectMock).toHaveBeenCalledWith("/chat/member-chat");
+    expect(integrationFindManyMock).not.toHaveBeenCalled();
+  });
+
+  it("allows a mixed owner and member to load Settings", async () => {
+    getConversationSummariesMock.mockResolvedValue([
+      { ownerId: "someone-else" },
+      { ownerId: "user-1" },
+    ]);
+
+    renderToStaticMarkup(await SettingsPage());
+
+    expect(redirectMock).not.toHaveBeenCalled();
+    expect(integrationFindManyMock).toHaveBeenCalled();
   });
 
   it("stacks profile and provider controls on mobile while preserving sm rows", async () => {

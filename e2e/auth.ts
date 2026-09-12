@@ -1,9 +1,12 @@
 import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
+import type { Page } from "@playwright/test";
 import crypto from "crypto";
 
-import { E2E_CALLBACK_URL } from "./config.mjs";
+import e2eConfig from "./config.cjs";
 import { createGuardedE2EAdminClient } from "./supabase-safety";
+
+const { E2E_CALLBACK_URL } = e2eConfig;
 
 let admin: ReturnType<typeof createClient> | undefined;
 
@@ -80,9 +83,10 @@ export async function createE2EUser(): Promise<E2EUser> {
   };
 }
 
-export async function createE2ELoginLink(
+export async function loginE2EUser(
+  page: Page,
   email: string
-): Promise<string> {
+): Promise<void> {
   const { data, error } =
     await getAdminClient().auth.admin.generateLink({
       type: "magiclink",
@@ -97,16 +101,29 @@ export async function createE2ELoginLink(
     throw new Error("Could not create E2E login link.");
   }
 
-  const actionLink =
-    data.properties?.action_link;
+  const tokenHash =
+    data.properties?.hashed_token;
 
-  if (!actionLink) {
+  if (!tokenHash) {
     throw new Error(
-      "Supabase did not return an E2E login link."
+      "Supabase did not return an E2E login token."
     );
   }
 
-  return actionLink;
+  const response = await page.request.post(
+    E2E_CALLBACK_URL,
+    {
+      data: { tokenHash },
+    }
+  );
+
+  if (!response.ok()) {
+    throw new Error(
+      "Could not establish the E2E login session."
+    );
+  }
+
+  await page.goto("/");
 }
 
 export async function deleteE2EUser(

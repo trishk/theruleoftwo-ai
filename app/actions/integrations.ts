@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { prisma } from "@/lib/db/prisma";
-import { requireUser } from "@/lib/auth/require-user";
+import { requireSettingsAccess } from "@/lib/auth/settings-access";
 import { PROVIDERS } from "@/lib/llm/providers";
 import type { Provider } from "@/lib/llm/types";
 import { encryptSecret } from "@/lib/security/encryption";
@@ -33,25 +33,11 @@ function getProviderConfig(
   };
 }
 
-function assertSettingsAccess(
-  isGuest: boolean
-) {
-  if (isGuest) {
-    throw new Error(
-      "Guests cannot modify integrations."
-    );
-  }
-}
-
 export async function updateSelectedModel(
   provider: string,
   selectedModel: string
 ) {
-  const user = await requireUser();
-
-  assertSettingsAccess(
-    user.isGuest
-  );
+  const user = await requireSettingsAccess();
 
   const {
     provider: validatedProvider,
@@ -97,11 +83,7 @@ export async function saveIntegrationApiKey(
   provider: string,
   apiKey: string
 ) {
-  const user = await requireUser();
-
-  assertSettingsAccess(
-    user.isGuest
-  );
+  const user = await requireSettingsAccess();
 
   const {
     provider: validatedProvider,
@@ -164,11 +146,7 @@ export async function saveIntegrationApiKey(
 export async function removeIntegration(
   provider: string
 ) {
-  const user = await requireUser();
-
-  assertSettingsAccess(
-    user.isGuest
-  );
+  const user = await requireSettingsAccess();
 
   const {
     provider: validatedProvider,

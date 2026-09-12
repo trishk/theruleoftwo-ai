@@ -10,12 +10,14 @@ import {
   assertSafeE2ESupabaseProject,
   createGuardedE2EAdminClient,
 } from "@/e2e/supabase-safety";
-import {
+import e2eConfig from "@/e2e/config.cjs";
+
+const {
   E2E_CALLBACK_URL,
   E2E_ORIGIN,
   assertConsistentE2EOrigins,
   createE2EWebServerEnvironment,
-} from "@/e2e/config.mjs";
+} = e2eConfig;
 
 const projectRef = "abcdefghijklmnopqrst";
 const safeInput = {
@@ -102,6 +104,9 @@ describe("E2E Supabase safety boundary", () => {
         callbackUrl: E2E_CALLBACK_URL,
       })
     ).not.toThrow();
+    expect(E2E_CALLBACK_URL).toBe(
+      "http://127.0.0.1:3000/auth/callback"
+    );
   });
 
   it("keeps callback success and error redirects on configured APP_URL", async () => {
@@ -146,7 +151,11 @@ describe("E2E Supabase safety boundary", () => {
       "utf8"
     );
 
-    expect(auth).toContain("createE2ELoginLink");
+    expect(auth).toContain("loginE2EUser");
+    expect(auth).toContain("hashed_token");
+    expect(auth).not.toContain("action_link");
+    expect(callback).toContain("isSafeE2EMode()");
+    expect(callback).toContain("verifyOtp");
     expect(callback).toContain("exchangeCodeForSession");
   });
 
