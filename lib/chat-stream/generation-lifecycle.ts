@@ -251,12 +251,12 @@ export async function persistAttemptTelemetry(args: { attemptId: string; provide
 export async function flushAttempt(attemptId: string, content: string) {
   return prisma.$transaction(async (tx) => {
     const attempt = await tx.aiGenerationAttempt.findFirst({
-      where: { id: attemptId, status: "streaming" }, select: { outputMessageId: true },
+      where: { id: attemptId, status: { in: ["streaming", "stopped"] } }, select: { outputMessageId: true },
     });
     if (!attempt?.outputMessageId) return false;
     await tx.message.update({ where: { id: attempt.outputMessageId }, data: { content } });
     const progress = await tx.aiGenerationAttempt.updateMany({
-      where: { id: attemptId, status: "streaming", outputMessageId: attempt.outputMessageId },
+      where: { id: attemptId, status: { in: ["streaming", "stopped"] }, outputMessageId: attempt.outputMessageId },
       data: { progressAt: new Date() },
     });
     if (progress.count !== 1) throw new Error("ATTEMPT_TRANSITION_CONFLICT");

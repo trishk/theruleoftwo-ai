@@ -83,10 +83,12 @@ test("safe AI mention streams, stops durably, retries, and reconciles without du
     await composer.fill(`@ChatGPT ${suffix}`);
     await composer.press("Enter");
     await expect(page.getByRole("button", { name: "Stop generation" })).toBeVisible();
-    await expect(page.getByText("Deterministic", { exact: false })).toBeVisible();
+    const partial = "Deterministic";
+    await expect(page.getByText(partial, { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Stop generation" }).click();
     await expect(page.getByText("Stopped", { exact: true })).toBeVisible({ timeout: 10_000 });
     await page.reload();
+    await expect(page.getByText(partial, { exact: true })).toBeVisible();
     await expect(page.getByText("Stopped", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: /^Retry / }).click();
     await expect(page.getByText(AI_TEXT, { exact: true })).toBeVisible({ timeout: 10_000 });
@@ -94,6 +96,23 @@ test("safe AI mention streams, stops durably, retries, and reconciles without du
     await page.reload();
     await expect(page.getByText(AI_TEXT, { exact: true })).toBeVisible();
     await expect(page.getByText(source, { exact: true })).toHaveCount(1);
+    const publicId = page.url().split("/").pop()!;
+    const db = new Database(getE2EDatabasePath(), { readonly: true });
+    try {
+      const counts = db.prepare(
+        `SELECT COUNT(DISTINCT m.id) AS sourceCount,
+                COUNT(a.id) AS attemptCount,
+                SUM(CASE WHEN a.providerInvokedAt IS NOT NULL THEN 1 ELSE 0 END) AS invokedAttemptCount
+         FROM Conversation c
+         JOIN Message m ON m.conversationId = c.id AND m.content = ?
+         JOIN AiGeneration g ON g.sourceMessageId = m.id
+         JOIN AiGenerationAttempt a ON a.generationId = g.id
+         WHERE c.publicId = ?`
+      ).get(source, publicId) as { sourceCount: number; attemptCount: number; invokedAttemptCount: number };
+      expect(counts).toEqual({ sourceCount: 1, attemptCount: 2, invokedAttemptCount: 2 });
+    } finally {
+      db.close();
+    }
     await page.getByRole("button", { name: /Estimated|Cost unavailable|Calculating cost/ }).click();
     await expect(page.getByRole("heading", { name: "Usage & estimated cost" })).toBeVisible();
   } finally {

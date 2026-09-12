@@ -996,5 +996,70 @@ describe(
         vi.useRealTimers();
       }
     });
+
+    it("force-flushes a sub-threshold server snapshot after stop without another provider call or terminal transition", async () => {
+      vi.useFakeTimers();
+      try {
+        const partial = "visible partial";
+        getAttemptStatusMock.mockResolvedValue({ status: "stopped" });
+        streamLLMMock.mockImplementation((_request, signal: AbortSignal) => ({
+          textStream: {
+            async *[Symbol.asyncIterator]() {
+              yield partial;
+              await new Promise<void>((_resolve, reject) => {
+                signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+              });
+            },
+          },
+        }));
+
+        const response = await POST(createRequest() as never);
+        const bodyPromise = response.text();
+        await vi.advanceTimersByTimeAsync(3_000);
+        const body = await bodyPromise;
+
+        expect(body).toContain(`"type":"delta","text":"${partial}"`);
+        expect(flushAttemptMock).toHaveBeenCalledTimes(1);
+        expect(flushAttemptMock).toHaveBeenCalledWith("attempt-1", partial);
+        expect(streamLLMMock).toHaveBeenCalledTimes(1);
+        expect(completeAttemptMock).not.toHaveBeenCalled();
+        expect(failAttemptMock).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("force-flushes the uncheckpointed suffix after stop", async () => {
+      vi.useFakeTimers();
+      try {
+        const checkpoint = "x".repeat(2 * 1024);
+        const suffix = " final suffix";
+        getAttemptStatusMock.mockResolvedValue({ status: "stopped" });
+        streamLLMMock.mockImplementation((_request, signal: AbortSignal) => ({
+          textStream: {
+            async *[Symbol.asyncIterator]() {
+              yield checkpoint;
+              yield suffix;
+              await new Promise<void>((_resolve, reject) => {
+                signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+              });
+            },
+          },
+        }));
+
+        const response = await POST(createRequest() as never);
+        const bodyPromise = response.text();
+        await vi.advanceTimersByTimeAsync(3_000);
+        await bodyPromise;
+
+        expect(flushAttemptMock).toHaveBeenCalledTimes(2);
+        expect(flushAttemptMock).toHaveBeenNthCalledWith(1, "attempt-1", checkpoint);
+        expect(flushAttemptMock).toHaveBeenNthCalledWith(2, "attempt-1", checkpoint + suffix);
+        expect(completeAttemptMock).not.toHaveBeenCalled();
+        expect(failAttemptMock).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   }
 );

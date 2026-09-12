@@ -16,7 +16,7 @@ vi.mock("@/lib/db/prisma", () => ({
   },
 }));
 
-import { markProviderInvoked, persistAttemptTelemetry, reserveGeneration } from "@/lib/chat-stream/generation-lifecycle";
+import { flushAttempt, markProviderInvoked, persistAttemptTelemetry, reserveGeneration, stopAttempt } from "@/lib/chat-stream/generation-lifecycle";
 
 let directory: string;
 let first: PrismaClient;
@@ -51,6 +51,25 @@ afterAll(async () => {
 });
 
 describe("generation lifecycle SQLite constraints", () => {
+  it("persists an authoritative final snapshot after a streaming attempt is stopped", async () => {
+    lifecycleDatabase.client = first;
+    const source = await first.message.create({ data: { conversationId, authorType: "human", authorId: "owner", content: "stop during stream" } });
+    const reserved = await reserveGeneration({ conversationId, sourceMessageId: source.id, provider: "google", requesterId: "owner" });
+    await first.aiGenerationAttempt.update({ where: { id: reserved.attemptId }, data: { status: "streaming", startedAt: new Date() } });
+
+    await expect(stopAttempt(reserved.attemptId)).resolves.toBe("stopped");
+    await expect(flushAttempt(reserved.attemptId, "authoritative partial")).resolves.toBe(true);
+
+    const attempt = await first.aiGenerationAttempt.findUniqueOrThrow({
+      where: { id: reserved.attemptId },
+      include: { outputMessage: { select: { content: true } } },
+    });
+    expect(attempt.status).toBe("stopped");
+    expect(attempt.outputMessage?.content).toBe("authoritative partial");
+    expect(attempt.completedAt).toBeNull();
+    expect(attempt.failedAt).toBeNull();
+  });
+
   it("atomically reserves an initial output and a separate retry output", async () => {
     const initial = await reserveGeneration({ conversationId, sourceMessageId, provider: "google", requesterId: "owner" });
     expect(initial).toMatchObject({ created: true, status: "pending", output: "" });
