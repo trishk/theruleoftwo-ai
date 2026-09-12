@@ -362,6 +362,7 @@ export default async function ChatPage({
         configuredProviders={
           configuredProviders
         }
+        canUseAi={ownerId === user.id || conversation.allowMemberAiUsage}
       />
     </div>
   );

@@ -24,12 +24,14 @@ type Props = {
   conversationId: number;
   messages: ChatMessage[];
   configuredProviders: Provider[];
+  canUseAi?: boolean;
 };
 
 export function ChatConversation({
   conversationId,
   messages,
   configuredProviders,
+  canUseAi = true,
 }: Props) {
   return (
     <ChatConversationSession
@@ -37,6 +39,7 @@ export function ChatConversation({
       conversationId={conversationId}
       messages={messages}
       configuredProviders={configuredProviders}
+      canUseAi={canUseAi}
     />
   );
 }
@@ -45,6 +48,7 @@ function ChatConversationSession({
   conversationId,
   messages,
   configuredProviders,
+  canUseAi = true,
 }: Props) {
   const [replyTo, setReplyTo] =
     useState<ChatReply | null>(null);
@@ -169,6 +173,7 @@ function ChatConversationSession({
         configuredProviders={
           configuredProviders
         }
+        canUseAi={canUseAi}
         onMessageChange={
           setMessage
         }

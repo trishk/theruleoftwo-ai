@@ -25,6 +25,7 @@ type Props = {
   error: string | null;
   replyTo: ChatReply | null;
   configuredProviders: Provider[];
+  canUseAi?: boolean;
 
   onMessageChange: (message: string) => void;
   onCancelReply: () => void;
@@ -38,6 +39,7 @@ export function MessageComposer({
   error,
   replyTo,
   configuredProviders,
+  canUseAi = true,
   onMessageChange,
   onCancelReply,
   onSubmit,
@@ -75,7 +77,7 @@ export function MessageComposer({
     );
   }, [configuredOptions, mentionRange?.query]);
   const pickerOpen =
-    !sending &&
+    canUseAi && !sending &&
     mentionRange !== null &&
     configuredOptions.length > 0 &&
     message.slice(mentionRange.start, mentionRange.end) ===
@@ -120,7 +122,7 @@ export function MessageComposer({
   function openMentionPicker() {
     const textarea = textareaRef.current;
 
-    if (!textarea || sending || configuredOptions.length === 0) {
+    if (!textarea || sending || !canUseAi || configuredOptions.length === 0) {
       return;
     }
 
@@ -275,7 +277,11 @@ export function MessageComposer({
             </div>
           )}
 
-          {configuredOptions.length === 0 && <NoConfiguredAiNotice />}
+          {!canUseAi ? (
+            <p className="mb-2 text-xs text-muted-foreground" role="status">
+              AI mentions are unavailable because the conversation owner has not enabled shared AI usage. You can still send a human-only message.
+            </p>
+          ) : configuredOptions.length === 0 ? <NoConfiguredAiNotice /> : null}
 
           <div
             data-testid="composer-shell"
@@ -293,7 +299,8 @@ export function MessageComposer({
             <div className="flex min-w-0 items-end gap-2 p-2">
               <MentionPicker
                 open={pickerOpen}
-                disabled={sending || configuredOptions.length === 0}
+                disabled={sending || !canUseAi || configuredOptions.length === 0}
+                disabledReason={!canUseAi ? "AI mentions unavailable: the conversation owner has not enabled shared AI usage." : undefined}
                 options={filteredOptions}
                 activeIndex={activeIndex}
                 listboxId={listboxId}
@@ -326,6 +333,7 @@ export function MessageComposer({
                 }
                 placeholder="Ask for another perspective..."
                 rows={1}
+                maxLength={4000}
                 disabled={sending}
                 className="max-h-40 min-h-10 min-w-0 flex-1 resize-none bg-transparent px-3 py-2 text-base leading-relaxed outline-none placeholder:text-muted-foreground disabled:opacity-50 md:text-sm"
               />
@@ -364,6 +372,11 @@ export function MessageComposer({
                 )}
               </button>
             </div>
+            {message.length >= 3800 && (
+              <div className="px-4 pb-2 text-right text-xs text-muted-foreground" role="status" aria-live="polite">
+                {4000 - message.length} characters remaining
+              </div>
+            )}
           </div>
         </form>
       </div>

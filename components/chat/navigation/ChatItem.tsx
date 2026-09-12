@@ -6,6 +6,8 @@ import {
   useRouter,
 } from "next/navigation";
 import {
+  useEffect,
+  useRef,
   useState,
   useTransition,
 } from "react";
@@ -62,6 +64,9 @@ export function ChatItem({
 
   const [menuOpen, setMenuOpen] =
     useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
 
   const [isEditing, setIsEditing] =
     useState(false);
@@ -73,6 +78,31 @@ export function ChatItem({
     isPending,
     startTransition,
   ] = useTransition();
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    function close(event: PointerEvent) {
+      const target = event.target;
+      if (target instanceof Node && !menuRef.current?.contains(target) && !triggerRef.current?.contains(target)) {
+        setMenuOpen(false);
+        triggerRef.current?.focus();
+      }
+    }
+    function keydown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMenuOpen(false);
+        triggerRef.current?.focus();
+      }
+    }
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", keydown);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", keydown);
+    };
+  }, [menuOpen]);
 
   async function broadcastRename() {
     if (
@@ -97,11 +127,13 @@ export function ChatItem({
     setValue(title);
     setMenuOpen(false);
     setIsEditing(true);
+    setActionError(null);
   }
 
   function cancelEditing() {
     setValue("");
     setIsEditing(false);
+    setActionError(null);
   }
 
   function save() {
@@ -134,13 +166,14 @@ export function ChatItem({
           error
         );
 
-        cancelEditing();
+        setActionError("Could not rename this conversation. Please try again.");
       }
     });
   }
 
   if (isEditing) {
     return (
+      <div>
       <input
         autoFocus
         value={value}
@@ -167,6 +200,8 @@ export function ChatItem({
         }}
         className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
       />
+      {actionError && <p role="alert" className="mt-1 px-2 text-xs text-destructive">{actionError}</p>}
+      </div>
     );
   }
 
@@ -229,8 +264,11 @@ export function ChatItem({
 
       {isOwner && (
         <button
+          ref={triggerRef}
           type="button"
           aria-label="Chat options"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
           title="Chat options"
           onClick={() =>
             setMenuOpen(
@@ -244,9 +282,10 @@ export function ChatItem({
       )}
 
       {isOwner && menuOpen && (
-        <div className="absolute right-1 top-9 z-50 min-w-32 rounded-md border border-border bg-background p-1 shadow-md">
+        <div ref={menuRef} role="menu" aria-label={`Options for ${title}`} className="absolute right-1 top-9 z-50 min-w-32 rounded-md border border-border bg-background p-1 shadow-md">
           <button
             type="button"
+            role="menuitem"
             onClick={
               startEditing
             }
@@ -259,6 +298,7 @@ export function ChatItem({
           {isOwner && (
             <button
               type="button"
+              role="menuitem"
               onClick={() => {
                 setMenuOpen(false);
 
@@ -275,9 +315,11 @@ export function ChatItem({
 
                 startTransition(
                   async () => {
-                    await deleteConversation(
-                      id
-                    );
+                    try {
+                      await deleteConversation(id);
+                    } catch {
+                      setActionError("Could not delete this conversation. Please try again.");
+                    }
                   }
                 );
               }}
@@ -289,6 +331,7 @@ export function ChatItem({
           )}
         </div>
       )}
+      {actionError && !isEditing && <p role="alert" className="px-3 pb-1 text-xs text-destructive">{actionError}</p>}
     </div>
   );
 }

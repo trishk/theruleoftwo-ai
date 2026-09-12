@@ -6,6 +6,7 @@ import type { ProviderMeta } from "@/lib/llm/providerMeta";
 type Props = {
   open: boolean;
   disabled?: boolean;
+  disabledReason?: string;
   options: ProviderMeta[];
   activeIndex: number;
   listboxId: string;
@@ -16,6 +17,7 @@ type Props = {
 export function MentionPicker({
   open,
   disabled = false,
+  disabledReason,
   options,
   activeIndex,
   listboxId,
@@ -32,10 +34,13 @@ export function MentionPicker({
         aria-controls={open ? listboxId : undefined}
         onClick={onTrigger}
         disabled={disabled}
+        title={disabledReason}
+        aria-describedby={disabledReason ? `${listboxId}-disabled-reason` : undefined}
         className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-lg font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 md:h-10 md:w-10"
       >
         @
       </button>
+      {disabledReason && <span id={`${listboxId}-disabled-reason`} className="sr-only">{disabledReason}</span>}
 
       {open && !disabled && (
         <div

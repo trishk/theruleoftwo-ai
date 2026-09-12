@@ -110,6 +110,17 @@ it("shows actionable setup guidance while keeping human-only send enabled", () =
   expect(screen.getByRole("button", { name: "Send message" })).toBeEnabled();
 });
 
+it("shows a low-noise character limit counter at the boundary", () => {
+  render(<ComposerHarness />);
+  const textarea = screen.getByRole("combobox", { name: "Message" });
+  expect(textarea).toHaveAttribute("maxlength", "4000");
+  expect(screen.queryByText(/characters remaining/i)).not.toBeInTheDocument();
+  fireEvent.change(textarea, { target: { value: "a".repeat(3999) } });
+  expect(screen.getByText("1 characters remaining")).toBeInTheDocument();
+  fireEvent.change(textarea, { target: { value: "a".repeat(4000) } });
+  expect(screen.getByText("0 characters remaining")).toBeInTheDocument();
+});
+
 it("accepts the next message immediately after an Enter submission", async () => {
   const submission = createDeferred();
 

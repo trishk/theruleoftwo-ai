@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 
@@ -9,10 +9,12 @@ import { useConversationRealtime } from "../realtime/RealtimeConversationSync";
 
 type Props = {
   conversationId: number;
+  variant?: "standalone" | "menuitem";
 };
 
 export function LeaveConversationButton({
   conversationId,
+  variant = "standalone",
 }: Props) {
   const router =
     useRouter();
@@ -22,6 +24,7 @@ export function LeaveConversationButton({
     startTransition,
   ] =
     useTransition();
+  const [error, setError] = useState<string | null>(null);
 
   const {
     broadcastConversationUpdated,
@@ -30,6 +33,7 @@ export function LeaveConversationButton({
     useConversationRealtime();
 
   function handleLeave() {
+    setError(null);
     const confirmed =
       window.confirm(
         "Leave this conversation?"
@@ -80,12 +84,14 @@ export function LeaveConversationButton({
             "Failed to leave conversation:",
             error
           );
+          setError("Could not leave this conversation. Please try again.");
         }
       }
     );
   }
 
   return (
+    <div>
     <button
       type="button"
       onClick={
@@ -94,7 +100,8 @@ export function LeaveConversationButton({
       disabled={
         isPending
       }
-      className="flex shrink-0 items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+      role={variant === "menuitem" ? "menuitem" : undefined}
+      className={variant === "menuitem" ? "flex min-h-11 w-full items-center gap-2 rounded-md px-3 text-left text-sm hover:bg-muted disabled:opacity-50" : "flex shrink-0 items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"}
     >
       <LogOut className="h-4 w-4" />
 
@@ -102,5 +109,7 @@ export function LeaveConversationButton({
         ? "Leaving..."
         : "Leave"}
     </button>
+    {error && <p role="alert" className="mt-1 text-xs text-destructive">{error}</p>}
+    </div>
   );
 }

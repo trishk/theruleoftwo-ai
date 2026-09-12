@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  useEffect,
+  useRef,
   useState,
   useTransition,
 } from "react";
@@ -8,6 +10,7 @@ import {
   Check,
   Link2,
   Link2Off,
+  MoreHorizontal,
 } from "lucide-react";
 
 import {
@@ -53,6 +56,11 @@ export function ChatHeader({
 
   const [isEditing, setIsEditing] =
     useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const mobileMenuRef = useRef<HTMLDivElement | null>(null);
+  const mobileTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const mobileUsageTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   const [value, setValue] =
     useState("");
@@ -109,7 +117,33 @@ export function ChatHeader({
     ? getConversationPresentation(summary)
     : null;
 
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    mobileMenuRef.current?.querySelector<HTMLElement>('button:not([disabled])')?.focus();
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMobileMenuOpen(false);
+        mobileTriggerRef.current?.focus();
+      }
+    };
+    const closeOnOutsidePress = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Node && !mobileMenuRef.current?.contains(target) && !mobileTriggerRef.current?.contains(target)) {
+        setMobileMenuOpen(false);
+        mobileTriggerRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    document.addEventListener("pointerdown", closeOnOutsidePress);
+    return () => {
+      document.removeEventListener("keydown", closeOnEscape);
+      document.removeEventListener("pointerdown", closeOnOutsidePress);
+    };
+  }, [mobileMenuOpen]);
+
   function startEditing() {
+    setActionError(null);
     setValue(title);
     setIsEditing(true);
   }
@@ -117,6 +151,7 @@ export function ChatHeader({
   function cancelEditing() {
     setValue("");
     setIsEditing(false);
+    setActionError(null);
   }
 
   function save() {
@@ -154,12 +189,13 @@ export function ChatHeader({
           error
         );
 
-        cancelEditing();
+        setActionError("Could not rename this conversation. Please try again.");
       }
     });
   }
 
   function copyInviteLink() {
+    setActionError(null);
     if (!conversationId) {
       return;
     }
@@ -180,9 +216,12 @@ export function ChatHeader({
         const inviteUrl =
           `${window.location.origin}/invite/${currentInvite.token}`;
 
-        await navigator.clipboard.writeText(
-          inviteUrl
-        );
+        try {
+          await navigator.clipboard.writeText(inviteUrl);
+        } catch {
+          setActionError("Invite created, but its link could not be copied.");
+          return;
+        }
 
         setCopiedInviteKey(
           `${conversationId}:${currentInvite.id}:${currentInvite.token}`
@@ -196,11 +235,13 @@ export function ChatHeader({
           "Failed to create invite:",
           error
         );
+        setActionError("Could not create an invite. Please try again.");
       }
     });
   }
 
   function toggleAiSharing() {
+    setActionError(null);
     if (!conversationId) {
       return;
     }
@@ -223,11 +264,13 @@ export function ChatHeader({
           "Failed to update AI sharing:",
           error
         );
+        setActionError("Could not change AI sharing. Please try again.");
       }
     });
   }
 
   function revokeInvite() {
+    setActionError(null);
     if (!invite) {
       return;
     }
@@ -248,12 +291,13 @@ export function ChatHeader({
           "Failed to revoke invite:",
           error
         );
+        setActionError("Could not revoke the invite. Please try again.");
       }
     });
   }
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border pl-16 pr-4 md:px-6">
+    <header className="relative flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border pl-16 pr-2 md:gap-4 md:px-6">
       <div className="flex min-w-0 flex-1 items-center gap-2.5">
         {conversationId && presentation && (
           <ConversationTypeIcon
@@ -322,7 +366,7 @@ export function ChatHeader({
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="hidden shrink-0 items-center gap-2 md:flex">
         {conversationId && isOwner && usageSummary && (usageSummary.providerInvokedAttemptCount > 0 || usageSummary.legacyAttemptCount > 0) && (
           <UsageCostDialog conversationId={conversationId} summary={usageSummary} />
         )}
@@ -381,6 +425,40 @@ export function ChatHeader({
             </>
           )}
       </div>
+      {conversationId && (
+        <div className="relative shrink-0 md:hidden">
+          <button
+            ref={mobileTriggerRef}
+            type="button"
+            aria-label="Conversation actions"
+            aria-haspopup="menu"
+            aria-expanded={mobileMenuOpen}
+            onClick={() => setMobileMenuOpen((open) => !open)}
+            className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <MoreHorizontal className="h-5 w-5" aria-hidden="true" />
+          </button>
+          {mobileMenuOpen && (
+            <div ref={mobileMenuRef} role="menu" aria-label="Conversation actions" className="absolute right-0 top-full z-40 mt-1 w-64 max-w-[calc(100vw-5rem)] rounded-lg border border-border bg-background p-1 shadow-lg">
+              {isOwner && usageSummary && (usageSummary.providerInvokedAttemptCount > 0 || usageSummary.legacyAttemptCount > 0) && (
+                <button role="menuitem" type="button" onClick={() => { setMobileMenuOpen(false); mobileUsageTriggerRef.current?.click(); }} className="flex min-h-11 w-full items-center rounded-md px-3 text-left text-sm hover:bg-muted">Usage &amp; Cost</button>
+              )}
+              {!isOwner && <LeaveConversationButton conversationId={conversationId} variant="menuitem" />}
+              {isOwner && (
+                <>
+                  <button role="menuitem" type="button" onClick={() => { setMobileMenuOpen(false); toggleAiSharing(); }} disabled={isPending} className="flex min-h-11 w-full items-center rounded-md px-3 text-left text-sm hover:bg-muted disabled:opacity-50">AI sharing: {sharingEnabled ? "On" : "Off"}</button>
+                  <button role="menuitem" type="button" onClick={() => { setMobileMenuOpen(false); copyInviteLink(); }} disabled={isPending} className="flex min-h-11 w-full items-center rounded-md px-3 text-left text-sm hover:bg-muted disabled:opacity-50">{copied ? "Copied" : "Invite"}</button>
+                  {invite && <button role="menuitem" type="button" onClick={() => { setMobileMenuOpen(false); revokeInvite(); }} disabled={isPending} className="flex min-h-11 w-full items-center rounded-md px-3 text-left text-sm text-destructive hover:bg-muted disabled:opacity-50">Revoke invite</button>}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+      {conversationId && isOwner && usageSummary && (usageSummary.providerInvokedAttemptCount > 0 || usageSummary.legacyAttemptCount > 0) && (
+        <UsageCostDialog conversationId={conversationId} summary={usageSummary} triggerRef={mobileUsageTriggerRef} showTrigger={false} />
+      )}
+      {actionError && <p role="alert" className="absolute left-16 right-2 top-full z-30 rounded-b-md border border-t-0 border-border bg-background px-3 py-2 text-xs text-destructive md:left-auto md:right-6 md:max-w-md">{actionError}</p>}
     </header>
   );
 }

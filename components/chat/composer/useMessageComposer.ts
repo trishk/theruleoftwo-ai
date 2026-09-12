@@ -124,6 +124,11 @@ export function useMessageComposer({
     const submittedMessage =
       message.trim();
 
+    if (submittedMessage.length > 4000) {
+      setError("Messages are limited to 4,000 characters.");
+      return;
+    }
+
     if (
       !submittedMessage ||
       sending ||
@@ -240,7 +245,9 @@ export function useMessageComposer({
       );
 
       setError(
-        "Something went wrong. Please try again."
+        submitError instanceof Error && /too long/i.test(submitError.message)
+          ? "Messages are limited to 4,000 characters."
+          : "Something went wrong. Please try again."
       );
     } finally {
       submissionInFlightRef.current = false;

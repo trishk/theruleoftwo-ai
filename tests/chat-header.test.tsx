@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import "@testing-library/jest-dom/vitest";
@@ -21,6 +21,7 @@ vi.mock("@/components/chat/navigation/LeaveConversationButton", () => ({
 }));
 
 import { ChatHeader } from "@/components/chat/navigation/ChatHeader";
+import { renameConversation, updateMemberAiUsage } from "@/app/actions";
 import { ConversationTypeIcon } from "@/components/chat/navigation/ConversationTypeIcon";
 import type { ConversationSummary } from "@/lib/chat/conversation-summary";
 
@@ -45,6 +46,52 @@ function summary(
 }
 
 describe("ChatHeader", () => {
+  it("keeps mobile actions behind one accessible trigger and restores focus on Escape", () => {
+    render(<ChatHeader conversationId={1} isOwner summary={summary()} />);
+    const trigger = screen.getByRole("button", { name: "Conversation actions" });
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("menu", { name: "Conversation actions" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /AI sharing/i })).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("menu", { name: "Conversation actions" })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
+  it("keeps Usage & Cost mounted after launching it from the mobile menu", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({ breakdown: [] }) })));
+    const usage = { knownEstimatedCost: "$0.01", knownAttemptCount: 1, unknownAttemptCount: 0, pendingAttemptCount: 0, legacyAttemptCount: 0, providerInvokedAttemptCount: 1 };
+    render(<ChatHeader conversationId={1} isOwner summary={summary()} usageSummary={usage} />);
+    fireEvent.click(screen.getByRole("button", { name: "Conversation actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Usage & Cost" }));
+    expect(screen.queryByRole("menu", { name: "Conversation actions" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /close usage and cost dialog/i }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    vi.unstubAllGlobals();
+  });
+
+  it("dismisses the mobile menu and exposes a failed action", async () => {
+    vi.mocked(updateMemberAiUsage).mockRejectedValueOnce(new Error("no"));
+    render(<ChatHeader conversationId={1} isOwner summary={summary()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Conversation actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /AI sharing/i }));
+    expect(screen.queryByRole("menu", { name: "Conversation actions" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent(/could not change AI sharing/i);
+  });
+
+  it("clears a failed rename error when editing is cancelled", async () => {
+    vi.mocked(renameConversation).mockRejectedValueOnce(new Error("no"));
+    render(<ChatHeader conversationId={1} title="Original" isOwner summary={summary()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Original" }));
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value: "Changed" } });
+    fireEvent.blur(input);
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    fireEvent.keyDown(input, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+  });
   it("shows usage only to owners with attempts", () => {
     const usage = { knownEstimatedCost: "$0.01", knownAttemptCount: 1, unknownAttemptCount: 0, pendingAttemptCount: 0, legacyAttemptCount: 0, providerInvokedAttemptCount: 1 };
     const { rerender } = render(<ChatHeader conversationId={1} isOwner usageSummary={usage} />);

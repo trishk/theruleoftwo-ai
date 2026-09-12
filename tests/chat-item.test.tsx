@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import "@testing-library/jest-dom/vitest";
@@ -28,6 +28,7 @@ vi.mock("@/components/chat/realtime/RealtimeSidebarSync", () => ({
 }));
 
 import { ChatItem } from "@/components/chat/navigation/ChatItem";
+import { renameConversation } from "@/app/actions";
 import type { ConversationSummary } from "@/lib/chat/conversation-summary";
 
 function chat(
@@ -122,7 +123,31 @@ describe("ChatItem", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Chat options" }));
 
-    expect(screen.getByRole("button", { name: "Rename" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Rename" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Delete" })).toBeInTheDocument();
+  });
+
+  it("closes the owner menu with Escape and restores trigger focus", () => {
+    render(<ChatItem chat={chat()} currentUserId="user-1" />);
+    const trigger = screen.getByRole("button", { name: "Chat options" });
+    trigger.focus();
+    fireEvent.click(trigger);
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
+  it("clears a failed rename error when editing is cancelled", async () => {
+    vi.mocked(renameConversation).mockRejectedValueOnce(new Error("no"));
+    render(<ChatItem chat={chat()} currentUserId="user-1" />);
+    fireEvent.click(screen.getByRole("button", { name: "Chat options" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value: "Changed" } });
+    fireEvent.blur(input);
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    fireEvent.keyDown(input, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
   });
 });

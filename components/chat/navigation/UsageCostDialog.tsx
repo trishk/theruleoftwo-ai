@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import type { ConversationUsageBreakdown, ConversationUsageSummary } from "@/lib/llm/usage/conversation-usage";
 
-export function UsageCostDialog({ conversationId, summary }: { conversationId: number; summary: ConversationUsageSummary }) {
+export function UsageCostDialog({ conversationId, summary, triggerClassName, triggerRole, triggerRef, showTrigger = true }: { conversationId: number; summary: ConversationUsageSummary; triggerClassName?: string; triggerRole?: "menuitem"; triggerRef?: React.Ref<HTMLButtonElement>; showTrigger?: boolean }) {
   const [rows, setRows] = useState<ConversationUsageBreakdown[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
@@ -27,8 +27,8 @@ export function UsageCostDialog({ conversationId, summary }: { conversationId: n
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
   }
 
-  return <Dialog.Root onOpenChange={(open) => { if (open) load(); else request.current?.abort(); }}>
-    <Dialog.Trigger className="shrink-0 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted">
+  return <Dialog.Root onOpenChange={(nextOpen) => { if (nextOpen) load(); else request.current?.abort(); }}>
+    <Dialog.Trigger ref={triggerRef} role={triggerRole} aria-hidden={!showTrigger || undefined} tabIndex={showTrigger ? undefined : -1} className={showTrigger ? (triggerClassName ?? "shrink-0 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted") : "sr-only"}>
       {label}
       {summary.pendingAttemptCount > 0 && summary.knownEstimatedCost && <span className="ml-1 text-xs text-muted-foreground">{summary.pendingAttemptCount} calculating</span>}
       {summary.unknownAttemptCount > 0 && <span className="ml-1 text-xs text-muted-foreground">{summary.unknownAttemptCount} unknown</span>}

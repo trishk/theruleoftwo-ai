@@ -1,5 +1,6 @@
 import {
   Copy,
+  MoreHorizontal,
   Reply,
   RotateCcw,
 } from "lucide-react";
@@ -460,6 +461,18 @@ export function MessageItem({
           </div>
           )}
       </div>
+      {onOpenActions && (
+        <button
+          type="button"
+          aria-label={`Actions for ${displayName}`}
+          aria-haspopup="menu"
+          aria-expanded={actionsOpen}
+          onClick={(event) => onOpenActions(event.currentTarget)}
+          className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted [@media(pointer:coarse)]:flex"
+        >
+          <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+        </button>
+      )}
       {actionMenu}
     </article>
   );

@@ -14,11 +14,13 @@ function Harness({
   configuredProviders = ["openai", "anthropic", "google"],
   sending = false,
   onSubmit = vi.fn(async () => {}),
+  canUseAi = true,
 }: {
   initialMessage?: string;
   configuredProviders?: Provider[];
   sending?: boolean;
   onSubmit?: () => Promise<void>;
+  canUseAi?: boolean;
 }) {
   const [message, setMessage] = useState(initialMessage);
 
@@ -29,6 +31,7 @@ function Harness({
       error={null}
       replyTo={null}
       configuredProviders={configuredProviders}
+      canUseAi={canUseAi}
       onMessageChange={setMessage}
       onCancelReply={() => {}}
       onSubmit={onSubmit}
@@ -48,6 +51,14 @@ function typeAtCaret(value: string, caret = value.length) {
 }
 
 describe("AI mention picker", () => {
+  it("disables only AI mentions when shared AI use is unavailable", () => {
+    render(<Harness canUseAi={false} />);
+    expect(screen.getByRole("button", { name: "Mention an AI" })).toBeDisabled();
+    expect(screen.getAllByText(/owner has not enabled shared AI usage/i)).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
+    typeAtCaret("Human only");
+    expect(screen.getByRole("button", { name: "Send message" })).toBeEnabled();
+  });
   it("opens from an active @ token and exposes combobox semantics", () => {
     render(<Harness />);
 
