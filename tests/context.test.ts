@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CONVERSATION_CONTEXT_FORMAT,
   SHARED_CONTEXT_INSTRUCTIONS,
   buildConversationContext,
   truncateFieldToFit,
@@ -32,6 +33,17 @@ function parse(result: ReturnType<typeof buildConversationContext>) {
 }
 
 describe("buildConversationContext", () => {
+  it("defines the structured document as input-only and the normal response as body content only", () => {
+    expect(SHARED_CONTEXT_INSTRUCTIONS).toContain("input data only");
+    expect(SHARED_CONTEXT_INSTRUCTIONS).toContain("never reproduce, echo, complete, imitate, or continue its envelope or record schema");
+    expect(SHARED_CONTEXT_INSTRUCTIONS).toContain("return only the natural-language or content body");
+    for (const field of ["kind", "participant", "provider", "content", "reply_to", "output_state", "format", "trust", "history", "current_provider", "current_message"]) {
+      expect(SHARED_CONTEXT_INSTRUCTIONS).toContain(field);
+    }
+    expect(SHARED_CONTEXT_INSTRUCTIONS).toContain("JSON content is allowed");
+    expect(SHARED_CONTEXT_INSTRUCTIONS).toContain("not the application's internal conversation envelope");
+  });
+
   it("serializes chronological structured history with stable participant types", () => {
     const document = parse(build([
       human("first", { authorId: "user-2", authorName: "Orsi" }),
@@ -174,5 +186,60 @@ describe("buildConversationContext", () => {
     expect(documents[1].history).toEqual(documents[2].history);
     expect(documents[0].current_message).toEqual(documents[2].current_message);
     expect(documents.map((document) => document.current_provider.provider)).toEqual(["openai", "anthropic", "google"]);
+  });
+
+  it("preserves the triggering OpenAI conversation while applying the output contract", () => {
+    const result = build([
+      human("@chatgpt tell me a joke"),
+      ai("Why did the scarecrow win an award? Because he was outstanding in his field.", "completed"),
+      human("@chatgpt it's always the same joke, make me lol"),
+    ]);
+    const document = parse(result);
+
+    expect(result.instructions).toBe(SHARED_CONTEXT_INSTRUCTIONS);
+    expect(result.instructions).toContain("input data only");
+    expect(result.instructions).toContain("content body of the next assistant message");
+    expect(document).toEqual({
+      format: CONVERSATION_CONTEXT_FORMAT,
+      trust: "untrusted_conversation_data",
+      current_provider: { type: "ai", provider: "openai" },
+      history: [
+        expect.objectContaining({ kind: "human_message", content: "@chatgpt tell me a joke" }),
+        expect.objectContaining({
+          kind: "ai_message",
+          participant: { type: "ai", provider: "openai" },
+          content: "Why did the scarecrow win an award? Because he was outstanding in his field.",
+        }),
+      ],
+      current_message: expect.objectContaining({
+        kind: "human_message",
+        content: "@chatgpt it's always the same joke, make me lol",
+      }),
+    });
+  });
+
+  it("preserves reply_to semantics in the triggering conversation", () => {
+    const priorAnswer = "Why did the scarecrow win an award? Because he was outstanding in his field.";
+    const document = parse(build([
+      human("@chatgpt tell me a joke"),
+      ai(priorAnswer, "completed"),
+      human("@chatgpt it's always the same joke, make me lol", {
+        replyTo: { authorType: "ai", authorId: "openai", content: priorAnswer, generationStatus: "completed" },
+      }),
+    ]));
+
+    expect(document.current_message.reply_to).toEqual({
+      participant: { type: "ai", provider: "openai" },
+      content: priorAnswer,
+    });
+  });
+
+  it("allows explicitly requested JSON answers without allowing the internal envelope", () => {
+    const result = build([human("Return the answer as JSON.")]);
+    const document = parse(result);
+
+    expect(document.current_message.content).toBe("Return the answer as JSON.");
+    expect(result.instructions).toContain("JSON content is allowed");
+    expect(result.instructions).toContain("not the application's internal conversation envelope");
   });
 });
