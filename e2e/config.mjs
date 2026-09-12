@@ -6,6 +6,8 @@ export function createE2EWebServerEnvironment() {
     APP_URL: E2E_ORIGIN,
     DATABASE_URL: "file:./e2e.db",
     E2E_TESTING: "1",
+    API_KEY_ENCRYPTION_KEY:
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
   };
 }
 

@@ -296,6 +296,12 @@ test(
                 "Ask for another perspective..."
             )
         ).toBeVisible();
+
+        await expect(
+            page.getByRole("button", {
+                name: /Estimated|Cost unavailable|Calculating cost/,
+            })
+        ).toHaveCount(0);
     }
 );
 
