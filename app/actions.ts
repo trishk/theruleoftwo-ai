@@ -4,6 +4,7 @@ export * from "./actions/invites";
 export * from "./actions/profile";
 export * from "./actions/integrations";
 export * from "./actions/auth";
+export * from "./actions/personal-agent";
 export {
   createConversationInvite,
   joinConversationByInvite,

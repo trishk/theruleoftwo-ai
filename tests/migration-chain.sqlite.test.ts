@@ -39,6 +39,9 @@ describe("SQLite migration chain", () => {
       const inviteColumns = database
         .prepare(`PRAGMA table_info("ConversationInvite")`)
         .all() as Array<{ name: string; dflt_value: string | null }>;
+      const integrationColumns = database
+        .prepare(`PRAGMA table_info("UserIntegration")`)
+        .all() as Array<{ name: string; dflt_value: string | null }>;
 
       expect(conversationColumns).toEqual(
         expect.arrayContaining([
@@ -56,6 +59,14 @@ describe("SQLite migration chain", () => {
           }),
         ])
       );
+      expect(integrationColumns).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            name: "connectionMode",
+            dflt_value: "'api'",
+          }),
+        ])
+      );
 
       database.exec(`
         INSERT INTO "User" ("id", "createdAt", "updatedAt") VALUES ('owner', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
@@ -63,7 +74,14 @@ describe("SQLite migration chain", () => {
         INSERT INTO "Message" ("id", "conversationId", "authorType", "authorId", "content", "createdAt") VALUES (1, 1, 'human', 'owner', 'hello', CURRENT_TIMESTAMP);
         INSERT INTO "AiGeneration" ("id", "conversationId", "sourceMessageId", "provider", "initialRequesterId", "createdAt", "updatedAt") VALUES ('generation', 1, 1, 'openai', 'owner', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
         INSERT INTO "AiGenerationAttempt" ("id", "generationId", "attemptNumber", "requesterId", "status", "progressAt") VALUES ('legacy', 'generation', 1, 'owner', 'completed', CURRENT_TIMESTAMP);
+        INSERT INTO "UserIntegration" ("userId", "provider", "selectedModel", "createdAt", "updatedAt") VALUES ('owner', 'google', 'gemini-test', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+        INSERT INTO "ProviderConversation" ("conversationId", "provider", "remoteConversationId", "createdAt", "updatedAt") VALUES (1, 'google', 'remote-1', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
       `);
+
+      expect(database.prepare(`SELECT "connectionMode" FROM "UserIntegration" WHERE "userId"='owner'`).get())
+        .toEqual({ connectionMode: "api" });
+      expect(() => database.prepare(`UPDATE "UserIntegration" SET "connectionMode"='invalid' WHERE "userId"='owner'`).run()).toThrow();
+      expect(() => database.prepare(`INSERT INTO "ProviderConversation" ("conversationId", "provider", "remoteConversationId", "createdAt", "updatedAt") VALUES (1, 'google', 'remote-2', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`).run()).toThrow();
 
       expect(() => database.prepare(`UPDATE "AiGenerationAttempt" SET "estimatedCostNanoUsd" = 1 WHERE "id" = 'legacy'`).run()).toThrow();
       const insertAttempt = (id: string, number: number, usageState: string | null, costState: string | null, cost: number | null) => database.prepare(`INSERT INTO "AiGenerationAttempt" ("id", "generationId", "attemptNumber", "requesterId", "status", "progressAt", "usageState", "costState", "estimatedCostNanoUsd") VALUES (?, 'generation', ?, 'owner', 'completed', CURRENT_TIMESTAMP, ?, ?, ?)`).run(id, number, usageState, costState, cost);

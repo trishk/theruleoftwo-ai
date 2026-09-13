@@ -19,12 +19,14 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  conversations Conversation[]
-  memberships   ConversationMember[]
-  integrations  UserIntegration[]
-  readStates    ConversationReadState[]
-  requestedGenerations AiGeneration[]        @relation("GenerationRequester")
-  generationAttempts  AiGenerationAttempt[] @relation("AttemptRequester")
+  conversations             Conversation[]
+  memberships               ConversationMember[]
+  integrations              UserIntegration[]
+  readStates                ConversationReadState[]
+  requestedGenerations      AiGeneration[]             @relation("GenerationRequester")
+  generationAttempts        AiGenerationAttempt[]      @relation("AttemptRequester")
+  personalAgent             PersonalAgent?
+  personalAgentPairingToken PersonalAgentPairingToken?
 }
 
 model UserIntegration {
@@ -36,6 +38,7 @@ model UserIntegration {
   keyIv           String?
   keyAuthTag      String?
   storageMode     String   @default("persistent")
+  connectionMode  String   @default("api")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -53,12 +56,53 @@ model Conversation {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  owner      User                    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  members    ConversationMember[]
-  invites    ConversationInvite[]
-  messages   Message[]
-  readStates ConversationReadState[]
-  aiGenerations AiGeneration[]
+  owner                 User                    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  members               ConversationMember[]
+  invites               ConversationInvite[]
+  messages              Message[]
+  readStates            ConversationReadState[]
+  aiGenerations         AiGeneration[]
+  providerConversations ProviderConversation[]
+}
+
+model PersonalAgent {
+  id              String    @id
+  userId          String    @unique
+  credentialHash  String    @unique
+  adapterStatus   String?
+  adapterStatusAt DateTime?
+  createdAt       DateTime  @default(now())
+  pairedAt        DateTime  @default(now())
+  lastSeenAt      DateTime?
+  revokedAt       DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PersonalAgentPairingToken {
+  id         String    @id
+  userId     String    @unique
+  tokenHash  String    @unique
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  redeemedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+}
+
+model ProviderConversation {
+  id                   Int      @id @default(autoincrement())
+  conversationId       Int
+  provider             String
+  remoteConversationId String
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, provider])
 }
 
 model ConversationMember {
@@ -104,20 +148,20 @@ model ConversationInvite {
 }
 
 model Message {
-  id             Int      @id @default(autoincrement())
-  conversationId Int
-  authorType     String
-  authorId       String
-  content        String
-  replyToId      Int?
+  id                Int      @id @default(autoincrement())
+  conversationId    Int
+  authorType        String
+  authorId          String
+  content           String
+  replyToId         Int?
   clientMessageId   String?
   clientPayloadHash String?
-  createdAt      DateTime @default(now())
+  createdAt         DateTime @default(now())
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
-  replyTo Message?  @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
-  replies Message[] @relation("MessageReplies")
+  replyTo           Message?             @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies           Message[]            @relation("MessageReplies")
   sourceGenerations AiGeneration[]
   generationAttempt AiGenerationAttempt? @relation("AttemptOutput")
 
@@ -148,51 +192,51 @@ model AiGeneration {
 /// This table has hand-authored SQLite CHECK constraints in its migrations.
 /// Any future migration that rebuilds the table must preserve them explicitly.
 model AiGenerationAttempt {
-  id                String    @id
-  generationId      String
-  attemptNumber     Int
-  retryOfId         String?   @unique
-  requesterId       String
-  status            String
-  outputMessageId   Int?      @unique
-  errorCode         String?
-  reservedAt        DateTime  @default(now())
-  startedAt         DateTime?
-  providerInvokedAt DateTime?
-  progressAt        DateTime  @default(now())
-  completedAt       DateTime?
-  failedAt          DateTime?
-  stoppedAt         DateTime?
-  usageState        String?
-  costState         String?
-  providerSnapshot  String?
-  requestedModel    String?
-  effectiveModel    String?
-  effectiveModelSource String?
-  inputTokens       BigInt?
-  inputTokensNoCache BigInt?
-  inputTokensCacheRead BigInt?
-  inputTokensCacheWrite BigInt?
-  outputTokens      BigInt?
-  outputTextTokens  BigInt?
-  outputReasoningTokens BigInt?
-  totalTokens       BigInt?
-  usageCapturedAt   DateTime?
-  usageUnavailableReason String?
-  pricingVersion    String?
-  pricingCurrency   String?
-  inputRateNanoUsdPerToken BigInt?
-  cacheReadRateNanoUsdPerToken BigInt?
+  id                            String    @id
+  generationId                  String
+  attemptNumber                 Int
+  retryOfId                     String?   @unique
+  requesterId                   String
+  status                        String
+  outputMessageId               Int?      @unique
+  errorCode                     String?
+  reservedAt                    DateTime  @default(now())
+  startedAt                     DateTime?
+  providerInvokedAt             DateTime?
+  progressAt                    DateTime  @default(now())
+  completedAt                   DateTime?
+  failedAt                      DateTime?
+  stoppedAt                     DateTime?
+  usageState                    String?
+  costState                     String?
+  providerSnapshot              String?
+  requestedModel                String?
+  effectiveModel                String?
+  effectiveModelSource          String?
+  inputTokens                   BigInt?
+  inputTokensNoCache            BigInt?
+  inputTokensCacheRead          BigInt?
+  inputTokensCacheWrite         BigInt?
+  outputTokens                  BigInt?
+  outputTextTokens              BigInt?
+  outputReasoningTokens         BigInt?
+  totalTokens                   BigInt?
+  usageCapturedAt               DateTime?
+  usageUnavailableReason        String?
+  pricingVersion                String?
+  pricingCurrency               String?
+  inputRateNanoUsdPerToken      BigInt?
+  cacheReadRateNanoUsdPerToken  BigInt?
   cacheWriteRateNanoUsdPerToken BigInt?
-  outputRateNanoUsdPerToken BigInt?
-  estimatedCostNanoUsd BigInt?
-  costUnavailableReason String?
+  outputRateNanoUsdPerToken     BigInt?
+  estimatedCostNanoUsd          BigInt?
+  costUnavailableReason         String?
 
-  generation   AiGeneration        @relation(fields: [generationId], references: [id], onDelete: Cascade)
-  requester    User                @relation("AttemptRequester", fields: [requesterId], references: [id], onDelete: Cascade)
-  outputMessage Message?           @relation("AttemptOutput", fields: [outputMessageId], references: [id], onDelete: SetNull)
-  retryOf      AiGenerationAttempt? @relation("AttemptRetry", fields: [retryOfId], references: [id], onDelete: NoAction)
-  retriedBy    AiGenerationAttempt? @relation("AttemptRetry")
+  generation    AiGeneration         @relation(fields: [generationId], references: [id], onDelete: Cascade)
+  requester     User                 @relation("AttemptRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  outputMessage Message?             @relation("AttemptOutput", fields: [outputMessageId], references: [id], onDelete: SetNull)
+  retryOf       AiGenerationAttempt? @relation("AttemptRetry", fields: [retryOfId], references: [id], onDelete: NoAction)
+  retriedBy     AiGenerationAttempt? @relation("AttemptRetry")
 
   @@unique([generationId, attemptNumber])
   @@index([status, progressAt])

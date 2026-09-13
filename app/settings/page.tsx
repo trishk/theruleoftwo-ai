@@ -17,6 +17,8 @@ import { AddIntegrationSection } from "@/components/settings/AddIntegrationSecti
 import { ModelSelect } from "@/components/settings/ModelSelect";
 import { RemoveIntegrationButton } from "@/components/settings/RemoveIntegrationButton";
 import { canAccessSettings } from "@/lib/auth/settings-access";
+import { isPersonalAgentOnline } from "@/lib/personal-agent/presence";
+import { PersonalAgentSection } from "@/components/settings/PersonalAgentSection";
 
 export default async function SettingsPage() {
   const user = await requireUser();
@@ -69,6 +71,16 @@ export default async function SettingsPage() {
         encryptedApiKey: true,
         keyIv: true,
         keyAuthTag: true,
+      },
+    });
+
+  const personalAgent =
+    await prisma.personalAgent.findUnique({
+      where: { userId: user.id },
+      select: {
+        lastSeenAt: true,
+        adapterStatus: true,
+        revokedAt: true,
       },
     });
 
@@ -170,6 +182,17 @@ export default async function SettingsPage() {
               </div>
             </form>
           </section>
+
+          <PersonalAgentSection
+            agent={personalAgent ? {
+              paired: true,
+              online: !personalAgent.revokedAt &&
+                isPersonalAgentOnline(personalAgent.lastSeenAt),
+              lastSeenAt: personalAgent.lastSeenAt?.toISOString() ?? null,
+              adapterStatus: personalAgent.adapterStatus,
+              revoked: Boolean(personalAgent.revokedAt),
+            } : null}
+          />
 
           <section id="integrations">
             <AddIntegrationSection

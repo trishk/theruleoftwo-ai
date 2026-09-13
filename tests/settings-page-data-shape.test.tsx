@@ -5,17 +5,26 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   requireUserMock,
   integrationFindManyMock,
+  personalAgentFindUniqueMock,
   membershipFindFirstMock,
   redirectMock,
   getConversationSummariesMock,
   chatSidebarMock,
+  personalAgentSectionMock,
 } = vi.hoisted(() => ({
   requireUserMock: vi.fn(),
   integrationFindManyMock: vi.fn(),
+  personalAgentFindUniqueMock: vi.fn(),
   membershipFindFirstMock: vi.fn(),
   redirectMock: vi.fn(),
   getConversationSummariesMock: vi.fn(),
   chatSidebarMock: vi.fn(() => null),
+  personalAgentSectionMock: vi.fn((props: {
+    agent: Record<string, unknown> | null;
+  }) => {
+    void props;
+    return null;
+  }),
 }));
 
 vi.mock("@/lib/auth/require-user", () => ({ requireUser: requireUserMock }));
@@ -23,6 +32,7 @@ vi.mock("@/lib/db/prisma", () => ({
   prisma: {
     conversationMember: { findFirst: membershipFindFirstMock },
     userIntegration: { findMany: integrationFindManyMock },
+    personalAgent: { findUnique: personalAgentFindUniqueMock },
   },
 }));
 vi.mock("next/navigation", () => ({ redirect: redirectMock }));
@@ -48,6 +58,9 @@ vi.mock("@/components/settings/ModelSelect", () => ({
 vi.mock("@/components/settings/RemoveIntegrationButton", () => ({
   RemoveIntegrationButton: () => null,
 }));
+vi.mock("@/components/settings/PersonalAgentSection", () => ({
+  PersonalAgentSection: personalAgentSectionMock,
+}));
 
 import SettingsPage from "@/app/settings/page";
 
@@ -61,6 +74,7 @@ describe("settings data access", () => {
     });
     getConversationSummariesMock.mockResolvedValue([]);
     integrationFindManyMock.mockResolvedValue([]);
+    personalAgentFindUniqueMock.mockResolvedValue(null);
   });
 
   it("reads only the authenticated user's integrations", async () => {
@@ -92,6 +106,37 @@ describe("settings data access", () => {
       expect.objectContaining({ chats: summaries }),
       undefined,
     );
+  });
+
+  it("projects only non-secret personal-agent fields to Settings", async () => {
+    personalAgentFindUniqueMock.mockResolvedValue({
+      lastSeenAt: null,
+      adapterStatus: "ready",
+      revokedAt: null,
+      credentialHash: "not-forwarded",
+      tokenHash: "not-forwarded",
+    });
+
+    renderToStaticMarkup(await SettingsPage());
+
+    expect(personalAgentFindUniqueMock).toHaveBeenCalledWith({
+      where: { userId: "user-1" },
+      select: {
+        lastSeenAt: true,
+        adapterStatus: true,
+        revokedAt: true,
+      },
+    });
+    const props = personalAgentSectionMock.mock.calls.at(-1)![0];
+    expect(props.agent).toEqual({
+      paired: true,
+      online: false,
+      lastSeenAt: null,
+      adapterStatus: "ready",
+      revoked: false,
+    });
+    expect(props.agent).not.toHaveProperty("credentialHash");
+    expect(props.agent).not.toHaveProperty("tokenHash");
   });
 
   it("redirects a membership-only user before reading settings integrations", async () => {

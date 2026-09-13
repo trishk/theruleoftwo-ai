@@ -32,6 +32,17 @@ describe("auth proxy health exemption", () => {
     expect(getUserMock).not.toHaveBeenCalled();
   });
 
+  it.each([
+    "/api/personal-agent/pair",
+    "/api/personal-agent/poll",
+    "/api/personal-agent/events",
+  ])("passes %s to its independent route authentication", async (pathname) => {
+    const response = await proxy(new NextRequest(`http://localhost${pathname}`));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
+    expect(getUserMock).not.toHaveBeenCalled();
+  });
+
   it.each(["/", "/settings", "/api/chat/usage"])(
     "keeps the unrelated route %s protected",
     async (pathname) => {

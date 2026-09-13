@@ -13,7 +13,10 @@ export async function proxy(
 
   if (
     request.nextUrl.pathname ===
-    "/api/health"
+    "/api/health" ||
+    request.nextUrl.pathname.startsWith(
+      "/api/personal-agent/"
+    )
   ) {
     return response;
   }
