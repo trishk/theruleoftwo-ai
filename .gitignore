@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+/personal-agent/node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -22,6 +23,8 @@
 
 # production
 /build
+/personal-agent/dist/
+/personal-agent/.local/
 
 # misc
 .DS_Store
