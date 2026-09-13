@@ -8,14 +8,20 @@ import { prepareLLMRequest } from "@/lib/llm/prepare-request";
 import { streamLLM } from "@/lib/llm/registry";
 import { checkDailyQuota, checkRateLimit } from "@/lib/security/rate-limit";
 import { acquireGenerationLease, releaseGenerationLease, renewGenerationLease } from "@/lib/security/generation-concurrency";
-import type { LLMStreamEvent } from "@/lib/llm/types";
+import type { LLMStreamErrorCode, LLMStreamEvent } from "@/lib/llm/types";
 import { observeTelemetry } from "@/lib/llm/usage/capture";
+import { buildPersonalDeltaPrompt } from "@/lib/personal-agent/delta-context";
+import { getPersonalGoogleConfiguration, queuePersonalGeneration, waitForPersonalGeneration } from "@/lib/personal-agent/generation-jobs";
 
 const FLUSH_INTERVAL_MS = 1_000;
 const FLUSH_SIZE_BYTES = 2 * 1024;
 const STOP_POLL_MS = 3_000;
 const HEARTBEAT_MS = 30_000;
 const json = (payload: object, status: number) => Response.json(payload, { status });
+const personalStreamError = (code: string): LLMStreamErrorCode => {
+  const allowed: LLMStreamErrorCode[] = ["agent_offline", "chrome_unavailable", "sign_in_required", "gemini_unavailable", "conversation_not_found", "automation_changed", "response_timeout_before_submit", "ambiguous_after_submit"];
+  return allowed.includes(code as LLMStreamErrorCode) ? code as LLMStreamErrorCode : "provider_error";
+};
 
 export async function POST(request: NextRequest) {
   const user = await requireUser();
@@ -53,6 +59,49 @@ export async function POST(request: NextRequest) {
   const fail = async (code: string) => { await failAttempt(reservation.attemptId, code); };
   const rateLimit = await checkRateLimit(`llm:${user.id}`);
   if (!rateLimit.allowed) { await fail("rate_limited"); return Response.json({ code: "rate_limited", retryAfterSeconds: rateLimit.retryAfterSeconds, generationId: reservation.generationId, attemptId: reservation.attemptId }, { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } }); }
+
+  if (provider === "google") {
+    const personal = await getPersonalGoogleConfiguration(ownerId);
+    if (personal.personal) {
+      if (!personal.operational) {
+        await fail(personal.error);
+        return Response.json({ code: personal.error, generationId: reservation.generationId, attemptId: reservation.attemptId }, { status: 503, headers: { "X-Chat-Error-Code": personal.error } });
+      }
+      let prompt: string;
+      try {
+        prompt = (await buildPersonalDeltaPrompt({ conversationId, sourceMessageId: messageId })).prompt;
+      } catch (error) {
+        const code = error instanceof Error && error.message === "ambiguous_after_submit" ? "ambiguous_after_submit" : "request_preparation_failed";
+        await fail(code);
+        return Response.json({ code, generationId: reservation.generationId, attemptId: reservation.attemptId }, { status: code === "ambiguous_after_submit" ? 409 : 500, headers: { "X-Chat-Error-Code": code } });
+      }
+      let outputMessageId: number;
+      try {
+        outputMessageId = await startAttempt({ attemptId: reservation.attemptId, conversationId, provider });
+        await queuePersonalGeneration(reservation.attemptId, prompt);
+      } catch {
+        await fail("persistence_failed");
+        return json({ code: "persistence_failed" }, 500);
+      }
+      const encoder = new TextEncoder();
+      const encode = (event: LLMStreamEvent) => encoder.encode(`${JSON.stringify(event)}\n`);
+      const stream = new ReadableStream({
+        async start(controller) {
+          try {
+            controller.enqueue(encode({ type: "generation", outcome: "started", generationId: reservation.generationId, attemptId: reservation.attemptId, messageId: outputMessageId }));
+            const response = await waitForPersonalGeneration(reservation.attemptId);
+            controller.enqueue(encode({ type: "delta", text: response }));
+            controller.enqueue(encode({ type: "done" }));
+            controller.close();
+          } catch (error) {
+            const code = error instanceof Error ? error.message : "personal_generation_failed";
+            try { controller.enqueue(encode({ type: "error", code: personalStreamError(code) })); controller.close(); } catch { /* client disconnected; durable job continues */ }
+          }
+        },
+      });
+      return new Response(stream, { status: 200, headers: { "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-cache" } });
+    }
+  }
   const lease = await acquireGenerationLease(ownerId);
   if (!lease) { await fail("concurrency_unavailable"); return Response.json({ code: "concurrency_unavailable", retryAfterSeconds: 5, generationId: reservation.generationId, attemptId: reservation.attemptId }, { status: 429, headers: { "Retry-After": "5" } }); }
   let leaseReleased = false;

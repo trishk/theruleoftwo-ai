@@ -31,7 +31,12 @@ export class StreamRequestError extends Error {
   retryAfterSeconds?: number;
   code?:
     | "provider_not_configured"
-    | "member_ai_usage_not_allowed";
+    | "member_ai_usage_not_allowed"
+    | "agent_offline"
+    | "chrome_unavailable"
+    | "sign_in_required"
+    | "gemini_unavailable"
+    | "ambiguous_after_submit";
 
   constructor(
     message: string,
@@ -40,6 +45,11 @@ export class StreamRequestError extends Error {
     code?:
       | "provider_not_configured"
       | "member_ai_usage_not_allowed"
+      | "agent_offline"
+      | "chrome_unavailable"
+      | "sign_in_required"
+      | "gemini_unavailable"
+      | "ambiguous_after_submit"
   ) {
     super(message);
 
@@ -124,7 +134,7 @@ export async function streamProviderResponse({
       payload.code ?? `Streaming failed for ${provider}.`,
       response.status,
       payload.retryAfterSeconds,
-      payload.code === "provider_not_configured" ? "provider_not_configured" : payload.code === "member_ai_usage_not_allowed" ? "member_ai_usage_not_allowed" : undefined
+      ["provider_not_configured", "member_ai_usage_not_allowed", "agent_offline", "chrome_unavailable", "sign_in_required", "gemini_unavailable", "ambiguous_after_submit"].includes(payload.code ?? "") ? payload.code as StreamRequestError["code"] : undefined
     );
   }
 
@@ -138,13 +148,8 @@ export async function streamProviderResponse({
       `Streaming failed for ${provider}.`,
       response.status,
       retryAfterSeconds,
-      response.headers.get("X-Chat-Error-Code") ===
-        "provider_not_configured"
-        ? "provider_not_configured"
-        : response.headers.get("X-Chat-Error-Code") ===
-          "member_ai_usage_not_allowed"
-          ? "member_ai_usage_not_allowed"
-          : undefined
+      ["provider_not_configured", "member_ai_usage_not_allowed", "agent_offline", "chrome_unavailable", "sign_in_required", "gemini_unavailable", "ambiguous_after_submit"].includes(response.headers.get("X-Chat-Error-Code") ?? "")
+        ? response.headers.get("X-Chat-Error-Code") as StreamRequestError["code"] : undefined
     );
   }
 

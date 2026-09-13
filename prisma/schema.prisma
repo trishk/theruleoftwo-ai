@@ -76,7 +76,8 @@ model PersonalAgent {
   lastSeenAt      DateTime?
   revokedAt       DateTime?
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user               User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  generationAttempts AiGenerationAttempt[]
 }
 
 model PersonalAgentPairingToken {
@@ -231,15 +232,25 @@ model AiGenerationAttempt {
   outputRateNanoUsdPerToken     BigInt?
   estimatedCostNanoUsd          BigInt?
   costUnavailableReason         String?
+  executionMode                 String    @default("api")
+  personalState                 String?
+  personalPrompt                String?
+  personalAgentId               String?
+  personalAcceptedAt            DateTime?
+  personalSubmittedAt           DateTime?
+  personalAmbiguousAt           DateTime?
 
   generation    AiGeneration         @relation(fields: [generationId], references: [id], onDelete: Cascade)
   requester     User                 @relation("AttemptRequester", fields: [requesterId], references: [id], onDelete: Cascade)
   outputMessage Message?             @relation("AttemptOutput", fields: [outputMessageId], references: [id], onDelete: SetNull)
   retryOf       AiGenerationAttempt? @relation("AttemptRetry", fields: [retryOfId], references: [id], onDelete: NoAction)
   retriedBy     AiGenerationAttempt? @relation("AttemptRetry")
+  personalAgent PersonalAgent?       @relation(fields: [personalAgentId], references: [id], onDelete: SetNull)
 
   @@unique([generationId, attemptNumber])
   @@index([status, progressAt])
+  @@index([executionMode, personalState, reservedAt])
+  @@index([personalAgentId, personalState])
 }
 
 model RateLimitBucket {

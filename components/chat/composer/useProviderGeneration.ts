@@ -5,7 +5,7 @@ import {
   useRef,
 } from "react";
 
-import type { Provider } from "@/lib/llm/types";
+import type { LLMStreamErrorCode, Provider } from "@/lib/llm/types";
 import { createAiParticipantIdentity } from "@/lib/chat/participant-identity";
 
 import {
@@ -372,6 +372,18 @@ export function useProviderGeneration({
         updateStreamingMessage(temporaryMessageId, {
           content:
             "The conversation owner has not enabled shared AI usage.",
+          isStreaming: false,
+          isError: true,
+          isRetryable: false,
+        });
+        return;
+      }
+
+      if (providerError instanceof StreamRequestError && providerError.code &&
+          ["agent_offline", "chrome_unavailable", "sign_in_required", "gemini_unavailable", "ambiguous_after_submit"].includes(providerError.code)) {
+        discardPendingContent(temporaryMessageId);
+        updateStreamingMessage(temporaryMessageId, {
+          content: getProviderErrorMessage(provider, providerError.code as LLMStreamErrorCode),
           isStreaming: false,
           isError: true,
           isRetryable: false,

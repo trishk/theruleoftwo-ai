@@ -8,6 +8,7 @@ import {
   parsePersonalAgentPollRequest,
 } from "@/lib/personal-agent/protocol";
 import { readLimitedJson } from "@/lib/personal-agent/request";
+import { claimNextPersonalGeneration } from "@/lib/personal-agent/generation-jobs";
 
 export const dynamic = "force-dynamic";
 const DEFAULT_WAIT_MS = 20_000;
@@ -46,9 +47,15 @@ export async function POST(request: Request) {
   if (touched.count !== 1) {
     return Response.json({ code: "unauthorized" }, { status: 401 });
   }
+  if (agent.adapterStatus !== "ready") {
+    return Response.json({ protocolVersion: PERSONAL_AGENT_PROTOCOL_VERSION, job: null }, { headers: { "Cache-Control": "no-store" } });
+  }
+  const immediate = await claimNextPersonalGeneration(agent.id);
+  if (immediate) return Response.json({ protocolVersion: PERSONAL_AGENT_PROTOCOL_VERSION, job: immediate }, { headers: { "Cache-Control": "no-store" } });
   await wait(poll.waitMs ?? DEFAULT_WAIT_MS, request.signal);
+  const job = await claimNextPersonalGeneration(agent.id);
   return Response.json({
     protocolVersion: PERSONAL_AGENT_PROTOCOL_VERSION,
-    job: null,
+    job,
   }, { headers: { "Cache-Control": "no-store" } });
 }

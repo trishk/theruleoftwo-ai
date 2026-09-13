@@ -25,6 +25,14 @@ export type LLMStreamErrorCode =
   | "insufficient_credits"
   | "rate_limit"
   | "invalid_api_key"
+  | "agent_offline"
+  | "chrome_unavailable"
+  | "sign_in_required"
+  | "gemini_unavailable"
+  | "conversation_not_found"
+  | "automation_changed"
+  | "response_timeout_before_submit"
+  | "ambiguous_after_submit"
   | "provider_error";
 
 export type LLMStreamEvent =

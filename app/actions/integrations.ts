@@ -171,3 +171,18 @@ export async function removeIntegration(
 
   revalidatePath("/settings");
 }
+
+export async function updateGoogleConnectionMode(mode: string) {
+  const user = await requireSettingsAccess();
+  if (mode !== "api" && mode !== "personal") throw new Error("Invalid connection mode.");
+  if (mode === "personal") {
+    const agent = await prisma.personalAgent.findUnique({ where: { userId: user.id }, select: { revokedAt: true } });
+    if (!agent || agent.revokedAt) throw new Error("A paired Personal Agent is required.");
+  }
+  await prisma.userIntegration.upsert({
+    where: { userId_provider: { userId: user.id, provider: "google" } },
+    update: { connectionMode: mode },
+    create: { userId: user.id, provider: "google", selectedModel: PROVIDERS.google.defaultModel, connectionMode: mode },
+  });
+  revalidatePath("/settings");
+}

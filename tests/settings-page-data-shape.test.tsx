@@ -88,6 +88,7 @@ describe("settings data access", () => {
         encryptedApiKey: true,
         keyIv: true,
         keyAuthTag: true,
+        connectionMode: true,
       },
     });
   });

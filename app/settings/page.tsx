@@ -19,6 +19,7 @@ import { RemoveIntegrationButton } from "@/components/settings/RemoveIntegration
 import { canAccessSettings } from "@/lib/auth/settings-access";
 import { isPersonalAgentOnline } from "@/lib/personal-agent/presence";
 import { PersonalAgentSection } from "@/components/settings/PersonalAgentSection";
+import { ConnectionModeSelect } from "@/components/settings/ConnectionModeSelect";
 
 export default async function SettingsPage() {
   const user = await requireUser();
@@ -71,6 +72,7 @@ export default async function SettingsPage() {
         encryptedApiKey: true,
         keyIv: true,
         keyAuthTag: true,
+        connectionMode: true,
       },
     });
 
@@ -92,9 +94,9 @@ export default async function SettingsPage() {
     integrations
       .filter(
         (integration) =>
-          integration.encryptedApiKey &&
+          ((integration.provider === "google" && integration.connectionMode === "personal" && personalAgent && !personalAgent.revokedAt) || (integration.encryptedApiKey &&
           integration.keyIv &&
-          integration.keyAuthTag
+          integration.keyAuthTag))
       )
       .map(
         (integration) =>
@@ -221,9 +223,9 @@ export default async function SettingsPage() {
 
                   const isConfigured =
                     Boolean(
-                      integration?.encryptedApiKey &&
+                      (typedProviderId === "google" && integration?.connectionMode === "personal" && personalAgent && !personalAgent.revokedAt) || (integration?.encryptedApiKey &&
                       integration?.keyIv &&
-                      integration?.keyAuthTag
+                      integration?.keyAuthTag)
                     );
 
                   const selectedModel =
@@ -267,6 +269,9 @@ export default async function SettingsPage() {
                               }
                             />
                           </div>
+                          {typedProviderId === "google" && (
+                            <ConnectionModeSelect value={integration?.connectionMode ?? "api"} personalAvailable={Boolean(personalAgent && !personalAgent.revokedAt)} />
+                          )}
                         </div>
                       </div>
 

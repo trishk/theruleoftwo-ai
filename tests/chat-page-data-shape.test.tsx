@@ -8,6 +8,7 @@ const {
   conversationFindUniqueMock,
   conversationInviteFindFirstMock,
   integrationFindManyMock,
+  personalAgentFindUniqueMock,
   userFindManyMock,
   conversationMemberFindFirstMock,
   notFoundMock,
@@ -25,6 +26,7 @@ const {
   conversationFindUniqueMock: vi.fn(),
   conversationInviteFindFirstMock: vi.fn(),
   integrationFindManyMock: vi.fn(),
+  personalAgentFindUniqueMock: vi.fn(),
   userFindManyMock: vi.fn(),
   conversationMemberFindFirstMock: vi.fn(),
   notFoundMock: vi.fn(() => { throw new Error("NEXT_NOT_FOUND"); }),
@@ -67,6 +69,7 @@ vi.mock("@/lib/db/prisma", () => ({
     },
     conversationMember: { findFirst: conversationMemberFindFirstMock },
     userIntegration: { findMany: integrationFindManyMock },
+    personalAgent: { findUnique: personalAgentFindUniqueMock },
     user: { findMany: userFindManyMock },
   },
 }));
@@ -117,6 +120,7 @@ describe("chat page data shape", () => {
     getConversationSummariesMock.mockResolvedValue([]);
     conversationMemberFindFirstMock.mockResolvedValue(null);
     integrationFindManyMock.mockResolvedValue([]);
+    personalAgentFindUniqueMock.mockResolvedValue(null);
     conversationInviteFindFirstMock.mockResolvedValue(null);
     userFindManyMock.mockResolvedValue([{ id: "user-1", name: "User" }]);
   });
@@ -167,6 +171,7 @@ describe("chat page data shape", () => {
         encryptedApiKey: true,
         keyIv: true,
         keyAuthTag: true,
+        connectionMode: true,
       },
     });
   });

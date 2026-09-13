@@ -195,16 +195,18 @@ export default async function ChatPage({
         encryptedApiKey: true,
         keyIv: true,
         keyAuthTag: true,
+        connectionMode: true,
       },
     });
 
+  const ownerPersonalAgent = await prisma.personalAgent.findUnique({ where: { userId: ownerId }, select: { revokedAt: true } });
   const configuredProviders =
     integrations
       .filter(
         (integration) =>
-          integration.encryptedApiKey &&
+          ((integration.provider === "google" && integration.connectionMode === "personal" && ownerPersonalAgent && !ownerPersonalAgent.revokedAt) || (integration.encryptedApiKey &&
           integration.keyIv &&
-          integration.keyAuthTag
+          integration.keyAuthTag))
       )
       .map(
         (integration) =>

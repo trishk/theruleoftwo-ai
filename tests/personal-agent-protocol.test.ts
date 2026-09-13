@@ -33,6 +33,16 @@ describe("personal-agent protocol validation", () => {
     expect(() => parsePersonalAgentPollRequest({ protocolVersion: 1, job: {} })).toThrow();
   });
 
+  it("accepts only the closed generation event shapes", () => {
+    expect(parsePersonalAgentEvent({ type: "generation.accepted", protocolVersion: 1, requestId: "request-1" }).type).toBe("generation.accepted");
+    expect(parsePersonalAgentEvent({ type: "generation.submitted", protocolVersion: 1, requestId: "request-1" }).type).toBe("generation.submitted");
+    expect(parsePersonalAgentEvent({ type: "generation.completed", protocolVersion: 1, requestId: "request-1", remoteConversationId: "opaque-1", response: "hello" }).type).toBe("generation.completed");
+    expect(parsePersonalAgentEvent({ type: "generation.failed", protocolVersion: 1, requestId: "request-1", errorCode: "automation_changed" }).type).toBe("generation.failed");
+    expect(parsePersonalAgentEvent({ type: "generation.ambiguous", protocolVersion: 1, requestId: "request-1" }).type).toBe("generation.ambiguous");
+    expect(() => parsePersonalAgentEvent({ type: "generation.failed", protocolVersion: 1, requestId: "request-1", errorCode: "stack_trace" })).toThrow("invalid_protocol_payload");
+    expect(() => parsePersonalAgentEvent({ type: "generation.completed", protocolVersion: 1, requestId: "request-1", remoteConversationId: "opaque-1", response: "ok", browserUrl: "https://example.test" })).toThrow("invalid_protocol_payload");
+  });
+
   it("rejects bodies above the request limit even without content-length", async () => {
     await expect(readLimitedJson(new Request("http://localhost", {
       method: "POST",

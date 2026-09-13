@@ -97,8 +97,10 @@ describe("SQLite migration chain", () => {
       expect(indexes.map((index) => index.name)).toEqual(expect.arrayContaining([
         "AiGenerationAttempt_retryOfId_key", "AiGenerationAttempt_outputMessageId_key",
         "AiGenerationAttempt_generationId_attemptNumber_key", "AiGenerationAttempt_status_progressAt_idx",
+        "AiGenerationAttempt_personal_queue_idx", "AiGenerationAttempt_personalAgentId_personalState_idx",
+        "AiGenerationAttempt_personal_agent_active_key",
       ]));
-      expect(database.prepare(`PRAGMA foreign_key_list("AiGenerationAttempt")`).all()).toHaveLength(4);
+      expect(database.prepare(`PRAGMA foreign_key_list("AiGenerationAttempt")`).all()).toHaveLength(5);
     } finally {
       database.close();
       await rm(directory, { recursive: true, force: true });

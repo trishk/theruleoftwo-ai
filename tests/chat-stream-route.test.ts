@@ -29,6 +29,10 @@ const {
   heartbeatAttemptMock,
   persistAttemptTelemetryMock,
   observeTelemetryMock,
+  getPersonalGoogleConfigurationMock,
+  buildPersonalDeltaPromptMock,
+  queuePersonalGenerationMock,
+  waitForPersonalGenerationMock,
 } = vi.hoisted(() => ({
   requireUserMock: vi.fn(),
   validateStreamRequestMock: vi.fn(),
@@ -57,7 +61,18 @@ const {
   heartbeatAttemptMock: vi.fn(),
   persistAttemptTelemetryMock: vi.fn(),
   observeTelemetryMock: vi.fn(),
+  getPersonalGoogleConfigurationMock: vi.fn(),
+  buildPersonalDeltaPromptMock: vi.fn(),
+  queuePersonalGenerationMock: vi.fn(),
+  waitForPersonalGenerationMock: vi.fn(),
 }));
+
+vi.mock("@/lib/personal-agent/generation-jobs", () => ({
+  getPersonalGoogleConfiguration: getPersonalGoogleConfigurationMock,
+  queuePersonalGeneration: queuePersonalGenerationMock,
+  waitForPersonalGeneration: waitForPersonalGenerationMock,
+}));
+vi.mock("@/lib/personal-agent/delta-context", () => ({ buildPersonalDeltaPrompt: buildPersonalDeltaPromptMock }));
 
 vi.mock("@/lib/chat-stream/generation-lifecycle", () => ({
   recoverStaleGenerations: recoverStaleGenerationsMock,
@@ -258,6 +273,12 @@ describe(
       heartbeatAttemptMock.mockResolvedValue(true);
       persistAttemptTelemetryMock.mockResolvedValue(true);
       observeTelemetryMock.mockReturnValue(vi.fn().mockResolvedValue({ usage: { inputTokens: 3n, inputTokensNoCache: 2n, inputTokensCacheRead: 1n, inputTokensCacheWrite: 0n, outputTokens: 2n, outputTextTokens: 1n, outputReasoningTokens: 1n, totalTokens: 5n }, effectiveModel: "effective-model" }));
+      getPersonalGoogleConfigurationMock.mockResolvedValue({ personal: false });
+      buildPersonalDeltaPromptMock.mockResolvedValue({ prompt: "personal prompt" });
+      queuePersonalGenerationMock.mockResolvedValue(undefined);
+      waitForPersonalGenerationMock.mockResolvedValue("personal response");
+      getPersonalGoogleConfigurationMock.mockResolvedValue({ personal: false });
+      buildPersonalDeltaPromptMock.mockResolvedValue({ prompt: "personal prompt", bootstrap: true, boundarySourceMessageId: 0 });
     });
 
     it(
@@ -356,6 +377,30 @@ describe(
         });
       }
     );
+
+    it("routes Gemini Personal through the durable agent job without API preparation or decryption", async () => {
+      validateStreamRequestMock.mockResolvedValue({ conversationId: 1, messageId: 10, provider: "google", ownerId: "owner-1" });
+      getPersonalGoogleConfigurationMock.mockResolvedValue({ personal: true, operational: true, agentId: "agent-1" });
+      const response = await POST(createRequest() as never);
+      expect(response.status).toBe(200);
+      expect(await response.text()).toContain('"type":"delta","text":"personal response"');
+      expect(buildPersonalDeltaPromptMock).toHaveBeenCalledWith({ conversationId: 1, sourceMessageId: 10 });
+      expect(queuePersonalGenerationMock).toHaveBeenCalledWith("attempt-1", "personal prompt");
+      expect(prepareLLMRequestMock).not.toHaveBeenCalled();
+      expect(streamLLMMock).not.toHaveBeenCalled();
+      expect(acquireGenerationLeaseMock).not.toHaveBeenCalled();
+    });
+
+    it("keeps Gemini API mode on the existing provider path", async () => {
+      validateStreamRequestMock.mockResolvedValue({ conversationId: 1, messageId: 10, provider: "google", ownerId: "owner-1" });
+      streamLLMMock.mockReturnValue({ textStream: createTextStream(["api response"]) });
+      const response = await POST(createRequest() as never);
+      await response.text();
+      expect(getPersonalGoogleConfigurationMock).toHaveBeenCalledWith("owner-1");
+      expect(prepareLLMRequestMock).toHaveBeenCalled();
+      expect(streamLLMMock).toHaveBeenCalled();
+      expect(queuePersonalGenerationMock).not.toHaveBeenCalled();
+    });
 
     it("keeps a completed response successful when telemetry persistence fails", async () => {
       vi.spyOn(console, "error").mockImplementation(() => undefined);

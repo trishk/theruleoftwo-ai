@@ -24,7 +24,12 @@ export type PersonalAgentEvent =
       type: "heartbeat";
       protocolVersion: typeof PERSONAL_AGENT_PROTOCOL_VERSION;
       adapterStatus: GeminiAdapterStatus;
-    };
+    }
+  | { type: "generation.accepted"; protocolVersion: 1; requestId: string }
+  | { type: "generation.submitted"; protocolVersion: 1; requestId: string }
+  | { type: "generation.completed"; protocolVersion: 1; requestId: string; remoteConversationId: string; response: string }
+  | { type: "generation.failed"; protocolVersion: 1; requestId: string; errorCode: "conversation_not_found" | "automation_changed" | "response_timeout_before_submit" }
+  | { type: "generation.ambiguous"; protocolVersion: 1; requestId: string };
 
 export type PersonalAgentPollRequest = {
   protocolVersion: typeof PERSONAL_AGENT_PROTOCOL_VERSION;
@@ -33,7 +38,14 @@ export type PersonalAgentPollRequest = {
 
 export type PersonalAgentPollResponse = {
   protocolVersion: typeof PERSONAL_AGENT_PROTOCOL_VERSION;
-  job: null;
+  job: null | {
+    type: "generation.request";
+    protocolVersion: 1;
+    requestId: string;
+    provider: "google";
+    remoteConversationId: string | null;
+    prompt: string;
+  };
 };
 
 const statusSet = new Set<string>(GEMINI_ADAPTER_STATUSES);
@@ -76,6 +88,27 @@ export function parsePersonalAgentEvent(value: unknown): PersonalAgentEvent {
       throw new Error("invalid_protocol_payload");
     }
     return value as PersonalAgentEvent;
+  }
+
+  if (typeof value.type === "string" && value.type.startsWith("generation.")) {
+    if (typeof value.requestId !== "string" || !value.requestId || value.requestId.length > 100) {
+      throw new Error("invalid_protocol_payload");
+    }
+    if (value.type === "generation.accepted" || value.type === "generation.submitted" || value.type === "generation.ambiguous") {
+      if (!hasExactKeys(value, ["type", "protocolVersion", "requestId"])) throw new Error("invalid_protocol_payload");
+      return value as PersonalAgentEvent;
+    }
+    if (value.type === "generation.completed") {
+      if (!hasExactKeys(value, ["type", "protocolVersion", "requestId", "remoteConversationId", "response"]) ||
+          typeof value.remoteConversationId !== "string" || !value.remoteConversationId || value.remoteConversationId.length > 500 ||
+          typeof value.response !== "string" || value.response.length > 1_000_000) throw new Error("invalid_protocol_payload");
+      return value as PersonalAgentEvent;
+    }
+    if (value.type === "generation.failed") {
+      const allowed = ["conversation_not_found", "automation_changed", "response_timeout_before_submit"];
+      if (!hasExactKeys(value, ["type", "protocolVersion", "requestId", "errorCode"]) || typeof value.errorCode !== "string" || !allowed.includes(value.errorCode)) throw new Error("invalid_protocol_payload");
+      return value as PersonalAgentEvent;
+    }
   }
 
   throw new Error("invalid_protocol_payload");

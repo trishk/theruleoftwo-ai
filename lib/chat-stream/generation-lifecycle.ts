@@ -71,10 +71,11 @@ export async function recoverStaleGenerations(
 ) {
   const generation = await prisma.aiGeneration.findUnique({
     where: { sourceMessageId_provider: { sourceMessageId, provider } },
-    select: { attempts: { orderBy: { attemptNumber: "desc" }, take: 1, select: { id: true, status: true, progressAt: true, providerInvokedAt: true } } },
+    select: { attempts: { orderBy: { attemptNumber: "desc" }, take: 1, select: { id: true, status: true, progressAt: true, providerInvokedAt: true, executionMode: true } } },
   });
   const attempt = generation?.attempts[0];
   if (!attempt) return false;
+  if (attempt.executionMode === "personal") return false;
   const threshold = attempt.status === "pending" ? PENDING_STALE_MS
     : attempt.status === "streaming" ? STREAMING_STALE_MS : null;
   if (threshold === null || attempt.progressAt.getTime() > now.getTime() - threshold) return false;
@@ -87,19 +88,19 @@ export async function recoverStaleGenerations(
 
 export async function recoverStaleGenerationsForConversation(conversationId: number, now = new Date()) {
   const pending = await prisma.aiGenerationAttempt.updateMany({
-    where: { generation: { conversationId }, status: "pending", providerInvokedAt: null, progressAt: { lte: new Date(now.getTime() - PENDING_STALE_MS) } },
+    where: { generation: { conversationId }, executionMode: "api", status: "pending", providerInvokedAt: null, progressAt: { lte: new Date(now.getTime() - PENDING_STALE_MS) } },
     data: { status: "failed", errorCode: "generation_interrupted", failedAt: now },
   });
   const pendingInvoked = await prisma.aiGenerationAttempt.updateMany({
-    where: { generation: { conversationId }, status: "pending", providerInvokedAt: { not: null }, progressAt: { lte: new Date(now.getTime() - PENDING_STALE_MS) } },
+    where: { generation: { conversationId }, executionMode: "api", status: "pending", providerInvokedAt: { not: null }, progressAt: { lte: new Date(now.getTime() - PENDING_STALE_MS) } },
     data: { status: "failed", errorCode: "generation_interrupted", failedAt: now, usageState: "unavailable", costState: "unknown", usageUnavailableReason: "stale_after_provider_invocation", costUnavailableReason: "usage_unavailable" },
   });
   const streaming = await prisma.aiGenerationAttempt.updateMany({
-    where: { generation: { conversationId }, status: "streaming", providerInvokedAt: null, progressAt: { lte: new Date(now.getTime() - STREAMING_STALE_MS) } },
+    where: { generation: { conversationId }, executionMode: "api", status: "streaming", providerInvokedAt: null, progressAt: { lte: new Date(now.getTime() - STREAMING_STALE_MS) } },
     data: { status: "failed", errorCode: "generation_interrupted", failedAt: now },
   });
   const streamingInvoked = await prisma.aiGenerationAttempt.updateMany({
-    where: { generation: { conversationId }, status: "streaming", providerInvokedAt: { not: null }, progressAt: { lte: new Date(now.getTime() - STREAMING_STALE_MS) } },
+    where: { generation: { conversationId }, executionMode: "api", status: "streaming", providerInvokedAt: { not: null }, progressAt: { lte: new Date(now.getTime() - STREAMING_STALE_MS) } },
     data: { status: "failed", errorCode: "generation_interrupted", failedAt: now, usageState: "unavailable", costState: "unknown", usageUnavailableReason: "stale_after_provider_invocation", costUnavailableReason: "usage_unavailable" },
   });
   return pending.count + pendingInvoked.count + streaming.count + streamingInvoked.count;
@@ -149,6 +150,9 @@ export async function reserveGeneration(args: {
     include: { generation: true, retriedBy: { include: { outputMessage: { select: { content: true } } } } },
   });
   if (!parent) throw new Error("RETRY_NOT_FOUND");
+  if (parent.executionMode === "personal" && parent.personalState !== "failed") {
+    throw new Error("RETRY_NOT_ALLOWED");
+  }
   if (parent.status !== "failed" && parent.status !== "stopped") throw new Error("RETRY_NOT_ALLOWED");
   if (parent.retriedBy) {
     return {
@@ -274,9 +278,15 @@ export async function completeAttempt(attemptId: string) {
 }
 
 export async function stopAttempt(attemptId: string) {
+  const attempt = await prisma.aiGenerationAttempt.findUnique({
+    where: { id: attemptId },
+    select: { executionMode: true, status: true },
+  });
+  if (!attempt) return null;
+  if (attempt.executionMode === "personal") return "not_cancellable" as const;
   const now = new Date();
   const result = await prisma.aiGenerationAttempt.updateMany({
-    where: { id: attemptId, status: { in: ["pending", "streaming"] } },
+    where: { id: attemptId, executionMode: "api", status: { in: ["pending", "streaming"] } },
     data: { status: "stopped", stoppedAt: now },
   });
   if (result.count === 1) return "stopped" as const;
