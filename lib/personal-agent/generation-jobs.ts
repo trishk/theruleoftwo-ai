@@ -137,8 +137,8 @@ export async function applyPersonalGenerationEvent(agentId: string, event: {
       const transition = await tx.aiGenerationAttempt.updateMany({ where: { id: attempt.id, status: "streaming", personalState: { in: ["queued", "accepted"] } }, data: { status: "failed", personalState: "failed", failedAt: now, progressAt: now, errorCode: event.errorCode } });
       if (transition.count !== 1) throw new Error("invalid_transition");
     } else {
-      if (attempt.personalState !== "submitted_to_provider") throw new Error("invalid_transition");
-      const transition = await tx.aiGenerationAttempt.updateMany({ where: { id: attempt.id, status: "streaming", personalState: "submitted_to_provider" }, data: { status: "failed", personalState: "ambiguous", failedAt: now, personalAmbiguousAt: now, progressAt: now, errorCode: "ambiguous_after_submit" } });
+      if (!(["accepted", "submitted_to_provider"] as Array<string | null>).includes(attempt.personalState)) throw new Error("invalid_transition");
+      const transition = await tx.aiGenerationAttempt.updateMany({ where: { id: attempt.id, status: "streaming", personalState: { in: ["accepted", "submitted_to_provider"] } }, data: { status: "failed", personalState: "ambiguous", failedAt: now, personalAmbiguousAt: now, progressAt: now, errorCode: "ambiguous_after_submit" } });
       if (transition.count !== 1) throw new Error("invalid_transition");
     }
     return true;
@@ -173,20 +173,20 @@ export async function settlePersonalGenerationTimeout(
   afterInitialAmbiguousMiss?: () => Promise<void>
 ) {
   const ambiguous = await prisma.aiGenerationAttempt.updateMany({
-    where: { id: attemptId, executionMode: "personal", status: "streaming", personalState: "submitted_to_provider" },
+    where: { id: attemptId, executionMode: "personal", status: "streaming", personalState: { in: ["accepted", "submitted_to_provider"] } },
     data: { status: "failed", personalState: "ambiguous", errorCode: "ambiguous_after_submit", failedAt: now, personalAmbiguousAt: now, progressAt: now },
   });
   if (ambiguous.count === 1) throw new Error("ambiguous_after_submit");
   await afterInitialAmbiguousMiss?.();
   const failed = await prisma.aiGenerationAttempt.updateMany({
-    where: { id: attemptId, executionMode: "personal", status: "streaming", personalState: { in: ["queued", "accepted"] } },
+    where: { id: attemptId, executionMode: "personal", status: "streaming", personalState: "queued" },
     data: { status: "failed", personalState: "failed", errorCode: "response_timeout_before_submit", failedAt: now, progressAt: now },
   });
   if (failed.count === 1) throw new Error("response_timeout_before_submit");
   let current = await readPersonalGenerationResult(attemptId);
-  if (current?.personalState === "submitted_to_provider") {
+  if (current?.personalState === "accepted" || current?.personalState === "submitted_to_provider") {
     const finalAmbiguous = await prisma.aiGenerationAttempt.updateMany({
-      where: { id: attemptId, executionMode: "personal", status: "streaming", personalState: "submitted_to_provider" },
+      where: { id: attemptId, executionMode: "personal", status: "streaming", personalState: { in: ["accepted", "submitted_to_provider"] } },
       data: { status: "failed", personalState: "ambiguous", errorCode: "ambiguous_after_submit", failedAt: now, personalAmbiguousAt: now, progressAt: now },
     });
     if (finalAmbiguous.count === 1) throw new Error("ambiguous_after_submit");

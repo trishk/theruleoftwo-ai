@@ -2,7 +2,17 @@ import { join } from "node:path";
 import { readJsonFile, writeJsonAtomic } from "./storage.js";
 
 export type AgentMetadata = { agentId: string; origin: string; credentialFingerprint: string; pairedAt: string; version: 2 };
-export type AgentConfig = { baseUrl: string; metadata: AgentMetadata | null; pollWaitMs: number; requestTimeoutMs: number; heartbeatMs: number; dataDir: string };
+export type AgentConfig = {
+  baseUrl: string;
+  metadata: AgentMetadata | null;
+  pollWaitMs: number;
+  requestTimeoutMs: number;
+  heartbeatMs: number;
+  dataDir: string;
+  geminiCdpEndpoint: string;
+  geminiHydrationTimeoutMs: number;
+  geminiResponseTimeoutMs: number;
+};
 
 export function defaultDataDir(environment: NodeJS.ProcessEnv = process.env): string {
   const root = environment.LOCALAPPDATA;
@@ -24,6 +34,17 @@ export function normalizeOrigin(value: string): string {
   return url.origin;
 }
 
+export function normalizeLoopbackCdpEndpoint(value: string): string {
+  const url = new URL(value);
+  const hostname = url.hostname.toLowerCase();
+  if (url.protocol !== "http:" || url.username || url.password ||
+      (hostname !== "127.0.0.1" && hostname !== "localhost" && hostname !== "[::1]") ||
+      (url.pathname !== "/" && url.pathname !== "") || url.search || url.hash) {
+    throw new Error("invalid_cdp_endpoint");
+  }
+  return url.origin;
+}
+
 export async function loadConfig(environment: NodeJS.ProcessEnv = process.env, mode: "pair" | "run" = "run"): Promise<AgentConfig> {
   const dataDir = environment.TRULEOFTWO_AGENT_DATA_DIR || defaultDataDir(environment);
   const metadata = await readJsonFile<AgentMetadata>(join(dataDir, "agent.json"));
@@ -38,6 +59,9 @@ export async function loadConfig(environment: NodeJS.ProcessEnv = process.env, m
     pollWaitMs: integerSetting(environment.TRULEOFTWO_POLL_WAIT_MS, 20_000, 25_000),
     requestTimeoutMs: integerSetting(environment.TRULEOFTWO_REQUEST_TIMEOUT_MS, 30_000, 120_000),
     heartbeatMs: integerSetting(environment.TRULEOFTWO_HEARTBEAT_MS, 15_000, 300_000),
+    geminiCdpEndpoint: normalizeLoopbackCdpEndpoint(environment.TRULEOFTWO_GEMINI_CDP_ENDPOINT ?? "http://127.0.0.1:9222"),
+    geminiHydrationTimeoutMs: integerSetting(environment.TRULEOFTWO_GEMINI_HYDRATION_TIMEOUT_MS, 15_000, 60_000),
+    geminiResponseTimeoutMs: integerSetting(environment.TRULEOFTWO_GEMINI_RESPONSE_TIMEOUT_MS, 120_000, 600_000),
   };
 }
 

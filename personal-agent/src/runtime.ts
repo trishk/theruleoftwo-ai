@@ -5,7 +5,7 @@ import { AgentHttpError, type PersonalAgentHttpClient } from "./http-client.js";
 import type { ExecutionJournal } from "./journal.js";
 import type { Logger } from "./logger.js";
 import { credentialAgentId, credentialFingerprint } from "./pairing.js";
-import { PROTOCOL_VERSION, type AgentEvent, type GenerationJob, type PersonalProviderAdapter } from "./types.js";
+import { AdapterExecutionError, PROTOCOL_VERSION, type AgentEvent, type GenerationJob, type PersonalProviderAdapter } from "./types.js";
 
 type RuntimeDependencies = {
   config: AgentConfig;
@@ -135,6 +135,10 @@ export class PersonalAgentRuntime {
       await journal.set(job.requestId, "accepted");
       logger.info(`Job ${job.requestId}: generation.accepted.`);
       const result = await adapter.execute(job, {
+        sendAttempted: async () => {
+          await journal.set(job.requestId, "send_attempted");
+          logger.info(`Job ${job.requestId}: send_attempted.`);
+        },
         submitted: async () => {
           submitted = true;
           await journal.set(job.requestId, "submitted");
@@ -146,9 +150,10 @@ export class PersonalAgentRuntime {
       logger.info(`Job ${job.requestId}: generation.completed.`);
       await journal.delete(job.requestId);
     } catch (error) {
-      const terminal: AgentEvent = submitted
+      const possiblySubmitted = error instanceof AdapterExecutionError && error.possiblySubmitted;
+      const terminal: AgentEvent = submitted || possiblySubmitted
         ? { type: "generation.ambiguous", protocolVersion: 1, requestId: job.requestId }
-        : { type: "generation.failed", protocolVersion: 1, requestId: job.requestId, errorCode: "automation_changed" };
+        : { type: "generation.failed", protocolVersion: 1, requestId: job.requestId, errorCode: adapterFailureCode(error) };
       try {
         await this.send(terminal);
         logger.error(`Job ${job.requestId}: ${terminal.type} (${errorCode(error)}).`);
@@ -162,8 +167,8 @@ export class PersonalAgentRuntime {
   }
 
   private send(event: AgentEvent) { return this.dependencies.client.event(this.requiredCredential(), event, this.controller.signal); }
-  private async recoverRequest(requestId: string, phase: "received" | "accepted" | "submitted") {
-    const event: AgentEvent = phase === "submitted"
+  private async recoverRequest(requestId: string, phase: "received" | "accepted" | "send_attempted" | "submitted") {
+    const event: AgentEvent = phase === "send_attempted" || phase === "submitted"
       ? { type: "generation.ambiguous", protocolVersion: 1, requestId }
       : { type: "generation.failed", protocolVersion: 1, requestId, errorCode: "response_timeout_before_submit" };
     this.dependencies.logger.info(`Recovering job ${requestId} as ${event.type}.`);
@@ -190,7 +195,13 @@ function shortGracePeriod(ms: number): Promise<void> {
 }
 
 function errorCode(error: unknown): string {
+  if (error instanceof AdapterExecutionError) return error.code;
   if (error instanceof AgentHttpError) return error.code;
   if (error instanceof Error && /^fake_(before|after)_submit$/.test(error.message)) return "adapter_failure";
   return "runtime_error";
+}
+
+function adapterFailureCode(error: unknown): "conversation_not_found" | "automation_changed" | "response_timeout_before_submit" {
+  if (error instanceof AdapterExecutionError && error.code !== "chrome_unavailable") return error.code;
+  return "automation_changed";
 }

@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ExponentialBackoff, delay } from "../src/backoff.js";
 import { loadConfig, normalizeOrigin, saveMetadata, type AgentConfig, type AgentMetadata } from "../src/config.js";
-import { DpapiCredentialStore, type CredentialStore } from "../src/credential-store.js";
+import { DpapiCredentialStore, dpapiPowerShellInvocation, windowsDpapi, type CredentialStore } from "../src/credential-store.js";
 import { FakeGeminiAdapter } from "../src/fake-gemini-adapter.js";
 import { AgentHttpError, PersonalAgentHttpClient } from "../src/http-client.js";
 import { ExecutionJournal } from "../src/journal.js";
@@ -15,7 +15,7 @@ import { readPairingToken, validatePairArguments } from "../src/input.js";
 import type { Logger } from "../src/logger.js";
 import { credentialFingerprint, pairAgent } from "../src/pairing.js";
 import { PersonalAgentRuntime } from "../src/runtime.js";
-import type { AgentEvent, GenerationJob, PersonalProviderAdapter } from "../src/types.js";
+import { AdapterExecutionError, type AgentEvent, type GenerationJob, type PersonalProviderAdapter } from "../src/types.js";
 
 const temporaryDirectories: string[] = [];
 const AGENT_ID = "00000000-0000-4000-8000-000000000001";
@@ -25,7 +25,8 @@ afterEach(async () => { await Promise.all(temporaryDirectories.splice(0).map((pa
 async function temporaryDirectory() { const path = await mkdtemp(join(tmpdir(), "personal-agent-test-")); temporaryDirectories.push(path); return path; }
 
 function config(dataDir: string): AgentConfig {
-  return { baseUrl: "https://example.test", metadata: metadata(CREDENTIAL), dataDir, pollWaitMs: 0, requestTimeoutMs: 100, heartbeatMs: 300_000 };
+  return { baseUrl: "https://example.test", metadata: metadata(CREDENTIAL), dataDir, pollWaitMs: 0, requestTimeoutMs: 100, heartbeatMs: 300_000,
+    geminiCdpEndpoint: "http://127.0.0.1:9222", geminiHydrationTimeoutMs: 15_000, geminiResponseTimeoutMs: 120_000 };
 }
 
 function metadata(credential: string, origin = "https://example.test"): AgentMetadata {
@@ -52,6 +53,32 @@ function logger() {
 const job: GenerationJob = { type: "generation.request", protocolVersion: 1, requestId: "request-1", provider: "google", remoteConversationId: null, prompt: "TOP SECRET PROMPT" };
 
 describe("credential storage and pairing", () => {
+  it.each(["protect", "unprotect"] as const)("loads System.Security before the %s DPAPI path", (operation) => {
+    const invocation = dpapiPowerShellInvocation(operation);
+    const script = invocation.args.at(-1) ?? "";
+    expect(invocation.executable).toBe("powershell.exe");
+    expect(script.startsWith("Add-Type -AssemblyName System.Security;")).toBe(true);
+    expect(script).toContain(`[Security.Cryptography.ProtectedData]::${operation === "protect" ? "Protect" : "Unprotect"}`);
+    expect(script.indexOf("Add-Type -AssemblyName System.Security")).toBeLessThan(script.indexOf("[Security.Cryptography.ProtectedData]"));
+  });
+
+  it("keeps credential material out of PowerShell process arguments", () => {
+    const credential = "pa1.STDIN_ONLY_SECRET";
+    for (const operation of ["protect", "unprotect"] as const) {
+      const invocation = dpapiPowerShellInvocation(operation);
+      expect(invocation.args.join(" ")).not.toContain(credential);
+      expect(invocation.args).toContain("-Command");
+      expect(invocation.args.at(-1)).toContain("[Console]::In.ReadToEnd()");
+    }
+  });
+
+  it.runIf(process.platform === "win32" && process.env.TRULEOFTWO_RUN_DPAPI_INTEGRATION === "1")("round-trips a test value through Windows PowerShell DPAPI", async () => {
+    const testValue = "obviously-false-dpapi-test-value";
+    const encrypted = await windowsDpapi.protect(testValue);
+    expect(encrypted).not.toContain(testValue);
+    await expect(windowsDpapi.unprotect(encrypted)).resolves.toBe(testValue);
+  });
+
   it("stores only DPAPI-protected ciphertext and can retrieve it", async () => {
     const directory = await temporaryDirectory();
     const path = join(directory, "credential.dpapi");
@@ -235,12 +262,13 @@ async function makeRuntime(options: { adapter?: PersonalProviderAdapter; client?
   const credentials = memoryStore(options.initialCredential === undefined ? CREDENTIAL : options.initialCredential);
   const output = logger();
   const client = options.client ?? { poll: vi.fn(), event: vi.fn(async () => undefined) };
+  const journal = new ExecutionJournal(join(dataDir, "journal.json"));
   const runtime = new PersonalAgentRuntime({
     config: config(dataDir), client: client as unknown as PersonalAgentHttpClient, credentialStore: credentials.store,
-    journal: new ExecutionJournal(join(dataDir, "journal.json")), adapter: options.adapter ?? new FakeGeminiAdapter(), logger: output.logger,
+    journal, adapter: options.adapter ?? new FakeGeminiAdapter(), logger: output.logger,
     sleep: delay,
   });
-  return { runtime, client, credentials, output, dataDir };
+  return { runtime, client, credentials, output, dataDir, journal };
 }
 
 describe("generation lifecycle", () => {
@@ -266,6 +294,48 @@ describe("generation lifecycle", () => {
     }
   });
 
+  it("preserves narrow adapter failures and post-Send uncertainty", async () => {
+    for (const [failure, expectedType, expectedCode] of [
+      [new AdapterExecutionError("conversation_not_found"), "generation.failed", "conversation_not_found"],
+      [new AdapterExecutionError("response_timeout_before_submit"), "generation.failed", "response_timeout_before_submit"],
+      [new AdapterExecutionError("automation_changed", true), "generation.ambiguous", undefined],
+    ] as const) {
+      const adapter: PersonalProviderAdapter = { provider: "google", getStatus: async () => "ready", execute: async () => { throw failure; } };
+      const client: FakeClient = { poll: vi.fn(async () => job), event: vi.fn(async (_credential: string, event: AgentEvent) => {
+        if (event.type === expectedType) setup.runtime.stop();
+      }) };
+      const setup = await makeRuntime({ adapter, client });
+      await setup.runtime.run();
+      const terminal = setup.client.event.mock.calls.at(-1)?.[1] as AgentEvent;
+      expect(terminal.type).toBe(expectedType);
+      if (terminal.type === "generation.failed") expect(terminal.errorCode).toBe(expectedCode);
+    }
+  });
+
+  it("does not invoke Send when send-attempted persistence fails", async () => {
+    let sendCount = 0;
+    const adapter: PersonalProviderAdapter = {
+      provider: "google", getStatus: async () => "ready",
+      execute: async (_job, callbacks) => {
+        await callbacks.sendAttempted();
+        sendCount += 1;
+        throw new Error("should_not_reach_send");
+      },
+    };
+    const client: FakeClient = { poll: vi.fn(async () => job), event: vi.fn(async (_credential: string, event: AgentEvent) => {
+      if (event.type === "generation.failed") setup.runtime.stop();
+    }) };
+    const setup = await makeRuntime({ adapter, client });
+    const originalSet = setup.journal.set.bind(setup.journal);
+    vi.spyOn(setup.journal, "set").mockImplementation(async (requestId, phase) => {
+      if (phase === "send_attempted") throw new Error("disk_write_failed");
+      await originalSet(requestId, phase);
+    });
+    await setup.runtime.run();
+    expect(sendCount).toBe(0);
+    expect(client.event.mock.calls.map((call) => call[1].type)).toContain("generation.failed");
+  });
+
   it("does not log credential, prompt, or response content", async () => {
     // eslint-disable-next-line prefer-const
     let runtime!: PersonalAgentRuntime;
@@ -276,6 +346,20 @@ describe("generation lifecycle", () => {
     expect(logs).not.toContain(CREDENTIAL);
     expect(logs).not.toContain(job.prompt);
     expect(logs).not.toContain("Fake Gemini response");
+  });
+
+  it("does not log raw adapter errors containing page-derived text", async () => {
+    const secret = "SECRET_PAGE_TEXT_123";
+    const adapter: PersonalProviderAdapter = {
+      provider: "google", getStatus: async () => "ready",
+      execute: async () => { throw new Error(secret); },
+    };
+    const client: FakeClient = { poll: vi.fn(async () => job), event: vi.fn(async (_credential: string, event: AgentEvent) => {
+      if (event.type === "generation.failed") setup.runtime.stop();
+    }) };
+    const setup = await makeRuntime({ adapter, client });
+    await setup.runtime.run();
+    expect(setup.output.lines.join(" ")).not.toContain(secret);
   });
 
   it("ignores a duplicate request while it is executing", async () => {
@@ -332,6 +416,44 @@ describe("reconnect, recovery, and shutdown", () => {
     ({ runtime } = await makeRuntime({ client, adapter, dataDir }));
     await runtime.run();
     expect(client.event.mock.calls.map((call) => call[1].type)).toContain("generation.ambiguous");
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["hard crash after send-attempted persistence but before click", false],
+    ["hard crash after click but before submitted callback", true],
+  ])("recovers %s as ambiguous without adapter re-execution", async (_name, simulateClick) => {
+    const dataDir = await temporaryDirectory();
+    let checkpointed!: () => void;
+    const checkpoint = new Promise<void>((resolve) => { checkpointed = resolve; });
+    let clickCount = 0;
+    const firstAdapter: PersonalProviderAdapter = {
+      provider: "google", getStatus: async () => "ready",
+      execute: async (_job, callbacks) => {
+        await callbacks.sendAttempted();
+        if (simulateClick) clickCount += 1;
+        checkpointed();
+        return new Promise<never>(() => undefined);
+      },
+    };
+    const first = await makeRuntime({ adapter: firstAdapter, dataDir, client: { poll: vi.fn(async () => job), event: vi.fn(async () => undefined) } });
+    const running = first.runtime.run();
+    await checkpoint;
+    first.runtime.stop();
+    await expect(running).resolves.toBe("stopped");
+    const persisted = new ExecutionJournal(join(dataDir, "journal.json"));
+    await persisted.load();
+    expect(persisted.get(job.requestId)).toBe("send_attempted");
+    expect(clickCount).toBe(simulateClick ? 1 : 0);
+
+    const recoveredAdapter = new FakeGeminiAdapter();
+    const execute = vi.spyOn(recoveredAdapter, "execute");
+    const recoveryClient: FakeClient = { poll: vi.fn(), event: vi.fn(async (_credential: string, event: AgentEvent) => {
+      if (event.type === "generation.ambiguous") recovered.runtime.stop();
+    }) };
+    const recovered = await makeRuntime({ adapter: recoveredAdapter, dataDir, client: recoveryClient });
+    await recovered.runtime.run();
+    expect(recoveryClient.event.mock.calls.map((call) => call[1].type)).toContain("generation.ambiguous");
     expect(execute).not.toHaveBeenCalled();
   });
 

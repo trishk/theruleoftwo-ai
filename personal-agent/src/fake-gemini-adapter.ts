@@ -7,6 +7,7 @@ export class FakeGeminiAdapter implements PersonalProviderAdapter {
 
   async execute(job: GenerationJob, callbacks: AdapterCallbacks) {
     if (this.failure === "before_submit") throw new Error("fake_before_submit");
+    await callbacks.sendAttempted();
     await callbacks.submitted();
     if (this.failure === "after_submit") throw new Error("fake_after_submit");
     return {

@@ -18,11 +18,23 @@ export type AgentEvent =
   | { type: "generation.completed"; protocolVersion: 1; requestId: string; remoteConversationId: string; response: string }
   | { type: "generation.failed"; protocolVersion: 1; requestId: string; errorCode: "conversation_not_found" | "automation_changed" | "response_timeout_before_submit" };
 
-export type AdapterCallbacks = { submitted(): Promise<void> };
+export type AdapterCallbacks = {
+  sendAttempted(): Promise<void>;
+  submitted(): Promise<void>;
+};
 export type AdapterResult = { remoteConversationId: string; response: string };
 
 export interface PersonalProviderAdapter {
   readonly provider: "google";
   getStatus(): Promise<AdapterStatus>;
   execute(job: GenerationJob, callbacks: AdapterCallbacks): Promise<AdapterResult>;
+}
+
+export type AdapterFailureCode = "conversation_not_found" | "automation_changed" | "response_timeout_before_submit" | "chrome_unavailable";
+
+export class AdapterExecutionError extends Error {
+  constructor(readonly code: AdapterFailureCode, readonly possiblySubmitted = false) {
+    super(code);
+    this.name = "AdapterExecutionError";
+  }
 }

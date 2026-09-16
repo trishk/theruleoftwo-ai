@@ -1,6 +1,6 @@
 import { readJsonFile, writeJsonAtomic } from "./storage.js";
 
-export type ExecutionPhase = "received" | "accepted" | "submitted";
+export type ExecutionPhase = "received" | "accepted" | "send_attempted" | "submitted";
 type JournalData = { version: 1; entries: Record<string, ExecutionPhase> };
 
 export class ExecutionJournal {
@@ -12,7 +12,7 @@ export class ExecutionJournal {
     if (!data) return;
     if (data.version !== 1 || typeof data.entries !== "object" || data.entries === null) throw new Error("invalid_execution_journal");
     for (const [id, phase] of Object.entries(data.entries)) {
-      if (id && (phase === "received" || phase === "accepted" || phase === "submitted")) this.entries.set(id, phase);
+      if (id && (phase === "received" || phase === "accepted" || phase === "send_attempted" || phase === "submitted")) this.entries.set(id, phase);
     }
   }
 

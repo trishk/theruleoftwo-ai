@@ -10,12 +10,21 @@ export interface CredentialStore {
 
 export type Dpapi = { protect(value: string): Promise<string>; unprotect(value: string): Promise<string> };
 
-const protectScript = "$v=[Console]::In.ReadToEnd();$b=[Text.Encoding]::UTF8.GetBytes($v);$e=[Security.Cryptography.ProtectedData]::Protect($b,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser);[Console]::Out.Write([Convert]::ToBase64String($e))";
-const unprotectScript = "$v=[Console]::In.ReadToEnd();$b=[Convert]::FromBase64String($v);$d=[Security.Cryptography.ProtectedData]::Unprotect($b,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser);[Console]::Out.Write([Text.Encoding]::UTF8.GetString($d))";
+const loadSecurityAssembly = "Add-Type -AssemblyName System.Security";
+const protectScript = `${loadSecurityAssembly};$v=[Console]::In.ReadToEnd();$b=[Text.Encoding]::UTF8.GetBytes($v);$e=[Security.Cryptography.ProtectedData]::Protect($b,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser);[Console]::Out.Write([Convert]::ToBase64String($e))`;
+const unprotectScript = `${loadSecurityAssembly};$v=[Console]::In.ReadToEnd();$b=[Convert]::FromBase64String($v);$d=[Security.Cryptography.ProtectedData]::Unprotect($b,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser);[Console]::Out.Write([Text.Encoding]::UTF8.GetString($d))`;
 
-function runPowerShell(script: string, input: string): Promise<string> {
+export function dpapiPowerShellInvocation(operation: "protect" | "unprotect") {
+  return {
+    executable: "powershell.exe",
+    args: ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", operation === "protect" ? protectScript : unprotectScript],
+  };
+}
+
+function runPowerShell(operation: "protect" | "unprotect", input: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script], {
+    const invocation = dpapiPowerShellInvocation(operation);
+    const child = spawn(invocation.executable, invocation.args, {
       stdio: ["pipe", "pipe", "pipe"], windowsHide: true,
     });
     const stdout: Buffer[] = [];
@@ -29,8 +38,8 @@ function runPowerShell(script: string, input: string): Promise<string> {
 }
 
 export const windowsDpapi: Dpapi = {
-  protect: (value) => runPowerShell(protectScript, value),
-  unprotect: (value) => runPowerShell(unprotectScript, value),
+  protect: (value) => runPowerShell("protect", value),
+  unprotect: (value) => runPowerShell("unprotect", value),
 };
 
 export class DpapiCredentialStore implements CredentialStore {

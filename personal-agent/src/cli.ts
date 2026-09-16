@@ -1,6 +1,6 @@
 import { loadConfig, credentialPath, journalPath } from "./config.js";
 import { DpapiCredentialStore } from "./credential-store.js";
-import { FakeGeminiAdapter } from "./fake-gemini-adapter.js";
+import { GeminiBrowserAdapter } from "./gemini-browser-adapter.js";
 import { PersonalAgentHttpClient, AgentHttpError } from "./http-client.js";
 import { ExecutionJournal } from "./journal.js";
 import { consoleLogger } from "./logger.js";
@@ -21,7 +21,7 @@ async function main() {
     return;
   }
   if (command !== "run") throw new Error("usage: personal-agent <pair|run>");
-  const runtime = new PersonalAgentRuntime({ config, client, credentialStore: store, journal: new ExecutionJournal(journalPath(config.dataDir)), adapter: new FakeGeminiAdapter(), logger: consoleLogger });
+  const runtime = new PersonalAgentRuntime({ config, client, credentialStore: store, journal: new ExecutionJournal(journalPath(config.dataDir)), adapter: new GeminiBrowserAdapter(config), logger: consoleLogger });
   const shutdown = () => { consoleLogger.info("Stopping Personal Agent."); runtime.stop(); };
   process.once("SIGINT", shutdown);
   process.once("SIGTERM", shutdown);

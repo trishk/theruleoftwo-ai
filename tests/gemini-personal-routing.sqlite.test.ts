@@ -14,6 +14,14 @@ vi.mock("@/lib/db/prisma", () => ({ get prisma() { return database.client!; } })
 import { reserveGeneration, stopAttempt } from "@/lib/chat-stream/generation-lifecycle";
 import { applyPersonalGenerationEvent, claimNextPersonalGeneration, queuePersonalGeneration, settlePersonalGenerationTimeout, waitForPersonalGeneration } from "@/lib/personal-agent/generation-jobs";
 import { buildPersonalDeltaPrompt, PERSONAL_DELTA_FORMAT, PERSONAL_DELTA_MAX_CHARS } from "@/lib/personal-agent/delta-context";
+import type { AgentConfig } from "../personal-agent/src/config.js";
+import type { CredentialStore } from "../personal-agent/src/credential-store.js";
+import type { PersonalAgentHttpClient } from "../personal-agent/src/http-client.js";
+import { ExecutionJournal } from "../personal-agent/src/journal.js";
+import type { Logger } from "../personal-agent/src/logger.js";
+import { credentialFingerprint } from "../personal-agent/src/pairing.js";
+import { PersonalAgentRuntime } from "../personal-agent/src/runtime.js";
+import { AdapterExecutionError, type AgentEvent, type PersonalProviderAdapter } from "../personal-agent/src/types.js";
 
 let directory: string;
 let client: PrismaClient;
@@ -141,6 +149,112 @@ describe("Gemini Personal durable routing", () => {
     await applyPersonalGenerationEvent("agent", { type: "generation.ambiguous", requestId: seeded.attempt.id });
   });
 
+  it("accepts ambiguity from accepted and prevents retry", async () => {
+    const seeded = await seedAttempt("accepted-ambiguous");
+    await queuePersonalGeneration(seeded.attempt.id, "accepted ambiguous prompt");
+    await claimNextPersonalGeneration("agent");
+    await applyPersonalGenerationEvent("agent", { type: "generation.accepted", requestId: seeded.attempt.id });
+    await applyPersonalGenerationEvent("agent", { type: "generation.ambiguous", requestId: seeded.attempt.id });
+    expect(await client.aiGenerationAttempt.findUniqueOrThrow({ where: { id: seeded.attempt.id } })).toMatchObject({
+      status: "failed",
+      personalState: "ambiguous",
+      errorCode: "ambiguous_after_submit",
+    });
+    await expect(reserveGeneration({ conversationId: seeded.conversation.id, sourceMessageId: seeded.source.id, provider: "google", requesterId: "owner", retryOfAttemptId: seeded.attempt.id })).rejects.toThrow("RETRY_NOT_ALLOWED");
+  });
+
+  it("times out accepted as ambiguous and prevents retry", async () => {
+    const seeded = await seedAttempt("accepted-timeout");
+    await queuePersonalGeneration(seeded.attempt.id, "accepted timeout prompt");
+    await claimNextPersonalGeneration("agent");
+    await applyPersonalGenerationEvent("agent", { type: "generation.accepted", requestId: seeded.attempt.id });
+    await expect(settlePersonalGenerationTimeout(seeded.attempt.id)).rejects.toThrow("ambiguous_after_submit");
+    expect(await client.aiGenerationAttempt.findUniqueOrThrow({ where: { id: seeded.attempt.id } })).toMatchObject({
+      status: "failed",
+      personalState: "ambiguous",
+      errorCode: "ambiguous_after_submit",
+    });
+    await expect(reserveGeneration({ conversationId: seeded.conversation.id, sourceMessageId: seeded.source.id, provider: "google", requesterId: "owner", retryOfAttemptId: seeded.attempt.id })).rejects.toThrow("RETRY_NOT_ALLOWED");
+  });
+
+  it("times out submitted as ambiguous and prevents retry", async () => {
+    const seeded = await seedAttempt("submitted-timeout");
+    await queuePersonalGeneration(seeded.attempt.id, "submitted timeout prompt");
+    await claimNextPersonalGeneration("agent");
+    await applyPersonalGenerationEvent("agent", { type: "generation.accepted", requestId: seeded.attempt.id });
+    await applyPersonalGenerationEvent("agent", { type: "generation.submitted", requestId: seeded.attempt.id });
+    await expect(settlePersonalGenerationTimeout(seeded.attempt.id)).rejects.toThrow("ambiguous_after_submit");
+    expect(await client.aiGenerationAttempt.findUniqueOrThrow({ where: { id: seeded.attempt.id } })).toMatchObject({ personalState: "ambiguous" });
+    await expect(reserveGeneration({ conversationId: seeded.conversation.id, sourceMessageId: seeded.source.id, provider: "google", requesterId: "owner", retryOfAttemptId: seeded.attempt.id })).rejects.toThrow("RETRY_NOT_ALLOWED");
+  });
+
+  it("keeps queued timeout retryable as a known pre-submit failure", async () => {
+    const seeded = await seedAttempt("queued-timeout");
+    await queuePersonalGeneration(seeded.attempt.id, "queued timeout prompt");
+    await expect(settlePersonalGenerationTimeout(seeded.attempt.id)).rejects.toThrow("response_timeout_before_submit");
+    expect(await client.aiGenerationAttempt.findUniqueOrThrow({ where: { id: seeded.attempt.id } })).toMatchObject({
+      status: "failed",
+      personalState: "failed",
+      errorCode: "response_timeout_before_submit",
+    });
+    await expect(reserveGeneration({ conversationId: seeded.conversation.id, sourceMessageId: seeded.source.id, provider: "google", requesterId: "owner", retryOfAttemptId: seeded.attempt.id })).resolves.toMatchObject({ created: true, status: "pending" });
+  });
+
+  it("keeps explicit pre-send failure from accepted retryable", async () => {
+    const seeded = await seedAttempt("accepted-explicit-failure");
+    await queuePersonalGeneration(seeded.attempt.id, "accepted explicit failure prompt");
+    await claimNextPersonalGeneration("agent");
+    await applyPersonalGenerationEvent("agent", { type: "generation.accepted", requestId: seeded.attempt.id });
+    await applyPersonalGenerationEvent("agent", { type: "generation.failed", requestId: seeded.attempt.id, errorCode: "automation_changed" });
+    expect(await client.aiGenerationAttempt.findUniqueOrThrow({ where: { id: seeded.attempt.id } })).toMatchObject({
+      status: "failed",
+      personalState: "failed",
+      errorCode: "automation_changed",
+    });
+    await expect(reserveGeneration({ conversationId: seeded.conversation.id, sourceMessageId: seeded.source.id, provider: "google", requesterId: "owner", retryOfAttemptId: seeded.attempt.id })).resolves.toMatchObject({ created: true, status: "pending" });
+  });
+
+  it("persists runtime post-Send uncertainty from accepted and prevents retry", async () => {
+    const seeded = await seedAttempt("runtime-accepted-ambiguous");
+    await queuePersonalGeneration(seeded.attempt.id, "runtime ambiguous prompt");
+    const request = await claimNextPersonalGeneration("agent");
+    expect(request).not.toBeNull();
+    const runtimeAgentId = "00000000-0000-4000-8000-000000000001";
+    const credential = `pa1.${runtimeAgentId}.${"A".repeat(43)}`;
+    const config: AgentConfig = {
+      baseUrl: "https://example.test",
+      metadata: { agentId: runtimeAgentId, origin: "https://example.test", credentialFingerprint: credentialFingerprint(credential), pairedAt: "2026-01-01T00:00:00.000Z", version: 2 },
+      dataDir: directory,
+      pollWaitMs: 0,
+      requestTimeoutMs: 100,
+      heartbeatMs: 300_000,
+      geminiCdpEndpoint: "http://127.0.0.1:9222",
+      geminiHydrationTimeoutMs: 15_000,
+      geminiResponseTimeoutMs: 120_000,
+    };
+    const adapter = {
+      provider: "google",
+      getStatus: async () => "ready" as const,
+      execute: async () => { throw new AdapterExecutionError("automation_changed", true); },
+    } satisfies PersonalProviderAdapter;
+    const runtimeClient = {
+      poll: vi.fn(async () => request),
+      event: vi.fn(async (_credential: string, event: AgentEvent) => {
+        if (event.type === "generation.accepted") await applyPersonalGenerationEvent("agent", event);
+        if (event.type === "generation.ambiguous") {
+          try { await applyPersonalGenerationEvent("agent", event); }
+          finally { runtime.stop(); }
+        }
+      }),
+    } as unknown as PersonalAgentHttpClient;
+    const credentialStore = { get: async () => credential, set: async () => undefined, delete: async () => undefined } satisfies CredentialStore;
+    const logger = { info: () => undefined, error: () => undefined } satisfies Logger;
+    const runtime = new PersonalAgentRuntime({ config, client: runtimeClient, credentialStore, journal: new ExecutionJournal(path.join(directory, "runtime-ambiguity-journal.json")), adapter, logger });
+    await runtime.run();
+    expect(await client.aiGenerationAttempt.findUniqueOrThrow({ where: { id: seeded.attempt.id } })).toMatchObject({ personalState: "ambiguous" });
+    await expect(reserveGeneration({ conversationId: seeded.conversation.id, sourceMessageId: seeded.source.id, provider: "google", requesterId: "owner", retryOfAttemptId: seeded.attempt.id })).rejects.toThrow("RETRY_NOT_ALLOWED");
+  });
+
   it("does not let a completion event resurrect a legacy stopped Personal attempt", async () => {
     const seeded = await seedAttempt("legacy-stopped");
     await queuePersonalGeneration(seeded.attempt.id, "legacy stopped prompt");
@@ -164,13 +278,12 @@ describe("Gemini Personal durable routing", () => {
     await expect(waiting).resolves.toBe("won the race");
   });
 
-  it("persists ambiguous when accepted becomes submitted between timeout transitions", async () => {
-    const seeded = await seedAttempt("timeout-submit-interleaving");
-    await queuePersonalGeneration(seeded.attempt.id, "timeout submit prompt");
+  it("persists ambiguous when queued becomes accepted between timeout transitions", async () => {
+    const seeded = await seedAttempt("timeout-accept-interleaving");
+    await queuePersonalGeneration(seeded.attempt.id, "timeout accept prompt");
     await claimNextPersonalGeneration("agent");
-    await applyPersonalGenerationEvent("agent", { type: "generation.accepted", requestId: seeded.attempt.id });
     const settlement = settlePersonalGenerationTimeout(seeded.attempt.id, new Date(), async () => {
-      await applyPersonalGenerationEvent("agent", { type: "generation.submitted", requestId: seeded.attempt.id });
+      await applyPersonalGenerationEvent("agent", { type: "generation.accepted", requestId: seeded.attempt.id });
     });
     await expect(settlement).rejects.toThrow("ambiguous_after_submit");
     expect(await client.aiGenerationAttempt.findUniqueOrThrow({ where: { id: seeded.attempt.id } })).toMatchObject({
