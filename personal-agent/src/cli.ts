@@ -5,6 +5,7 @@ import { PersonalAgentHttpClient, AgentHttpError } from "./http-client.js";
 import { ExecutionJournal } from "./journal.js";
 import { consoleLogger } from "./logger.js";
 import { pairAgent } from "./pairing.js";
+import { runPreflight } from "./preflight.js";
 import { PersonalAgentRuntime } from "./runtime.js";
 import { readPairingToken, validatePairArguments } from "./input.js";
 
@@ -19,7 +20,18 @@ async function main() {
     await pairAgent(await readPairingToken(process.stdin), config, client, store, consoleLogger);
     return;
   }
-  if (command !== "run") throw new Error("usage: personal-agent <pair|run>");
+  if (command === "preflight") {
+    await runPreflight({
+      config,
+      client,
+      credentialStore: store,
+      journal: new ExecutionJournal(config.journalPath),
+      adapter: new GeminiBrowserAdapter(config),
+      logger: consoleLogger,
+    });
+    return;
+  }
+  if (command !== "run") throw new Error("usage: personal-agent <pair|preflight|run>");
   const runtime = new PersonalAgentRuntime({ config, client, credentialStore: store, journal: new ExecutionJournal(config.journalPath), adapter: new GeminiBrowserAdapter(config), logger: consoleLogger });
   const shutdown = () => { consoleLogger.info("Stopping Personal Agent."); runtime.stop(); };
   process.once("SIGINT", shutdown);
@@ -37,6 +49,10 @@ main().catch((error: unknown) => {
     : code === "credential_store_unavailable" ? "The configured Personal Agent credential file is unavailable."
     : code === "paired_origin_mismatch" ? "Configured server differs from the paired server; re-pair explicitly."
     : code === "paired_state_mismatch" || code === "pairing_metadata_required" ? "Paired state is inconsistent; re-pair explicitly."
+    : code === "agent_state_not_writable" ? "Persistent Personal Agent state is not writable."
+    : code === "preflight_chrome_unavailable" ? "Preflight failed: Chromium CDP is unavailable."
+    : code === "preflight_sign_in_required" ? "Preflight failed: manually sign in to Google/Gemini in the Chromium GUI."
+    : code === "preflight_gemini_unavailable" ? "Preflight failed: Gemini is not ready in Chromium."
     : code === "pairing_token_must_use_stdin" ? "Do not pass the pairing token as an argument; run pair and enter it on stdin."
     : code.startsWith("usage:") ? code : `Personal Agent could not start (${code}).`;
   consoleLogger.error(friendly);

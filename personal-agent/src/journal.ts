@@ -9,11 +9,14 @@ export class ExecutionJournal {
 
   async load(): Promise<void> {
     const data = await readJsonFile<JournalData>(this.path);
-    if (!data) return;
-    if (data.version !== 1 || typeof data.entries !== "object" || data.entries === null) throw new Error("invalid_execution_journal");
+    if (data === undefined) return;
+    if (typeof data !== "object" || data === null || data.version !== 1 ||
+        typeof data.entries !== "object" || data.entries === null || Array.isArray(data.entries)) {
+      throw new Error("invalid_execution_journal");
+    }
     const loaded = new Map<string, ExecutionPhase>();
     for (const [id, phase] of Object.entries(data.entries)) {
-      if (!id || (phase !== "received" && phase !== "accepted" && phase !== "send_attempted" && phase !== "submitted")) {
+      if (!id || id.length > 100 || (phase !== "received" && phase !== "accepted" && phase !== "send_attempted" && phase !== "submitted")) {
         throw new Error("invalid_execution_journal");
       }
       loaded.set(id, phase);

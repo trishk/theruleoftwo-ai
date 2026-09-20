@@ -15,6 +15,30 @@ export type AgentConfig = {
   geminiResponseTimeoutMs: number;
 };
 
+const AGENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const CREDENTIAL_FINGERPRINT = /^[0-9a-f]{64}$/;
+
+function parseAgentMetadata(value: unknown): AgentMetadata | null {
+  if (value === undefined) return null;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error("invalid_agent_metadata");
+  const record = value as Record<string, unknown>;
+  const expectedKeys = ["agentId", "origin", "credentialFingerprint", "pairedAt", "version"];
+  if (Object.keys(record).sort().join("|") !== expectedKeys.sort().join("|") ||
+      typeof record.agentId !== "string" || !AGENT_ID.test(record.agentId) ||
+      typeof record.origin !== "string" ||
+      typeof record.credentialFingerprint !== "string" || !CREDENTIAL_FINGERPRINT.test(record.credentialFingerprint) ||
+      typeof record.pairedAt !== "string" || !isCanonicalTimestamp(record.pairedAt) ||
+      record.version !== 2) {
+    throw new Error("invalid_agent_metadata");
+  }
+  return record as AgentMetadata;
+}
+
+function isCanonicalTimestamp(value: string): boolean {
+  try { return new Date(value).toISOString() === value; }
+  catch { return false; }
+}
+
 export function defaultDataDir(environment: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform): string {
   if (platform !== "win32") throw new Error("data_dir_required");
   const root = environment.LOCALAPPDATA;
@@ -66,7 +90,7 @@ export async function loadConfig(
     ? absolutePathSetting(environment.TRULEOFTWO_AGENT_DATA_DIR, "invalid_data_dir", platform)
     : defaultDataDir(environment, platform);
   const configuredJournalPath = environment.TRULEOFTWO_AGENT_JOURNAL_PATH;
-  const metadata = await readJsonFile<AgentMetadata>(join(dataDir, "agent.json"));
+  const metadata = parseAgentMetadata(await readJsonFile<unknown>(join(dataDir, "agent.json")));
   const configuredOrigin = environment.TRULEOFTWO_BASE_URL ? normalizeOrigin(environment.TRULEOFTWO_BASE_URL) : null;
   const pairedOrigin = metadata ? normalizeOrigin(metadata.origin) : null;
   if (mode === "run" && !metadata) throw new Error("pairing_metadata_required");

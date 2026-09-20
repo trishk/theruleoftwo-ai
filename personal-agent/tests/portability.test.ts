@@ -148,6 +148,37 @@ describe("persistent Linux configuration", () => {
     await writeFile(path, JSON.stringify({ version: 1, entries: { "request-uncertain": "unknown_phase" } }), { mode: 0o600 });
 
     await expect(new ExecutionJournal(path).load()).rejects.toThrow("invalid_execution_journal");
+
+    await writeFile(path, JSON.stringify({ version: 1, entries: ["accepted"] }), { mode: 0o600 });
+    await expect(new ExecutionJournal(path).load()).rejects.toThrow("invalid_execution_journal");
+
+    await writeFile(path, JSON.stringify({ version: 1, entries: { ["x".repeat(101)]: "accepted" } }), { mode: 0o600 });
+    await expect(new ExecutionJournal(path).load()).rejects.toThrow("invalid_execution_journal");
+
+    await writeFile(path, "null", { mode: 0o600 });
+    await expect(new ExecutionJournal(path).load()).rejects.toThrow("invalid_execution_journal");
+  });
+
+  it("rejects malformed persisted pairing metadata", async () => {
+    const dataDir = await temporaryDirectory();
+    const valid = {
+      agentId: credentialAgentId(credential),
+      origin: "https://example.test",
+      credentialFingerprint: credentialFingerprint(credential),
+      pairedAt: "2026-01-01T00:00:00.000Z",
+      version: 2,
+    };
+
+    for (const metadata of [
+      null,
+      { ...valid, version: 1 },
+      { ...valid, pairedAt: "not-a-timestamp" },
+      { ...valid, unexpected: true },
+    ]) {
+      await writeFile(join(dataDir, "agent.json"), JSON.stringify(metadata), { mode: 0o600 });
+      await expect(loadConfig({ TRULEOFTWO_AGENT_DATA_DIR: dataDir }, "run", "win32"))
+        .rejects.toThrow("invalid_agent_metadata");
+    }
   });
 
   it("requires explicit Linux storage and honors a custom persistent journal path", async () => {

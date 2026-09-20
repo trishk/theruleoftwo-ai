@@ -69,14 +69,67 @@ docker run --rm -it --read-only --tmpfs /tmp \
   theruleoftwo-personal-agent:local pair
 ```
 
-After pairing, normal Compose startup mounts the secret directory read-only. Start Chromium first, open its HTTPS GUI, and authenticate Google/Gemini manually. Start the Agent only after the Gemini page is ready.
+After pairing, normal Compose startup mounts the secret directory read-only. `TRULEOFTWO_BASE_URL` must be the exact origin used during pairing and must be reachable from the Agent container. Do not use `localhost` or `127.0.0.1` for a separately deployed server: those names refer to the Agent container. Use the existing deployed HTTPS origin. If both deployments share an explicitly configured Docker network, an HTTPS service hostname is also valid. HTTP is accepted only for loopback development and is not a NAS deployment option.
+
+Start Chromium, open its HTTPS GUI from the trusted LAN, and authenticate Google/Gemini manually. Then start the Agent. Startup ordering is not treated as readiness: if Chromium is unavailable, the Agent reports `chrome_unavailable` and does not receive jobs until a later heartbeat reports `ready`. If TheRuleOfTwo is unavailable during initial startup, the process exits and Compose restarts it; later poll/heartbeat failures use the existing retry/reconnect behavior.
 
 ```sh
 docker compose up -d chromium
 docker compose up -d personal-agent
 ```
 
-Do not publish port `9222`, mount the Docker socket, put secrets under source control, expose the GUI to the public internet, or copy anything from Chromium's profile. Preserve both `AGENT_STATE_PATH` and `BROWSER_PROFILE_PATH` across container recreation.
+Useful operations:
+
+```sh
+docker compose ps
+docker compose logs --tail=100 chromium personal-agent
+docker compose restart personal-agent
+docker compose restart chromium
+docker compose down                 # preserves bind-mounted state
+docker compose up -d
+```
+
+Do not add `-v` to `down`, delete either persistent host directory, publish port `9222`, mount the Docker socket, put secrets under source control, expose the GUI to the public internet, or copy anything from Chromium's profile. Preserve both `AGENT_STATE_PATH` and `BROWSER_PROFILE_PATH` across container recreation.
+
+### Runtime configuration contract
+
+| Concern | Setting | Secret | Required behavior |
+| --- | --- | --- | --- |
+| TheRuleOfTwo connectivity | `TRULEOFTWO_BASE_URL` | No | Exact reachable HTTPS origin used during pairing; never container-localhost for a separate server. |
+| Agent authentication | `${AGENT_SECRETS_PATH}/personal-agent-credential` mounted at `/run/secrets/personal-agent-credential` | Yes | Created by `pair`, host-restricted, mounted read-only during normal operation, and never committed. |
+| Agent persistent state | `AGENT_STATE_PATH` mounted at `/var/lib/theruleoftwo-personal-agent` | Credential-equivalent metadata/journal | Absolute persistent host path writable by `AGENT_UID:AGENT_GID`; contains `agent.json` and `in-flight.json`. |
+| Chromium persistent profile | `BROWSER_PROFILE_PATH` mounted at `/config` | Yes, profile is credential-equivalent | Absolute persistent host path writable by `PUID:PGID`; explicit profile is `/config/chromium-profile`. |
+| Chromium GUI | `GUI_BIND_ADDRESS`, `GUI_PORT`, `GUI_USER`, `GUI_PASSWORD` | Password is secret | Bind the exact NAS private-LAN address, not `0.0.0.0`; default port `3001`; HTTPS/self-signed certificate; no forwarding or tunnel. |
+| Private CDP | Compose-internal `http://chromium:9222` | No | Available only on `personal-browser`; port `9222` has no host publication. |
+| Ownership/timezone | `AGENT_UID`, `AGENT_GID`, `PUID`, `PGID`, `TZ` | No | Numeric IDs must own the corresponding host paths; use an IANA timezone. |
+
+### Pairing and persistence
+
+1. Start TheRuleOfTwo normally and sign in to its Settings page.
+2. Under **Personal Agent**, create a one-time pairing token.
+3. Run the one-shot `docker run ... pair` command above and enter the token only at the stdin prompt.
+4. Confirm that `agent.json` exists under `AGENT_STATE_PATH` and `personal-agent-credential` exists under `AGENT_SECRETS_PATH` without printing either file.
+5. Start through Compose. The read-only credential and persistent metadata are reused after restart; re-pair only after explicit revocation, credential rejection, or an intentional server-origin change.
+
+### Non-generating preflight
+
+Run this after Chromium is open, Google/Gemini authentication is complete, and the Agent has appeared online. It does not poll for a job, fill the composer, click Send, or send a Gemini prompt:
+
+```sh
+docker compose exec personal-agent node /app/dist/cli.js preflight
+```
+
+The command fails unless all of the following hold:
+
+- runtime configuration and pairing metadata are valid;
+- the injected Personal Agent credential exists and matches the persisted metadata;
+- the existing recovery journal is valid;
+- the Agent state directory and journal directory accept a create/sync/delete probe;
+- Chromium CDP is reachable and exposes a browser context;
+- the Gemini page is hydrated, signed in, and has exactly one usable composer;
+- TheRuleOfTwo accepts an authenticated heartbeat at the paired origin.
+
+The heartbeat updates the existing presence/adapter status. `sign_in_required`, `chrome_unavailable`, `gemini_unavailable`, malformed journal data, missing credentials, and server/authentication failures all produce a non-zero result. Preflight may create a fresh Gemini tab when no Gemini tab exists, but it never submits content.
 
 ## Recovery and ambiguity safety
 
@@ -88,6 +141,32 @@ There is a small acknowledgement window between a successful server event respon
 
 Optional bounded timeouts are `TRULEOFTWO_GEMINI_HYDRATION_TIMEOUT_MS` (default 15000, maximum 60000) and `TRULEOFTWO_GEMINI_RESPONSE_TIMEOUT_MS` (default 120000, maximum 600000). `TRULEOFTWO_AGENT_JOURNAL_PATH` can override the default `<data-dir>/in-flight.json` in either mode.
 
+## Future NAS E2E acceptance procedure
+
+This is the single controlled runtime test to run after deployment, not during static implementation:
+
+1. Deploy/start TheRuleOfTwo through its normal production deployment.
+2. In `personal-agent`, run `docker compose config --quiet`, then `docker compose up -d chromium personal-agent`.
+3. Open `https://<NAS-private-LAN-IP>:<GUI_PORT>` from the trusted LAN and authenticate with `GUI_USER`/`GUI_PASSWORD`.
+4. Manually authenticate Google/Gemini. Do not export or inspect browser authentication data. Leave exactly one Gemini tab open (the GUI tab may be closed after the browser state is ready).
+5. In TheRuleOfTwo Settings, verify **Personal Agent: Online** and **Gemini adapter: Ready**.
+6. Run `docker compose exec personal-agent node /app/dist/cli.js preflight` and require `Preflight passed. No Gemini prompt was sent.`
+7. In the normal TheRuleOfTwo UI select **Gemini → Personal Account**.
+8. Send exactly one prompt whose complete text is `Return exactly:` followed by a newline and `TR2_DOCKER_GEMINI_OK`.
+9. From application/Agent records and logs, verify the lifecycle `queued → accepted → submitted_to_provider → completed` with no retry or ambiguity transition.
+10. Verify the exact response `TR2_DOCKER_GEMINI_OK` reaches TheRuleOfTwo.
+11. Verify the resulting `ProviderConversation` maps/pins the returned Gemini conversation ID, without printing browser credentials or profile contents.
+12. Verify `in-flight.json` contains no entry for the completed request (an empty journal is appropriate); do not delete or rewrite the journal manually.
+13. Run `docker compose restart personal-agent`; verify it reconnects, returns Online/Ready, and does not replay the completed request.
+14. Run `docker compose restart chromium`; verify the persistent profile returns and Gemini is still authenticated, or explicitly record that Google requires manual reauthentication.
+15. Run `docker compose down` followed by `docker compose up -d` without deleting `AGENT_STATE_PATH` or `BROWSER_PROFILE_PATH`. Verify the Agent returns, the Chromium profile returns, Gemini remains authenticated or explicitly requests reauthentication, and no Agent safety state is silently lost.
+16. Use Synology Container Manager or `docker stats --no-stream` to record approximate CPU and RAM for both containers at idle, with Gemini open, and during one normal response. Resource observations are measurements, not pass/fail limits unless a limit is agreed before the test.
+
+Stop and record evidence rather than resending if any state after Send is uncertain. A second live prompt is not part of this acceptance procedure.
+
 ## Validation status
 
-Docker/Linux support is **implemented but not NAS runtime validated**. No live Gemini generation is part of Increment 2C. Runtime validation of the Chromium GUI, private CDP connection, manual authentication, restart persistence, and resource use remains a later Synology gate.
+- **IMPLEMENTED / STATICALLY VALIDATED:** container wiring, persistent mounts, private CDP configuration, pairing contract, presence semantics, reconnect behavior, non-generating preflight, and durable recovery behavior.
+- **LOCAL CONTAINER RUNTIME VALIDATED:** NO unless separately reported with runtime evidence.
+- **LIVE GEMINI VALIDATED:** NO.
+- **NAS RUNTIME VALIDATED:** NO. The procedure above is the next gate.
