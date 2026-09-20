@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { dirname, join, posix } from "node:path";
 
 export interface CredentialStore {
   get(): Promise<string | null>;
@@ -66,4 +66,48 @@ export class DpapiCredentialStore implements CredentialStore {
   async delete(): Promise<void> {
     await rm(this.path, { force: true });
   }
+}
+
+export class FileCredentialStore implements CredentialStore {
+  constructor(private readonly path: string, private readonly readOnly = false) {}
+
+  async get(): Promise<string | null> {
+    try {
+      return (await readFile(this.path, "utf8")).replace(/\r?\n$/, "");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT" && !this.readOnly) return null;
+      throw new Error("credential_store_unavailable");
+    }
+  }
+
+  async set(credential: string): Promise<void> {
+    if (this.readOnly) throw new Error("credential_store_read_only");
+    await mkdir(dirname(this.path), { recursive: true });
+    const temporary = `${this.path}.${process.pid}.tmp`;
+    await writeFile(temporary, credential, { encoding: "utf8", mode: 0o600 });
+    await rename(temporary, this.path);
+  }
+
+  async delete(): Promise<void> {
+    if (!this.readOnly) await rm(this.path, { force: true });
+  }
+}
+
+type CredentialStoreOptions = {
+  platform: NodeJS.Platform;
+  environment: NodeJS.ProcessEnv;
+  mode: "pair" | "run";
+  dataDir: string;
+};
+
+export function createCredentialStore(options: CredentialStoreOptions): CredentialStore {
+  if (options.platform === "win32") return new DpapiCredentialStore(join(options.dataDir, "credential.dpapi"));
+  const configuredPath = options.environment.TRULEOFTWO_AGENT_CREDENTIAL_FILE;
+  if (configuredPath) {
+    if (!posix.isAbsolute(configuredPath)) {
+      throw new Error("invalid_credential_file");
+    }
+    return new FileCredentialStore(configuredPath, options.mode === "run");
+  }
+  throw new Error("credential_file_required");
 }

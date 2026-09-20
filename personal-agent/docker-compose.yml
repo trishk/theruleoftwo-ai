@@ -1,0 +1,57 @@
+services:
+  chromium:
+    image: lscr.io/linuxserver/chromium:latest@sha256:0fb230264d724bebb65bf7d777583de1f637eb4a4dea7e1ced20011456e22c7d
+    environment:
+      PUID: "${PUID:-1000}"
+      PGID: "${PGID:-1000}"
+      TZ: "${TZ:-Etc/UTC}"
+      CUSTOM_USER: "${GUI_USER:?set GUI_USER}"
+      PASSWORD: "${GUI_PASSWORD:?set GUI_PASSWORD}"
+      CHROME_CLI: >-
+        --remote-debugging-address=0.0.0.0
+        --remote-debugging-port=9222
+        --user-data-dir=/config/chromium-profile
+    volumes:
+      - "${BROWSER_PROFILE_PATH:?set BROWSER_PROFILE_PATH}:/config:rw"
+    ports:
+      - "${GUI_BIND_ADDRESS:-127.0.0.1}:${GUI_PORT:-3001}:3001"
+    shm_size: "1gb"
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - personal-browser
+
+  personal-agent:
+    image: theruleoftwo-personal-agent:local
+    build:
+      context: ..
+      dockerfile: personal-agent/Dockerfile
+    user: "${AGENT_UID:-1000}:${AGENT_GID:-1000}"
+    environment:
+      TRULEOFTWO_BASE_URL: "${TRULEOFTWO_BASE_URL:?set TRULEOFTWO_BASE_URL}"
+      TRULEOFTWO_AGENT_DATA_DIR: /var/lib/theruleoftwo-personal-agent
+      TRULEOFTWO_AGENT_JOURNAL_PATH: /var/lib/theruleoftwo-personal-agent/in-flight.json
+      TRULEOFTWO_AGENT_CREDENTIAL_FILE: /run/secrets/personal-agent-credential
+      TRULEOFTWO_GEMINI_CDP_ENDPOINT: http://chromium:9222
+      TRULEOFTWO_ALLOW_PRIVATE_CONTAINER_CDP: "1"
+    volumes:
+      - "${AGENT_STATE_PATH:?set AGENT_STATE_PATH}:/var/lib/theruleoftwo-personal-agent:rw"
+      - "${AGENT_SECRETS_PATH:?set AGENT_SECRETS_PATH}:/run/secrets:ro"
+    depends_on:
+      chromium:
+        condition: service_started
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    networks:
+      - personal-browser
+
+networks:
+  personal-browser:
+    driver: bridge

@@ -1,0 +1,5 @@
+**
+!personal-agent/package.json
+!personal-agent/package-lock.json
+!personal-agent/tsconfig.json
+!personal-agent/src/**

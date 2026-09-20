@@ -25,7 +25,7 @@ afterEach(async () => { await Promise.all(temporaryDirectories.splice(0).map((pa
 async function temporaryDirectory() { const path = await mkdtemp(join(tmpdir(), "personal-agent-test-")); temporaryDirectories.push(path); return path; }
 
 function config(dataDir: string): AgentConfig {
-  return { baseUrl: "https://example.test", metadata: metadata(CREDENTIAL), dataDir, pollWaitMs: 0, requestTimeoutMs: 100, heartbeatMs: 300_000,
+  return { baseUrl: "https://example.test", metadata: metadata(CREDENTIAL), dataDir, journalPath: join(dataDir, "in-flight.json"), pollWaitMs: 0, requestTimeoutMs: 100, heartbeatMs: 300_000,
     geminiCdpEndpoint: "http://127.0.0.1:9222", geminiHydrationTimeoutMs: 15_000, geminiResponseTimeoutMs: 120_000 };
 }
 
@@ -467,23 +467,20 @@ describe("reconnect, recovery, and shutdown", () => {
     const adapter = new FakeGeminiAdapter();
     const execute = vi.spyOn(adapter, "execute");
     const client: FakeClient = {
-      poll: vi.fn(async () => job),
+      poll: vi.fn().mockResolvedValueOnce(job).mockImplementation(async () => { runtime.stop(); return null; }),
       event: vi.fn(async (_credential: string, event: AgentEvent) => {
         if (event.type !== "generation.ambiguous") return;
         ambiguousAttempts += 1;
         if (ambiguousAttempts === 1) throw new AgentHttpError("network_error", true);
-        runtime.stop();
       }),
     };
     ({ runtime } = await makeRuntime({ client, adapter, dataDir }));
     await runtime.run();
     expect(ambiguousAttempts).toBe(2);
     expect(execute).not.toHaveBeenCalled();
-    await vi.waitFor(async () => {
-      const persisted = new ExecutionJournal(join(dataDir, "journal.json"));
-      await persisted.load();
-      expect(persisted.get(job.requestId)).toBeUndefined();
-    });
+    const persisted = new ExecutionJournal(join(dataDir, "journal.json"));
+    await persisted.load();
+    expect(persisted.get(job.requestId)).toBeUndefined();
   });
 
   it("retains submitted protection after a lost response and allows later recovery", async () => {

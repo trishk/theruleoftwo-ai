@@ -11,9 +11,14 @@ export class ExecutionJournal {
     const data = await readJsonFile<JournalData>(this.path);
     if (!data) return;
     if (data.version !== 1 || typeof data.entries !== "object" || data.entries === null) throw new Error("invalid_execution_journal");
+    const loaded = new Map<string, ExecutionPhase>();
     for (const [id, phase] of Object.entries(data.entries)) {
-      if (id && (phase === "received" || phase === "accepted" || phase === "send_attempted" || phase === "submitted")) this.entries.set(id, phase);
+      if (!id || (phase !== "received" && phase !== "accepted" && phase !== "send_attempted" && phase !== "submitted")) {
+        throw new Error("invalid_execution_journal");
+      }
+      loaded.set(id, phase);
     }
+    this.entries = loaded;
   }
 
   get(requestId: string) { return this.entries.get(requestId); }

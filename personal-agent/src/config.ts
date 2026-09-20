@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, posix, win32 } from "node:path";
 import { readJsonFile, writeJsonAtomic } from "./storage.js";
 
 export type AgentMetadata = { agentId: string; origin: string; credentialFingerprint: string; pairedAt: string; version: 2 };
@@ -9,12 +9,14 @@ export type AgentConfig = {
   requestTimeoutMs: number;
   heartbeatMs: number;
   dataDir: string;
+  journalPath: string;
   geminiCdpEndpoint: string;
   geminiHydrationTimeoutMs: number;
   geminiResponseTimeoutMs: number;
 };
 
-export function defaultDataDir(environment: NodeJS.ProcessEnv = process.env): string {
+export function defaultDataDir(environment: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform): string {
+  if (platform !== "win32") throw new Error("data_dir_required");
   const root = environment.LOCALAPPDATA;
   if (!root) throw new Error("local_app_data_unavailable");
   return join(root, "TheRuleOfTwo", "PersonalAgent");
@@ -34,19 +36,36 @@ export function normalizeOrigin(value: string): string {
   return url.origin;
 }
 
-export function normalizeLoopbackCdpEndpoint(value: string): string {
+export function normalizeCdpEndpoint(value: string, allowContainerService = false): string {
   const url = new URL(value);
   const hostname = url.hostname.toLowerCase();
+  const loopback = hostname === "127.0.0.1" || hostname === "localhost" || hostname === "[::1]";
+  const containerService = /^(?=.{1,63}$)[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(hostname);
   if (url.protocol !== "http:" || url.username || url.password ||
-      (hostname !== "127.0.0.1" && hostname !== "localhost" && hostname !== "[::1]") ||
+      (!loopback && !(allowContainerService && containerService)) || !url.port ||
       (url.pathname !== "/" && url.pathname !== "") || url.search || url.hash) {
     throw new Error("invalid_cdp_endpoint");
   }
   return url.origin;
 }
 
-export async function loadConfig(environment: NodeJS.ProcessEnv = process.env, mode: "pair" | "run" = "run"): Promise<AgentConfig> {
-  const dataDir = environment.TRULEOFTWO_AGENT_DATA_DIR || defaultDataDir(environment);
+export const normalizeLoopbackCdpEndpoint = (value: string) => normalizeCdpEndpoint(value);
+
+function absolutePathSetting(value: string, errorCode: string, platform: NodeJS.Platform): string {
+  const absolute = platform === "win32" ? win32.isAbsolute(value) : posix.isAbsolute(value);
+  if (!absolute) throw new Error(errorCode);
+  return value;
+}
+
+export async function loadConfig(
+  environment: NodeJS.ProcessEnv = process.env,
+  mode: "pair" | "run" = "run",
+  platform: NodeJS.Platform = process.platform,
+): Promise<AgentConfig> {
+  const dataDir = environment.TRULEOFTWO_AGENT_DATA_DIR
+    ? absolutePathSetting(environment.TRULEOFTWO_AGENT_DATA_DIR, "invalid_data_dir", platform)
+    : defaultDataDir(environment, platform);
+  const configuredJournalPath = environment.TRULEOFTWO_AGENT_JOURNAL_PATH;
   const metadata = await readJsonFile<AgentMetadata>(join(dataDir, "agent.json"));
   const configuredOrigin = environment.TRULEOFTWO_BASE_URL ? normalizeOrigin(environment.TRULEOFTWO_BASE_URL) : null;
   const pairedOrigin = metadata ? normalizeOrigin(metadata.origin) : null;
@@ -56,10 +75,16 @@ export async function loadConfig(environment: NodeJS.ProcessEnv = process.env, m
   if (!baseUrl) throw new Error("base_url_required");
   return {
     baseUrl, metadata, dataDir,
+    journalPath: configuredJournalPath
+      ? absolutePathSetting(configuredJournalPath, "invalid_journal_path", platform)
+      : journalPath(dataDir),
     pollWaitMs: integerSetting(environment.TRULEOFTWO_POLL_WAIT_MS, 20_000, 25_000),
     requestTimeoutMs: integerSetting(environment.TRULEOFTWO_REQUEST_TIMEOUT_MS, 30_000, 120_000),
     heartbeatMs: integerSetting(environment.TRULEOFTWO_HEARTBEAT_MS, 15_000, 300_000),
-    geminiCdpEndpoint: normalizeLoopbackCdpEndpoint(environment.TRULEOFTWO_GEMINI_CDP_ENDPOINT ?? "http://127.0.0.1:9222"),
+    geminiCdpEndpoint: normalizeCdpEndpoint(
+      environment.TRULEOFTWO_GEMINI_CDP_ENDPOINT ?? "http://127.0.0.1:9222",
+      platform !== "win32" && environment.TRULEOFTWO_ALLOW_PRIVATE_CONTAINER_CDP === "1",
+    ),
     geminiHydrationTimeoutMs: integerSetting(environment.TRULEOFTWO_GEMINI_HYDRATION_TIMEOUT_MS, 15_000, 60_000),
     geminiResponseTimeoutMs: integerSetting(environment.TRULEOFTWO_GEMINI_RESPONSE_TIMEOUT_MS, 120_000, 600_000),
   };
